@@ -37,9 +37,22 @@ android {
     buildFeatures {
         compose = true
     }
+    // Разрешаем cleartext трафик для дебага
+    buildTypes {
+        debug {
+            isDebuggable = true
+        }
+    }
 }
 
 dependencies {
+    // Retrofit — HTTP запросы
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    // Coroutines — асинхронность
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

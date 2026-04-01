@@ -1,12 +1,15 @@
 package ru.fsociety.vpn
 
+import kotlinx.coroutines.launch
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,11 +23,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.fsociety.vpn.ui.theme.*
 
+// Модель сервера
 data class Server(
     val name: String,
     val country: String,
@@ -46,21 +51,26 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App() {
-    // Состояние авторизации — false = не вошёл, показываем LoginScreen
-    var isLoggedIn by remember { mutableStateOf(false) }
+    var token by remember { mutableStateOf("") }
 
-    if (isLoggedIn) {
-        AppNavigation(onLogout = { isLoggedIn = false })
+    if (token.isNotEmpty()) {
+        AppNavigation(
+            token = token,
+            onLogout = { token = "" }
+        )
     } else {
-        LoginScreen(onLogin = { isLoggedIn = true })
+        LoginScreen(onLogin = { token = it })
     }
 }
 
+
 @Composable
-fun LoginScreen(onLogin: () -> Unit) {
+fun LoginScreen(onLogin: (String) -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -73,374 +83,457 @@ fun LoginScreen(onLogin: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Логотип
             Row {
-                Text(
-                    text = "[f]",
-                    color = Accent,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "society",
-                    color = TextPrimary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
+                Text("[f]", color = Accent, fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("society", color = TextPrimary, fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Подзаголовок
-            Text(
-                text = "// ВХОД В АККАУНТ",
-                color = TextMuted,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 0.15.sp
-            )
+            Text("// ВХОД В АККАУНТ", color = TextMuted, fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp)
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-            // Поле email
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = {
-                    Text(
-                        "EMAIL",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                },
+                value = email, onValueChange = { email = it },
+                label = { Text("EMAIL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
+                enabled = !isLoading,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Accent,
-                    unfocusedBorderColor = Border,
-                    focusedLabelColor = Accent,
-                    unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                    focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                     cursorColor = Accent
                 )
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Поле пароля
             OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = {
-                    Text(
-                        "ПАРОЛЬ",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                },
+                value = password, onValueChange = { password = it },
+                label = { Text("ПАРОЛЬ", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 singleLine = true,
+                enabled = !isLoading,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Accent,
-                    unfocusedBorderColor = Border,
-                    focusedLabelColor = Accent,
-                    unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                    focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                     cursorColor = Accent
                 )
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Забыл пароль
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Text(
-                    text = "Забыл пароль",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable { /* открыть браузер */ }
-                )
-            }
+            Text(
+                text = "Забыл пароль?",
+                color = TextMuted, fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.fillMaxWidth().clickable { }
+            )
 
-            // Ошибка
             if (errorMsg.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = errorMsg,
-                    color = ErrorRed,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
+                Text(errorMsg, color = ErrorRed, fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Кнопка входа
             Button(
                 onClick = {
                     if (email.isEmpty() || password.isEmpty()) {
                         errorMsg = "Заполните все поля"
-                    } else {
-                        // TODO: реальный API запрос
-                        onLogin()
+                        return@Button
+                    }
+                    // Реальный API запрос
+                    scope.launch {
+                        isLoading = true
+                        errorMsg = ""
+                        try {
+                            val response = ApiClient.service.login(email, password)
+                            onLogin(response.access_token)
+                        } catch (e: Exception) {
+                            errorMsg = "Неверный email или пароль"
+                        } finally {
+                            isLoading = false
+                        }
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Accent,
-                    contentColor = BgDark
-                ),
+                    containerColor = Accent, contentColor = BgDark),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
-                Text(
-                    text = "ВОЙТИ →",
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = BgDark,
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("ВОЙТИ →", fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Ссылка на поддержку в Telegram
             Text(
                 text = "Поддержка в Telegram",
-                color = TextMuted,
-                fontSize = 11.sp,
+                color = TextMuted, fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable { /* открыть tg */ }
+                modifier = Modifier.clickable { }
             )
+
+            Spacer(modifier = Modifier.height(32.dp))
+            HorizontalDivider(color = Border, thickness = 1.dp)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text("Нет аккаунта?", color = TextMuted, fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace)
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = { },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent, contentColor = TextPrimary),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Border)
+            ) {
+                Text("ЗАРЕГИСТРИРОВАТЬСЯ →", fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
         }
     }
 }
 
 @Composable
-fun AppNavigation(onLogout: () -> Unit) {
+fun AppNavigation(token: String, onLogout: () -> Unit) {
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
         containerColor = BgDark,
         bottomBar = {
-            NavigationBar(
-                containerColor = Bg2,
-                tonalElevation = 0.dp
-            ) {
+            NavigationBar(containerColor = Bg2, tonalElevation = 0.dp) {
                 NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
+                    selected = selectedTab == 0, onClick = { selectedTab = 0 },
                     icon = {},
-                    label = {
-                        Text("ГЛАВНАЯ", fontFamily = FontFamily.Monospace, fontSize = 9.sp)
-                    },
+                    label = { Text("ГЛАВНАЯ", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedTextColor = Accent,
-                        unselectedTextColor = TextMuted,
-                        indicatorColor = Color.Transparent
-                    )
+                        selectedTextColor = Accent, unselectedTextColor = TextMuted,
+                        indicatorColor = Color.Transparent)
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    selected = selectedTab == 1, onClick = { selectedTab = 1 },
                     icon = {},
-                    label = {
-                        Text("ИСКЛЮЧЕНИЯ", fontFamily = FontFamily.Monospace, fontSize = 9.sp)
-                    },
+                    label = { Text("ПРАВИЛА", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedTextColor = Accent,
-                        unselectedTextColor = TextMuted,
-                        indicatorColor = Color.Transparent
-                    )
+                        selectedTextColor = Accent, unselectedTextColor = TextMuted,
+                        indicatorColor = Color.Transparent)
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
+                    selected = selectedTab == 2, onClick = { selectedTab = 2 },
                     icon = {},
-                    label = {
-                        Text("НАСТРОЙКИ", fontFamily = FontFamily.Monospace, fontSize = 9.sp)
-                    },
+                    label = { Text("НАСТРОЙКИ", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedTextColor = Accent,
-                        unselectedTextColor = TextMuted,
-                        indicatorColor = Color.Transparent
-                    )
+                        selectedTextColor = Accent, unselectedTextColor = TextMuted,
+                        indicatorColor = Color.Transparent)
                 )
             }
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
-                0 -> HomeScreen()
-                1 -> ExclusionsScreen()
-                2 -> SettingsScreen(onLogout = onLogout)
+                0 -> HomeScreen(token = token)
+                1 -> RulesScreen()
+                2 -> SettingsScreen(token = token, onLogout = onLogout)
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(token: String) {
     var isConnected by remember { mutableStateOf(false) }
-    var selectedServer by remember { mutableStateOf("Финляндия — Хельсинки") }
+    var selectedServer by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableStateOf(0) }
+    var favoriteServers by remember { mutableStateOf(setOf<String>()) }
+    var showFavoriteDialog by remember { mutableStateOf<String?>(null) }
+    var servers by remember { mutableStateOf<List<ServerResponse>>(emptyList()) }
+    var isLoadingServers by remember { mutableStateOf(true) }
 
-    val servers = listOf(
-        Server("Финляндия — Хельсинки", "Finland", "🇫🇮", true),
-        Server("Швейцария — Цуг", "Switzerland", "🇨🇭", true),
-        Server("Москва — Россия", "Russia", "🇷🇺", true),
-        Server("Германия — Франкфурт", "Germany", "🇩🇪", false),
-    )
+    // Загружаем серверы из API при входе
+    LaunchedEffect(token) {
+        try {
+            val result = ApiClient.service.getServers("Bearer $token")
+            servers = result
+            selectedServer = result.firstOrNull { it.is_active }?.name ?: ""
+        } catch (e: Exception) {
+            // ошибка загрузки
+        } finally {
+            isLoadingServers = false
+        }
+    }
+
+    val displayedServers = if (selectedTab == 0) servers
+    else servers.filter { favoriteServers.contains(it.name) }
+
+    // Диалог избранного
+    showFavoriteDialog?.let { serverName ->
+        AlertDialog(
+            onDismissRequest = { showFavoriteDialog = null },
+            containerColor = Bg2,
+            title = {
+                Text(serverName, color = TextPrimary, fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    if (favoriteServers.contains(serverName)) "Убрать из избранного?"
+                    else "Добавить в избранное?",
+                    color = TextMuted, fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    favoriteServers = if (favoriteServers.contains(serverName))
+                        favoriteServers - serverName
+                    else favoriteServers + serverName
+                    showFavoriteDialog = null
+                }) {
+                    Text(
+                        if (favoriteServers.contains(serverName)) "УБРАТЬ" else "ДОБАВИТЬ",
+                        color = Accent, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFavoriteDialog = null }) {
+                    Text("ОТМЕНА", color = TextMuted,
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            }
+        )
+    }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDark)
+        modifier = Modifier.fillMaxSize().background(BgDark)
     ) {
-        // Верхняя часть
-        Column(
+        // Картинка — заглушка
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(top = 48.dp, bottom = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .height(200.dp)
+                .background(Bg2),
+            contentAlignment = Alignment.Center
         ) {
-            // Статус
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("[f]", color = Accent, fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("// TODO: маска Гая Фокса", color = TextDim,
+                    fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        HorizontalDivider(color = Border, thickness = 1.dp)
+
+        // Вкладки + статус
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("ВСЕ",
+                color = if (selectedTab == 0) Accent else TextMuted,
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { selectedTab = 0 })
+            Text("ИЗБРАННЫЕ",
+                color = if (selectedTab == 1) Accent else TextMuted,
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { selectedTab = 1 })
+            Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = if (isConnected) "● ПОДКЛЮЧЁН" else "○ ОТКЛЮЧЁН",
+                text = if (isConnected) "● $selectedServer" else "○ Отключён",
                 color = if (isConnected) Accent else TextMuted,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
+                fontSize = 10.sp, fontFamily = FontFamily.Monospace
             )
+        }
 
-            Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(color = Border, thickness = 1.dp)
 
-            // Текущий сервер
-            Text(
-                text = selectedServer,
-                color = TextPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Кнопка
-            Button(
-                onClick = { isConnected = !isConnected },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isConnected) ErrorRed else Accent,
-                    contentColor = BgDark
-                ),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
-            ) {
+        // Загрузка или список серверов
+        if (isLoadingServers) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+            }
+        } else if (displayedServers.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center) {
                 Text(
-                    text = if (isConnected) "ОТКЛЮЧИТЬСЯ" else "ПОДКЛЮЧИТЬСЯ",
+                    text = if (selectedTab == 1) "Удерживайте сервер\nчтобы добавить в избранное"
+                    else "Нет доступных серверов",
+                    color = TextMuted, fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    textAlign = TextAlign.Center
                 )
             }
-        }
-
-        Divider(color = Border, thickness = 1.dp)
-
-        // Заголовок серверов
-        Text(
-            text = "// СЕРВЕРЫ",
-            color = Accent,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 0.15.sp,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-        )
-
-        // Список серверов
-        LazyColumn {
-            items(servers) { server ->
-                ServerRow(
-                    server = server,
-                    isSelected = selectedServer == server.name,
-                    onClick = {
-                        if (server.isActive) {
-                            selectedServer = server.name
-                            isConnected = false
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(displayedServers) { server ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {
+                                    if (server.is_active) {
+                                        selectedServer = server.name
+                                        isConnected = false
+                                    }
+                                },
+                                onLongClick = { showFavoriteDialog = server.name }
+                            )
+                            .background(if (selectedServer == server.name) Surface else BgDark)
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Флаг по стране
+                        Text(
+                            text = when (server.country) {
+                                "Finland" -> "🇫🇮"
+                                "Switzerland" -> "🇨🇭"
+                                "Russia" -> "🇷🇺"
+                                "Germany" -> "🇩🇪"
+                                "Netherlands" -> "🇳🇱"
+                                else -> "🌍"
+                            },
+                            fontSize = 20.sp
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = server.name,
+                                color = if (server.is_active) TextPrimary else TextMuted,
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold
+                            )
+                            if (favoriteServers.contains(server.name)) {
+                                Text("★ избранное", color = Accent,
+                                    fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            }
                         }
+                        Text(
+                            text = if (server.is_active) "● ONLINE" else "СКОРО",
+                            color = if (server.is_active) Accent else TextMuted,
+                            fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                        )
                     }
-                )
-                Divider(color = Border, thickness = 1.dp)
+                    HorizontalDivider(color = Border, thickness = 1.dp)
+                }
             }
         }
-    }
-}
 
-@Composable
-fun ServerRow(server: Server, isSelected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = server.isActive) { onClick() }
-            .background(if (isSelected) Surface else BgDark)
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = server.flag, fontSize = 20.sp)
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = server.name,
-            color = if (server.isActive) TextPrimary else TextMuted,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = if (server.isActive) "● ONLINE" else "СКОРО",
-            color = if (server.isActive) Accent else TextMuted,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace
-        )
-    }
-}
-
-@Composable
-fun ExclusionsScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize().background(BgDark),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Кнопка подключения
+        HorizontalDivider(color = Border, thickness = 1.dp)
+        Button(
+            onClick = { isConnected = !isConnected },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isConnected) ErrorRed else Accent,
+                contentColor = BgDark
+            ),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+        ) {
             Text(
-                text = "// ИСКЛЮЧЕНИЯ",
-                color = Accent,
+                text = if (isConnected) "● ОТКЛЮЧИТЬСЯ" else "○ ПОДКЛЮЧИТЬСЯ",
                 fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
+                fontWeight = FontWeight.Bold, fontSize = 13.sp
             )
-            Spacer(modifier = Modifier.height(12.dp))
+        }
+    }
+}
+
+
+
+@Composable
+fun RulesScreen() {
+    var selectedTab by remember { mutableStateOf(0) } // 0=Приложения, 1=Сайты
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(BgDark)
+    ) {
+        // Заголовок
+        Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
+            Text("// ПРАВИЛА", color = Accent, fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Раздельный туннель.", color = TextPrimary,
+                fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Вкладки Приложения / Сайты
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
             Text(
-                text = "Раздельное туннелирование\nбудет доступно скоро",
+                text = "ПРИЛОЖЕНИЯ",
+                color = if (selectedTab == 0) Accent else TextMuted,
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { selectedTab = 0 }
+            )
+            Text(
+                text = "САЙТЫ",
+                color = if (selectedTab == 1) Accent else TextMuted,
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { selectedTab = 1 }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = Border, thickness = 1.dp)
+
+        // Заглушка
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (selectedTab == 0)
+                    "Раздельное туннелирование\nдля приложений будет скоро"
+                else "Исключения для сайтов\nбудут скоро",
                 color = TextMuted,
+                fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
+                textAlign = TextAlign.Center
             )
         }
     }
 }
 
 @Composable
-fun SettingsScreen(onLogout: () -> Unit) {
+fun SettingsScreen(token: String, onLogout: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -448,22 +541,11 @@ fun SettingsScreen(onLogout: () -> Unit) {
             .padding(24.dp)
             .padding(top = 48.dp)
     ) {
-        Text(
-            text = "// НАСТРОЙКИ",
-            color = Accent,
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace
-        )
-
+        Text("// НАСТРОЙКИ", color = Accent, fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Аккаунт.",
-            color = TextPrimary,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
-
+        Text("Аккаунт.", color = TextPrimary, fontSize = 28.sp,
+            fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(32.dp))
 
         SettingsRow(label = "Email", value = "user@example.com")
@@ -472,23 +554,17 @@ fun SettingsScreen(onLogout: () -> Unit) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Кнопка выхода
+        // Выход
         Button(
             onClick = onLogout,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent,
-                contentColor = ErrorRed
-            ),
+                containerColor = Color.Transparent, contentColor = ErrorRed),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
         ) {
-            Text(
-                text = "ВЫЙТИ →",
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp
-            )
+            Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
     }
 }
@@ -501,19 +577,11 @@ fun SettingsRow(label: String, value: String) {
             .border(1.dp, Border)
             .padding(16.dp)
     ) {
-        Text(
-            text = label.uppercase(),
-            color = TextMuted,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace
-        )
+        Text(label.uppercase(), color = TextMuted, fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            color = TextPrimary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Text(value, color = TextPrimary, fontSize = 14.sp,
+            fontWeight = FontWeight.Bold)
     }
     Spacer(modifier = Modifier.height(8.dp))
 }
