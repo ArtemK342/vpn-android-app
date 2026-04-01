@@ -43,23 +43,33 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             VpnappTheme {
-                App()
+                App(context = this)
             }
         }
     }
 }
 
 @Composable
-fun App() {
-    var token by remember { mutableStateOf("") }
+fun App(context: android.content.Context) {
+    // Загружаем сохранённый токен
+    val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
+    var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
 
     if (token.isNotEmpty()) {
         AppNavigation(
             token = token,
-            onLogout = { token = "" }
+            onLogout = {
+                // Удаляем токен при выходе
+                prefs.edit().remove("token").apply()
+                token = ""
+            }
         )
     } else {
-        LoginScreen(onLogin = { token = it })
+        LoginScreen(onLogin = {
+            // Сохраняем токен
+            prefs.edit().putString("token", it).apply()
+            token = it
+        })
     }
 }
 
