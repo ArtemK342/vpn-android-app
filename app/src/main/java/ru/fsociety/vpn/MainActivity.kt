@@ -532,8 +532,25 @@ fun RulesScreen() {
     }
 }
 
+
 @Composable
 fun SettingsScreen(token: String, onLogout: () -> Unit) {
+    var user by remember { mutableStateOf<UserResponse?>(null) }
+    var subscription by remember { mutableStateOf<SubscriptionResponse?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Загружаем данные пользователя и подписки
+    LaunchedEffect(token) {
+        try {
+            user = ApiClient.service.getMe("Bearer $token")
+            subscription = ApiClient.service.getSubscription("Bearer $token")
+        } catch (e: Exception) {
+            // ошибка загрузки
+        } finally {
+            isLoading = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -548,26 +565,53 @@ fun SettingsScreen(token: String, onLogout: () -> Unit) {
             fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(32.dp))
 
-        SettingsRow(label = "Email", value = "user@example.com")
-        SettingsRow(label = "Подписка", value = "Нет активной подписки")
-        SettingsRow(label = "Версия", value = "1.0.0")
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxWidth().padding(32.dp),
+                contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+            }
+        } else {
+            // Email
+            SettingsRow(
+                label = "Email",
+                value = user?.email ?: "—"
+            )
 
-        Spacer(modifier = Modifier.height(32.dp))
+            // Подписка
+            SettingsRow(
+                label = "Подписка",
+                value = if (subscription?.is_active == true)
+                    "${subscription?.plan} · до ${subscription?.expires_at?.take(10)}"
+                else "Нет активной подписки"
+            )
 
-        // Выход
-        Button(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent, contentColor = ErrorRed),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
-        ) {
-            Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            // Роль (показываем только если не user)
+            if (user?.role != "user" && user?.role != null) {
+                SettingsRow(label = "Роль", value = user?.role ?: "—")
+            }
+
+            // Версия
+            SettingsRow(label = "Версия", value = "1.0.0")
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Кнопка выхода
+            Button(
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent, contentColor = ErrorRed),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
+            ) {
+                Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
         }
     }
 }
+
+
 
 @Composable
 fun SettingsRow(label: String, value: String) {
