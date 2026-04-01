@@ -42,6 +42,11 @@ data class SubscriptionResponse(
     val expires_at: String?
 )
 
+data class RegisterRequest(
+    val email: String,
+    val password: String
+)
+
 // ── Интерфейс API ──
 
 interface ApiService {
@@ -72,6 +77,11 @@ interface ApiService {
     suspend fun getSubscription(
         @Header("Authorization") token: String
     ): SubscriptionResponse
+
+    @POST("register")
+    suspend fun register(
+        @Body body: RegisterRequest
+    ): UserResponse
 }
 
 // ── Retrofit клиент (singleton) ──
