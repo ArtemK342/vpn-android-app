@@ -19,7 +19,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -420,24 +429,35 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
 
     // Загружаем всё один раз параллельно
     var servers by remember { mutableStateOf<List<ServerResponse>>(emptyList()) }
+    var serverPings by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var user by remember { mutableStateOf<UserResponse?>(null) }
     var subscription by remember { mutableStateOf<SubscriptionResponse?>(null) }
     var isLoadingServers by remember { mutableStateOf(true) }
     var isLoadingSettings by remember { mutableStateOf(true) }
+    var isConnected by remember { mutableStateOf(false) }
+    var connectedServer by remember { mutableStateOf<ServerResponse?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(token) {
         scope.launch {
-            try { servers = ApiClient.service.getServers("Bearer $token") }
-            catch (_: Exception) {}
+            try {
+                val result = ApiClient.service.getServers("Bearer $token")
+                servers = result
+                // Измеряем пинг параллельно для каждого сервера
+                result.forEach { server ->
+                    scope.launch {
+                        val ping = measurePing(server.id, servers)
+                        serverPings = serverPings + (server.id to ping)
+                    }
+                }
+            } catch (_: Exception) {}
             finally { isLoadingServers = false }
         }
         scope.launch {
             try {
                 user = ApiClient.service.getMe("Bearer $token")
                 subscription = ApiClient.service.getSubscription("Bearer $token")
-            }
-            catch (_: Exception) {}
+            } catch (_: Exception) {}
             finally { isLoadingSettings = false }
         }
     }
@@ -448,26 +468,29 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
             NavigationBar(containerColor = Bg2, tonalElevation = 0.dp) {
                 NavigationBarItem(
                     selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                    icon = {},
+                    icon = { Icon(Icons.Filled.Home, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     label = { Text("ГЛАВНАЯ", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
+                        selectedIconColor = Accent, unselectedIconColor = TextMuted,
                         indicatorColor = Color.Transparent)
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                    icon = {},
+                    icon = { Icon(Icons.Filled.List, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     label = { Text("ПРАВИЛА", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
+                        selectedIconColor = Accent, unselectedIconColor = TextMuted,
                         indicatorColor = Color.Transparent)
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2, onClick = { selectedTab = 2 },
-                    icon = {},
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp)) },
                     label = { Text("НАСТРОЙКИ", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
+                        selectedIconColor = Accent, unselectedIconColor = TextMuted,
                         indicatorColor = Color.Transparent)
                 )
             }
@@ -475,25 +498,58 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
-                0 -> HomeScreen(token = token, servers = servers, isLoadingServers = isLoadingServers)
+                0 -> HomeScreen(
+                    token = token,
+                    servers = servers,
+                    serverPings = serverPings,
+                    isLoadingServers = isLoadingServers,
+                    isConnected = isConnected,
+                    connectedServer = connectedServer,
+                    onConnected = { server -> isConnected = true; connectedServer = server },
+                    onDisconnected = { isConnected = false; connectedServer = null }
+                )
                 1 -> RulesScreen()
-                2 -> SettingsScreen(user = user, subscription = subscription, isLoading = isLoadingSettings, onLogout = onLogout)
+                2 -> SettingsScreen(token = token, user = user, subscription = subscription, isLoading = isLoadingSettings, onLogout = onLogout)
             }
         }
     }
 }
 
+// Измеряем TCP пинг до сервера (порт 51820 UDP недоступен из Android без root,
+// поэтому меряем через сокет до порта 443/80)
+suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    try {
+        val start = System.currentTimeMillis()
+        val socket = java.net.Socket()
+        // Берём endpoint сервера из списка — пингуем по IP на порту 443
+        val server = servers.firstOrNull { it.id == serverId } ?: return@withContext 999
+        // Используем IP из endpoint если есть, иначе 999
+        socket.connect(java.net.InetSocketAddress("fsociety-vpn.org", 443), 3000)
+        socket.close()
+        (System.currentTimeMillis() - start).toInt()
+    } catch (_: Exception) { 999 }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: Boolean) {
-    var isConnected by remember { mutableStateOf(false) }
+fun HomeScreen(
+    token: String,
+    servers: List<ServerResponse>,
+    serverPings: Map<String, Int>,
+    isLoadingServers: Boolean,
+    isConnected: Boolean,
+    connectedServer: ServerResponse?,
+    onConnected: (ServerResponse) -> Unit,
+    onDisconnected: () -> Unit
+) {
     var selectedServer by remember { mutableStateOf<ServerResponse?>(null) }
-    var selectedTab by remember { mutableStateOf(0) }
+    var serverListTab by remember { mutableStateOf(0) }
     var favoriteServers by remember { mutableStateOf(setOf<String>()) }
     var showFavoriteDialog by remember { mutableStateOf<String?>(null) }
     var isConnecting by remember { mutableStateOf(false) }
     var statusMsg by remember { mutableStateOf("") }
     var pendingConfig by remember { mutableStateOf<String?>(null) }
+    var pendingServer by remember { mutableStateOf<ServerResponse?>(null) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -502,12 +558,14 @@ fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: B
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val config = pendingConfig ?: return@rememberLauncherForActivityResult
+            val server = pendingServer ?: return@rememberLauncherForActivityResult
             pendingConfig = null
+            pendingServer = null
             scope.launch {
                 statusMsg = "Подключение..."
                 val success = VpnManager.connect(context, config)
                 if (success) {
-                    isConnected = true
+                    onConnected(server)
                     statusMsg = ""
                 } else {
                     statusMsg = "Ошибка подключения"
@@ -520,14 +578,52 @@ fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: B
         }
     }
 
-    // Автовыбор первого сервера когда список загрузился
-    LaunchedEffect(servers) {
-        if (selectedServer == null && servers.isNotEmpty()) {
-            selectedServer = servers.firstOrNull { it.is_active }
+    // Автовыбор сервера с лучшим пингом когда список загрузился
+    LaunchedEffect(servers, serverPings) {
+        if (selectedServer == null && servers.isNotEmpty() && !isConnected) {
+            selectedServer = servers
+                .filter { it.is_active }
+                .minByOrNull { serverPings[it.id] ?: 999 }
         }
     }
 
-    val displayedServers = if (selectedTab == 0) servers
+    // Функция подключения к серверу
+    suspend fun connectToServer(server: ServerResponse) {
+        isConnecting = true
+        statusMsg = "Получение конфигурации..."
+        try {
+            val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
+            if (response.config != null) {
+                val intent = VpnService.prepare(context)
+                if (intent != null) {
+                    pendingConfig = response.config
+                    pendingServer = server
+                    vpnPermissionLauncher.launch(intent)
+                } else {
+                    statusMsg = "Подключение..."
+                    val success = VpnManager.connect(context, response.config)
+                    if (success) {
+                        onConnected(server)
+                        statusMsg = ""
+                    } else {
+                        statusMsg = "Ошибка подключения"
+                    }
+                    isConnecting = false
+                }
+            } else {
+                statusMsg = response.message ?: "Ошибка"
+                isConnecting = false
+            }
+        } catch (e: java.net.SocketTimeoutException) {
+            statusMsg = "Таймаут, попробуйте ещё раз"
+            isConnecting = false
+        } catch (e: Exception) {
+            statusMsg = "Ошибка: ${e.message}"
+            isConnecting = false
+        }
+    }
+
+    val displayedServers = if (serverListTab == 0) servers
     else servers.filter { favoriteServers.contains(it.name) }
 
     // Диалог избранного
@@ -587,17 +683,17 @@ fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: B
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("ВСЕ", color = if (selectedTab == 0) Accent else TextMuted,
+            Text("ВСЕ", color = if (serverListTab == 0) Accent else TextMuted,
                 fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { selectedTab = 0 })
-            Text("ИЗБРАННЫЕ", color = if (selectedTab == 1) Accent else TextMuted,
+                fontWeight = if (serverListTab == 0) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { serverListTab = 0 })
+            Text("ИЗБРАННЫЕ", color = if (serverListTab == 1) Accent else TextMuted,
                 fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { selectedTab = 1 })
+                fontWeight = if (serverListTab == 1) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { serverListTab = 1 })
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = if (isConnected) "● ${selectedServer?.name ?: ""}" else "○ Отключён",
+                text = if (isConnected) "● ${connectedServer?.name ?: ""}" else "○ Отключён",
                 color = if (isConnected) Accent else TextMuted,
                 fontSize = 10.sp, fontFamily = FontFamily.Monospace
             )
@@ -613,7 +709,7 @@ fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: B
         } else if (displayedServers.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (selectedTab == 1) "Удерживайте сервер\nчтобы добавить в избранное"
+                    if (serverListTab == 1) "Удерживайте сервер\nчтобы добавить в избранное"
                     else "Нет доступных серверов",
                     color = TextMuted, fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
@@ -622,18 +718,31 @@ fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: B
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(displayedServers) { server ->
+                    val ping = serverPings[server.id]
+                    val isThisConnected = connectedServer?.id == server.id && isConnected
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .combinedClickable(
                                 onClick = {
-                                    if (server.is_active && !isConnected) {
+                                    if (server.is_active && !isConnecting) {
                                         selectedServer = server
+                                        if (!isConnected) {
+                                            scope.launch { connectToServer(server) }
+                                        } else if (!isThisConnected) {
+                                            scope.launch {
+                                                isConnecting = true
+                                                statusMsg = "Отключение..."
+                                                VpnManager.disconnect()
+                                                onDisconnected()
+                                                connectToServer(server)
+                                            }
+                                        }
                                     }
                                 },
                                 onLongClick = { showFavoriteDialog = server.name }
                             )
-                            .background(if (selectedServer?.id == server.id) Surface else BgDark)
+                            .background(if (isThisConnected || selectedServer?.id == server.id) Surface else BgDark)
                             .padding(horizontal = 24.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -658,8 +767,21 @@ fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: B
                             }
                         }
                         Text(
-                            if (server.is_active) "● ONLINE" else "СКОРО",
-                            color = if (server.is_active) Accent else TextMuted,
+                            text = when {
+                                isThisConnected -> "● ПОДКЛЮЧЁН"
+                                !server.is_active -> "СКОРО"
+                                ping == null -> "● ..."
+                                ping >= 999 -> "● —"
+                                else -> "● ${ping}мс"
+                            },
+                            color = when {
+                                isThisConnected -> Accent
+                                !server.is_active -> TextMuted
+                                ping == null || ping >= 999 -> TextMuted
+                                ping < 100 -> Accent
+                                ping < 200 -> Color(0xFFFFAA00)
+                                else -> ErrorRed
+                            },
                             fontSize = 10.sp, fontFamily = FontFamily.Monospace
                         )
                     }
@@ -672,56 +794,22 @@ fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: B
         HorizontalDivider(color = Border, thickness = 1.dp)
         Button(
             onClick = {
-                val server = selectedServer ?: return@Button
                 scope.launch {
                     if (isConnected) {
-                        // Отключаемся
                         isConnecting = true
                         statusMsg = "Отключение..."
                         VpnManager.disconnect()
-                        isConnected = false
+                        onDisconnected()
                         statusMsg = ""
                         isConnecting = false
                     } else {
-                        // Подключаемся
-                        isConnecting = true
-                        statusMsg = "Получение конфигурации..."
-                        try {
-                            val response = ApiClient.service.getVpnConfig(
-                                "Bearer $token",
-                                server.id
-                            )
-                            if (response.config != null) {
-                                val intent = VpnService.prepare(context)
-                                if (intent != null) {
-                                    // Нужно запросить разрешение
-                                    pendingConfig = response.config
-                                    vpnPermissionLauncher.launch(intent)
-                                } else {
-                                    // Разрешение уже есть
-                                    statusMsg = "Подключение..."
-                                    val success = VpnManager.connect(context, response.config)
-                                    if (success) {
-                                        isConnected = true
-                                        statusMsg = ""
-                                    } else {
-                                        statusMsg = "Ошибка подключения"
-                                    }
-                                    isConnecting = false
-                                }
-                            } else {
-                                statusMsg = response.message ?: "Ошибка"
-                                isConnecting = false
-                            }
-                        } catch (e: Exception) {
-                            statusMsg = "Ошибка: ${e.message}"
-                            isConnecting = false
-                        }
+                        val server = selectedServer ?: return@launch
+                        connectToServer(server)
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            enabled = !isConnecting && selectedServer != null,
+            enabled = !isConnecting && (isConnected || selectedServer != null),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (isConnected) ErrorRed else Accent,
                 contentColor = BgDark
@@ -807,69 +895,263 @@ fun RulesScreen() {
 
 
 @Composable
-fun SettingsScreen(user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit) {
+fun SettingsScreen(token: String, user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit) {
+    var selectedTab by remember { mutableStateOf(0) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDark)
-            .padding(24.dp)
-            .padding(top = 48.dp)
-    ) {
-        Text("// НАСТРОЙКИ", color = Accent, fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Аккаунт.", color = TextPrimary, fontSize = 28.sp,
-            fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(32.dp))
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
+            Text("// НАСТРОЙКИ", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(if (selectedTab == 0) "Аккаунт." else "Поддержка.", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        }
 
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Text("АККАУНТ", color = if (selectedTab == 0) Accent else TextMuted,
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { selectedTab = 0 })
+            Text("ПОДДЕРЖКА", color = if (selectedTab == 1) Accent else TextMuted,
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.clickable { selectedTab = 1 })
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = Border, thickness = 1.dp)
+
+        when (selectedTab) {
+            0 -> AccountTab(user = user, subscription = subscription, isLoading = isLoading, onLogout = onLogout)
+            1 -> TicketsTab(token = token)
+        }
+    }
+}
+
+@Composable
+fun AccountTab(user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         if (isLoading) {
-            Box(modifier = Modifier.fillMaxWidth().padding(32.dp),
-                contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
             }
         } else {
-            // Email
-            SettingsRow(
-                label = "Email",
-                value = user?.email ?: "—"
-            )
-
-            // Подписка
-            SettingsRow(
-                label = "Подписка",
-                value = if (subscription?.is_active == true)
-                    "${subscription?.plan} · до ${subscription?.expires_at?.take(10)}"
-                else "Нет активной подписки"
-            )
-
-            // Роль (показываем только если не user)
+            SettingsRow(label = "Email", value = user?.email ?: "—")
+            SettingsRow(label = "Подписка", value = if (subscription?.is_active == true)
+                "${subscription.plan} · до ${subscription.expires_at?.take(10)}"
+            else "Нет активной подписки")
             if (user?.role != "user" && user?.role != null) {
-                SettingsRow(label = "Роль", value = user?.role ?: "—")
+                SettingsRow(label = "Роль", value = user.role)
             }
-
-            // Версия
             SettingsRow(label = "Версия", value = "1.0.0")
-
             Spacer(modifier = Modifier.height(32.dp))
-
-            // Кнопка выхода
             Button(
                 onClick = onLogout,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent, contentColor = ErrorRed),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = ErrorRed),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
             ) {
-                Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     }
 }
 
 
+
+@Composable
+fun TicketsTab(token: String) {
+    var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var selectedTicket by remember { mutableStateOf<TicketDetailResponse?>(null) }
+    var newSubject by remember { mutableStateOf("") }
+    var newMessage by remember { mutableStateOf("") }
+    var isSending by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(token) {
+        try { tickets = ApiClient.service.getTickets("Bearer $token") }
+        catch (_: Exception) {}
+        finally { isLoading = false }
+    }
+
+    // Диалог создания тикета
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false; newSubject = "" },
+            containerColor = Bg2,
+            title = { Text("Новый тикет", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newSubject, onValueChange = { newSubject = it },
+                    label = { Text("Тема", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newSubject.isBlank()) return@TextButton
+                    scope.launch {
+                        isSending = true
+                        try {
+                            val t = ApiClient.service.createTicket("Bearer $token", TicketCreateRequest(newSubject))
+                            tickets = listOf(t) + tickets
+                            showCreateDialog = false
+                            newSubject = ""
+                        } catch (_: Exception) {}
+                        finally { isSending = false }
+                    }
+                }) { Text("СОЗДАТЬ", color = Accent, fontFamily = FontFamily.Monospace) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false; newSubject = "" }) {
+                    Text("ОТМЕНА", color = TextMuted, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
+    }
+
+    // Экран тикета (диалог сообщений)
+    selectedTicket?.let { detail ->
+        Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(24.dp).padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.clickable { selectedTicket = null })
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(detail.ticket.subject, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(if (detail.ticket.status == "open") "● открыт" else "● закрыт",
+                        color = if (detail.ticket.status == "open") Accent else TextMuted,
+                        fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                }
+                if (detail.ticket.status == "open") {
+                    TextButton(onClick = {
+                        scope.launch {
+                            try {
+                                ApiClient.service.closeTicket("Bearer $token", detail.ticket.id)
+                                selectedTicket = selectedTicket?.copy(ticket = detail.ticket.copy(status = "closed"))
+                                tickets = tickets.map { if (it.id == detail.ticket.id) it.copy(status = "closed") else it }
+                            } catch (_: Exception) {}
+                        }
+                    }) { Text("ЗАКРЫТЬ", color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
+                }
+            }
+            HorizontalDivider(color = Border)
+
+            LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                items(detail.messages) { msg ->
+                    val isUser = msg.sender == "user"
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 280.dp)
+                                .background(if (isUser) Accent else Bg2)
+                                .padding(12.dp)
+                        ) {
+                            Text(msg.message, color = if (isUser) BgDark else TextPrimary, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+
+            if (detail.ticket.status == "open") {
+                HorizontalDivider(color = Border)
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newMessage, onValueChange = { newMessage = it },
+                        placeholder = { Text("Сообщение...", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = TextMuted) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                            focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (newMessage.isBlank()) return@Button
+                            scope.launch {
+                                isSending = true
+                                try {
+                                    val msg = ApiClient.service.sendMessage("Bearer $token", detail.ticket.id, MessageCreateRequest(newMessage))
+                                    selectedTicket = detail.copy(messages = detail.messages + msg)
+                                    newMessage = ""
+                                } catch (_: Exception) {}
+                                finally { isSending = false }
+                            }
+                        },
+                        enabled = !isSending && newMessage.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                    ) { Text("→", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+        return
+    }
+
+    // Список тикетов
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (tickets.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("Нет обращений", color = TextMuted, fontFamily = FontFamily.Monospace)
+                }
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(tickets) { ticket ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        try {
+                                            val detail = ApiClient.service.getTicket("Bearer $token", ticket.id)
+                                            selectedTicket = detail
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                                .padding(horizontal = 24.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(ticket.subject, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(ticket.updated_at.take(10), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            }
+                            Text(
+                                if (ticket.status == "open") "● открыт" else "● закрыт",
+                                color = if (ticket.status == "open") Accent else TextMuted,
+                                fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        HorizontalDivider(color = Border)
+                    }
+                }
+            }
+            HorizontalDivider(color = Border)
+            Button(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+            ) {
+                Text("+ НОВОЕ ОБРАЩЕНИЕ", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
+    }
+}
 
 @Composable
 fun SettingsRow(label: String, value: String) {

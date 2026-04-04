@@ -1,7 +1,6 @@
 package ru.fsociety.vpn
 
 import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.amnezia.awg.backend.GoBackend
@@ -12,7 +11,6 @@ import java.io.BufferedReader
 import java.io.StringReader
 
 object VpnManager {
-    private const val TAG = "VpnManager"
     private var backend: GoBackend? = null
     private var currentTunnel: WgTunnel? = null
 
@@ -30,22 +28,15 @@ object VpnManager {
     suspend fun connect(context: Context, configString: String): Boolean = withContext(Dispatchers.IO) {
         try {
             init(context)
-            // Сбрасываем предыдущий туннель если есть
             currentTunnel?.let { t ->
                 runCatching { backend?.setState(t, Tunnel.State.DOWN, null) }
             }
             val config = Config.parse(BufferedReader(StringReader(configString)))
             val tunnel = WgTunnel("fsociety")
             currentTunnel = tunnel
-            Log.d(TAG, "setState UP start")
-            val start = System.currentTimeMillis()
             backend?.setState(tunnel, Tunnel.State.UP, config)
-            Log.d(TAG, "setState UP done in ${System.currentTimeMillis() - start}ms")
-            val state = backend?.getState(tunnel)
-            Log.d(TAG, "tunnel state: $state")
-            state == Tunnel.State.UP
+            backend?.getState(tunnel) == Tunnel.State.UP
         } catch (e: Exception) {
-            Log.e(TAG, "Connection failed", e)
             currentTunnel = null
             false
         }
@@ -59,22 +50,24 @@ object VpnManager {
             currentTunnel = null
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Disconnect failed", e)
             false
         }
     }
 
-    fun isConnected(): Boolean {
-        return currentTunnel != null &&
-                backend?.getState(currentTunnel!!) == Tunnel.State.UP
+    fun getTrafficStats(): Pair<Long, Long> {
+        val tunnel = currentTunnel ?: return Pair(0L, 0L)
+        return try {
+            val stats = backend?.getStatistics(tunnel)
+            Pair(stats?.totalRx() ?: 0L, stats?.totalTx() ?: 0L)
+        } catch (_: Exception) {
+            Pair(0L, 0L)
+        }
     }
 }
 
 class WgTunnel(private val name: String) : Tunnel {
     override fun getName() = name
-    override fun onStateChange(state: Tunnel.State) {
-        Log.d("WgTunnel", "State changed: $state")
-    }
+    override fun onStateChange(state: Tunnel.State) {}
     override fun isIpv4ResolutionPreferred(): Boolean = false
     override fun isMetered(): Boolean = false
 }

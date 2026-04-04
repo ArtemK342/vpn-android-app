@@ -55,6 +55,30 @@ data class RegisterRequest(
     val password: String
 )
 
+data class TicketResponse(
+    val id: String,
+    val subject: String,
+    val status: String,
+    val created_at: String,
+    val updated_at: String
+)
+
+data class TicketMessageResponse(
+    val id: String,
+    val ticket_id: String,
+    val sender: String,
+    val message: String,
+    val created_at: String
+)
+
+data class TicketDetailResponse(
+    val ticket: TicketResponse,
+    val messages: List<TicketMessageResponse>
+)
+
+data class TicketCreateRequest(val subject: String)
+data class MessageCreateRequest(val message: String)
+
 // ── Интерфейс API ──
 
 interface ApiService {
@@ -96,6 +120,34 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Query("server_id") serverId: String
     ): VpnConfigResponse
+
+    @GET("tickets")
+    suspend fun getTickets(@Header("Authorization") token: String): List<TicketResponse>
+
+    @GET("tickets/{id}")
+    suspend fun getTicket(
+        @Header("Authorization") token: String,
+        @retrofit2.http.Path("id") id: String
+    ): TicketDetailResponse
+
+    @POST("tickets")
+    suspend fun createTicket(
+        @Header("Authorization") token: String,
+        @Body body: TicketCreateRequest
+    ): TicketResponse
+
+    @POST("tickets/{id}/messages")
+    suspend fun sendMessage(
+        @Header("Authorization") token: String,
+        @retrofit2.http.Path("id") id: String,
+        @Body body: MessageCreateRequest
+    ): TicketMessageResponse
+
+    @retrofit2.http.PATCH("tickets/{id}/close")
+    suspend fun closeTicket(
+        @Header("Authorization") token: String,
+        @retrofit2.http.Path("id") id: String
+    ): TicketResponse
 
 }
 
