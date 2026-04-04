@@ -1,10 +1,15 @@
 package ru.fsociety.vpn
 
 import kotlinx.coroutines.launch
+import android.app.Activity
+import android.content.Intent
+import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -180,6 +185,8 @@ fun LoginScreen(onLogin: (String) -> Unit, onRegister: () -> Unit) {
                         try {
                             val response = ApiClient.service.login(email, password)
                             onLogin(response.access_token)
+                        } catch (e: java.net.SocketTimeoutException) {
+                            errorMsg = "Ошибка сети, попробуйте ещё раз"
                         } catch (e: Exception) {
                             errorMsg = "Неверный email или пароль"
                         } finally {
@@ -411,6 +418,30 @@ fun RegisterScreen(onBack: () -> Unit) {
 fun AppNavigation(token: String, onLogout: () -> Unit) {
     var selectedTab by remember { mutableStateOf(0) }
 
+    // Загружаем всё один раз параллельно
+    var servers by remember { mutableStateOf<List<ServerResponse>>(emptyList()) }
+    var user by remember { mutableStateOf<UserResponse?>(null) }
+    var subscription by remember { mutableStateOf<SubscriptionResponse?>(null) }
+    var isLoadingServers by remember { mutableStateOf(true) }
+    var isLoadingSettings by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(token) {
+        scope.launch {
+            try { servers = ApiClient.service.getServers("Bearer $token") }
+            catch (_: Exception) {}
+            finally { isLoadingServers = false }
+        }
+        scope.launch {
+            try {
+                user = ApiClient.service.getMe("Bearer $token")
+                subscription = ApiClient.service.getSubscription("Bearer $token")
+            }
+            catch (_: Exception) {}
+            finally { isLoadingSettings = false }
+        }
+    }
+
     Scaffold(
         containerColor = BgDark,
         bottomBar = {
@@ -444,9 +475,9 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
-                0 -> HomeScreen(token = token)
+                0 -> HomeScreen(token = token, servers = servers, isLoadingServers = isLoadingServers)
                 1 -> RulesScreen()
-                2 -> SettingsScreen(token = token, onLogout = onLogout)
+                2 -> SettingsScreen(user = user, subscription = subscription, isLoading = isLoadingSettings, onLogout = onLogout)
             }
         }
     }
@@ -454,25 +485,45 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HomeScreen(token: String) {
+fun HomeScreen(token: String, servers: List<ServerResponse>, isLoadingServers: Boolean) {
     var isConnected by remember { mutableStateOf(false) }
-    var selectedServer by remember { mutableStateOf("") }
+    var selectedServer by remember { mutableStateOf<ServerResponse?>(null) }
     var selectedTab by remember { mutableStateOf(0) }
     var favoriteServers by remember { mutableStateOf(setOf<String>()) }
     var showFavoriteDialog by remember { mutableStateOf<String?>(null) }
-    var servers by remember { mutableStateOf<List<ServerResponse>>(emptyList()) }
-    var isLoadingServers by remember { mutableStateOf(true) }
+    var isConnecting by remember { mutableStateOf(false) }
+    var statusMsg by remember { mutableStateOf("") }
+    var pendingConfig by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
-    // Загружаем серверы из API при входе
-    LaunchedEffect(token) {
-        try {
-            val result = ApiClient.service.getServers("Bearer $token")
-            servers = result
-            selectedServer = result.firstOrNull { it.is_active }?.name ?: ""
-        } catch (e: Exception) {
-            // ошибка загрузки
-        } finally {
-            isLoadingServers = false
+    val vpnPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val config = pendingConfig ?: return@rememberLauncherForActivityResult
+            pendingConfig = null
+            scope.launch {
+                statusMsg = "Подключение..."
+                val success = VpnManager.connect(context, config)
+                if (success) {
+                    isConnected = true
+                    statusMsg = ""
+                } else {
+                    statusMsg = "Ошибка подключения"
+                }
+                isConnecting = false
+            }
+        } else {
+            statusMsg = "Разрешение VPN отклонено"
+            isConnecting = false
+        }
+    }
+
+    // Автовыбор первого сервера когда список загрузился
+    LaunchedEffect(servers) {
+        if (selectedServer == null && servers.isNotEmpty()) {
+            selectedServer = servers.firstOrNull { it.is_active }
         }
     }
 
@@ -484,55 +535,47 @@ fun HomeScreen(token: String) {
         AlertDialog(
             onDismissRequest = { showFavoriteDialog = null },
             containerColor = Bg2,
-            title = {
-                Text(serverName, color = TextPrimary, fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold)
-            },
+            title = { Text(serverName, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    if (favoriteServers.contains(serverName)) "Убрать из избранного?"
-                    else "Добавить в избранное?",
-                    color = TextMuted, fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
+                    if (favoriteServers.contains(serverName)) "Убрать из избранного?" else "Добавить в избранное?",
+                    color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     favoriteServers = if (favoriteServers.contains(serverName))
-                        favoriteServers - serverName
-                    else favoriteServers + serverName
+                        favoriteServers - serverName else favoriteServers + serverName
                     showFavoriteDialog = null
                 }) {
                     Text(
                         if (favoriteServers.contains(serverName)) "УБРАТЬ" else "ДОБАВИТЬ",
-                        color = Accent, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                        color = Accent, fontFamily = FontFamily.Monospace, fontSize = 11.sp
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showFavoriteDialog = null }) {
-                    Text("ОТМЕНА", color = TextMuted,
-                        fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    Text("ОТМЕНА", color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                 }
             }
         )
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(BgDark)
-    ) {
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+
         // Картинка — заглушка
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .background(Bg2),
+            modifier = Modifier.fillMaxWidth().height(200.dp).background(Bg2),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("[f]", color = Accent, fontSize = 48.sp,
                     fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                Text("// TODO: маска Гая Фокса", color = TextDim,
-                    fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                if (statusMsg.isNotEmpty()) {
+                    Text(statusMsg, color = TextMuted, fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace)
+                }
             }
         }
 
@@ -540,25 +583,21 @@ fun HomeScreen(token: String) {
 
         // Вкладки + статус
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("ВСЕ",
-                color = if (selectedTab == 0) Accent else TextMuted,
+            Text("ВСЕ", color = if (selectedTab == 0) Accent else TextMuted,
                 fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
                 modifier = Modifier.clickable { selectedTab = 0 })
-            Text("ИЗБРАННЫЕ",
-                color = if (selectedTab == 1) Accent else TextMuted,
+            Text("ИЗБРАННЫЕ", color = if (selectedTab == 1) Accent else TextMuted,
                 fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
                 modifier = Modifier.clickable { selectedTab = 1 })
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = if (isConnected) "● $selectedServer" else "○ Отключён",
+                text = if (isConnected) "● ${selectedServer?.name ?: ""}" else "○ Отключён",
                 color = if (isConnected) Accent else TextMuted,
                 fontSize = 10.sp, fontFamily = FontFamily.Monospace
             )
@@ -566,21 +605,18 @@ fun HomeScreen(token: String) {
 
         HorizontalDivider(color = Border, thickness = 1.dp)
 
-        // Загрузка или список серверов
+        // Список серверов
         if (isLoadingServers) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
             }
         } else if (displayedServers.isEmpty()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = if (selectedTab == 1) "Удерживайте сервер\nчтобы добавить в избранное"
+                    if (selectedTab == 1) "Удерживайте сервер\nчтобы добавить в избранное"
                     else "Нет доступных серверов",
                     color = TextMuted, fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    textAlign = TextAlign.Center
+                    fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
                 )
             }
         } else {
@@ -591,18 +627,16 @@ fun HomeScreen(token: String) {
                             .fillMaxWidth()
                             .combinedClickable(
                                 onClick = {
-                                    if (server.is_active) {
-                                        selectedServer = server.name
-                                        isConnected = false
+                                    if (server.is_active && !isConnected) {
+                                        selectedServer = server
                                     }
                                 },
                                 onLongClick = { showFavoriteDialog = server.name }
                             )
-                            .background(if (selectedServer == server.name) Surface else BgDark)
+                            .background(if (selectedServer?.id == server.id) Surface else BgDark)
                             .padding(horizontal = 24.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Флаг по стране
                         Text(
                             text = when (server.country) {
                                 "Finland" -> "🇫🇮"
@@ -611,23 +645,20 @@ fun HomeScreen(token: String) {
                                 "Germany" -> "🇩🇪"
                                 "Netherlands" -> "🇳🇱"
                                 else -> "🌍"
-                            },
-                            fontSize = 20.sp
+                            }, fontSize = 20.sp
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = server.name,
+                            Text(server.name,
                                 color = if (server.is_active) TextPrimary else TextMuted,
-                                fontSize = 15.sp, fontWeight = FontWeight.Bold
-                            )
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             if (favoriteServers.contains(server.name)) {
                                 Text("★ избранное", color = Accent,
                                     fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
                         Text(
-                            text = if (server.is_active) "● ONLINE" else "СКОРО",
+                            if (server.is_active) "● ONLINE" else "СКОРО",
                             color = if (server.is_active) Accent else TextMuted,
                             fontSize = 10.sp, fontFamily = FontFamily.Monospace
                         )
@@ -640,22 +671,77 @@ fun HomeScreen(token: String) {
         // Кнопка подключения
         HorizontalDivider(color = Border, thickness = 1.dp)
         Button(
-            onClick = { isConnected = !isConnected },
+            onClick = {
+                val server = selectedServer ?: return@Button
+                scope.launch {
+                    if (isConnected) {
+                        // Отключаемся
+                        isConnecting = true
+                        statusMsg = "Отключение..."
+                        VpnManager.disconnect()
+                        isConnected = false
+                        statusMsg = ""
+                        isConnecting = false
+                    } else {
+                        // Подключаемся
+                        isConnecting = true
+                        statusMsg = "Получение конфигурации..."
+                        try {
+                            val response = ApiClient.service.getVpnConfig(
+                                "Bearer $token",
+                                server.id
+                            )
+                            if (response.config != null) {
+                                val intent = VpnService.prepare(context)
+                                if (intent != null) {
+                                    // Нужно запросить разрешение
+                                    pendingConfig = response.config
+                                    vpnPermissionLauncher.launch(intent)
+                                } else {
+                                    // Разрешение уже есть
+                                    statusMsg = "Подключение..."
+                                    val success = VpnManager.connect(context, response.config)
+                                    if (success) {
+                                        isConnected = true
+                                        statusMsg = ""
+                                    } else {
+                                        statusMsg = "Ошибка подключения"
+                                    }
+                                    isConnecting = false
+                                }
+                            } else {
+                                statusMsg = response.message ?: "Ошибка"
+                                isConnecting = false
+                            }
+                        } catch (e: Exception) {
+                            statusMsg = "Ошибка: ${e.message}"
+                            isConnecting = false
+                        }
+                    }
+                }
+            },
             modifier = Modifier.fillMaxWidth().height(56.dp),
+            enabled = !isConnecting && selectedServer != null,
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (isConnected) ErrorRed else Accent,
                 contentColor = BgDark
             ),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
         ) {
-            Text(
-                text = if (isConnected) "● ОТКЛЮЧИТЬСЯ" else "○ ПОДКЛЮЧИТЬСЯ",
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold, fontSize = 13.sp
-            )
+            if (isConnecting) {
+                CircularProgressIndicator(color = BgDark,
+                    modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Text(
+                    if (isConnected) "● ОТКЛЮЧИТЬСЯ" else "○ ПОДКЛЮЧИТЬСЯ",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold, fontSize = 13.sp
+                )
+            }
         }
     }
 }
+
 
 
 
@@ -721,22 +807,7 @@ fun RulesScreen() {
 
 
 @Composable
-fun SettingsScreen(token: String, onLogout: () -> Unit) {
-    var user by remember { mutableStateOf<UserResponse?>(null) }
-    var subscription by remember { mutableStateOf<SubscriptionResponse?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-
-    // Загружаем данные пользователя и подписки
-    LaunchedEffect(token) {
-        try {
-            user = ApiClient.service.getMe("Bearer $token")
-            subscription = ApiClient.service.getSubscription("Bearer $token")
-        } catch (e: Exception) {
-            // ошибка загрузки
-        } finally {
-            isLoading = false
-        }
-    }
+fun SettingsScreen(user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit) {
 
     Column(
         modifier = Modifier

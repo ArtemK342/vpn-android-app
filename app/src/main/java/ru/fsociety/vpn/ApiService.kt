@@ -8,6 +8,7 @@ import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 // ── Модели запросов/ответов ──
 
@@ -21,6 +22,14 @@ data class LoginResponse(
     val token_type: String
 )
 
+
+data class VpnConfigResponse(
+    val config: String?,
+    val client_ip: String?,
+    val public_key: String?,
+    val message: String?
+)
+
 data class UserResponse(
     val id: String,
     val email: String,
@@ -32,7 +41,6 @@ data class ServerResponse(
     val id: String,
     val name: String,
     val country: String,
-    val ip: String,
     val is_active: Boolean
 )
 
@@ -82,7 +90,17 @@ interface ApiService {
     suspend fun register(
         @Body body: RegisterRequest
     ): UserResponse
+
+    @POST("vpn/config")
+    suspend fun getVpnConfig(
+        @Header("Authorization") token: String,
+        @Query("server_id") serverId: String
+    ): VpnConfigResponse
+
 }
+
+
+
 
 // ── Retrofit клиент (singleton) ──
 
@@ -90,8 +108,17 @@ object ApiClient {
     private const val BASE_URL = "https://fsociety-vpn.org/api/"
 
     val service: ApiService by lazy {
+        val okHttp = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+            .connectionPool(okhttp3.ConnectionPool(0, 1, java.util.concurrent.TimeUnit.SECONDS))
+            .build()
         Retrofit.Builder()
             .baseUrl(BASE_URL)
+            .client(okHttp)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
