@@ -79,7 +79,7 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
 
         // Приложения
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { onNavigate("apps") }
+            modifier = Modifier.fillMaxWidth().clickable { /* в разработке */ }
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -95,13 +95,7 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
                 Text("Приложения", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text(
                     color = TextMuted, fontSize = 12.sp,
-                    text = when {
-                        !settings.appsEnabled -> "Выключено"
-                        settings.selectedApps.isEmpty() -> "Нет выбранных приложений"
-                        settings.appsMode == SplitMode.EXCLUDE ->
-                            "VPN везде, кроме ${settings.selectedApps.size} прил."
-                        else -> "VPN только для ${settings.selectedApps.size} прил."
-                    }
+                    text = "В разработке"
                 )
             }
             Icon(Icons.Filled.Close.let { Icons.Default.Search }.let { Icons.Filled.Close }
@@ -366,6 +360,48 @@ fun SitesRulesScreen(
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = Border)
+
+            // Пресеты
+            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                Text("// ПРЕСЕТЫ", color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // RU Essential — toggle
+                    val ruEssentialActive = settings.selectedDomains.containsAll(Presets.ruEssential)
+                    Box(
+                        modifier = Modifier
+                            .clickable {
+                                val newDomains = if (ruEssentialActive)
+                                    settings.selectedDomains - Presets.ruEssential
+                                else
+                                    settings.selectedDomains + Presets.ruEssential
+                                onSettingsChange(settings.copy(selectedDomains = newDomains))
+                            }
+                            .background(
+                                if (ruEssentialActive) Accent else Surface,
+                                androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            if (ruEssentialActive) "✓ RU Essential" else "+ RU Essential",
+                            color = if (ruEssentialActive) BgDark else Accent,
+                            fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    // Зона .ru — в разработке
+                    Box(
+                        modifier = Modifier
+                            .background(Surface, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Зона .ru — скоро", color = TextMuted, fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace)
+                    }
+                }
+            }
             HorizontalDivider(color = Border)
 
             // Поле ввода

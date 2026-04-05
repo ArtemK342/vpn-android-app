@@ -16,6 +16,35 @@ data class SplitTunnelingSettings(
     val selectedDomains: Set<String> = emptySet()
 )
 
+object Presets {
+    val ruEssential = setOf(
+        "gosuslugi.ru", "esia.gosuslugi.ru", "nalog.ru", "lkfl2.nalog.ru",
+        "mos.ru", "pgu.mos.ru", "government.ru", "kremlin.ru", "duma.gov.ru",
+        "minfin.gov.ru", "rosstat.gov.ru", "fssp.gov.ru",
+        "sberbank.ru", "sber.ru", "online.sberbank.ru",
+        "tinkoff.ru", "alfabank.ru", "vtb.ru", "gazprombank.ru",
+        "psbank.ru", "rshb.ru", "open.ru", "mkb.ru", "rosbank.ru",
+        "unicreditbank.ru", "otpbank.ru", "pochtabank.ru",
+        "vk.com", "vk.ru", "m.vk.com", "api.vk.com", "video.vk.com", "music.vk.com",
+        "ok.ru", "mail.ru", "e.mail.ru", "cloud.mail.ru",
+        "dzen.ru", "rutube.ru",
+        "yandex.ru", "ya.ru", "yandex.net",
+        "mail.yandex.ru", "disk.yandex.ru", "maps.yandex.ru",
+        "taxi.yandex.ru", "market.yandex.ru", "music.yandex.ru",
+        "passport.yandex.ru", "storage.yandexcloud.net", "s3.yandexcloud.net",
+        "ozon.ru", "wildberries.ru", "wb.ru", "avito.ru", "youla.ru",
+        "cdek.ru", "boxberry.ru", "pochta.ru",
+        "dodo.ru", "vkusnoitochka.ru", "kfc.ru", "rostics.ru",
+        "mts.ru", "megafon.ru", "beeline.ru", "t2.ru",
+        "2gis.ru", "auto.ru", "hh.ru", "pikabu.ru", "habr.com",
+        "rbc.ru", "tass.ru", "ria.ru", "lenta.ru", "gazeta.ru",
+        "kp.ru", "iz.ru", "vedomosti.ru", "kommersant.ru",
+        "kinopoisk.ru", "ivi.ru", "okko.tv",
+        "cdn.vk.com", "cdn.mail.ru",
+        "spb.ru", "msk.ru", "ekb.ru", "nn.ru", "sochi.ru"
+    )
+}
+
 object SplitTunnelingManager {
 
     fun load(prefs: SharedPreferences): SplitTunnelingSettings = SplitTunnelingSettings(
