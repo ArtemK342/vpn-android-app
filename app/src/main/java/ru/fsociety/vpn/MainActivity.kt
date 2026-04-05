@@ -606,9 +606,13 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
     var backgroundMode by remember { mutableStateOf(prefs.getBoolean("background_mode", false)) }
     var killSwitch by remember { mutableStateOf(prefs.getBoolean("kill_switch", false)) }
+    var splitSettings by remember { mutableStateOf(SplitTunnelingManager.load(prefs)) }
 
     // Синхронизируем kill switch с VpnManager
     LaunchedEffect(killSwitch) { VpnManager.killSwitchEnabled = killSwitch }
+
+    // Синхронизируем split tunneling с VpnManager
+    LaunchedEffect(splitSettings) { VpnManager.splitSettings = splitSettings }
 
     // Запрашиваем разрешение на уведомления (Android 13+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -733,7 +737,13 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                         if (!backgroundMode) VpnForegroundService.stop(context)
                     }
                 )
-                1 -> RulesScreen()
+                1 -> RulesScreen(
+                    settings = splitSettings,
+                    onSettingsChange = { newSettings ->
+                        splitSettings = newSettings
+                        SplitTunnelingManager.save(prefs, newSettings)
+                    }
+                )
                 2 -> SettingsScreen(
                     token = token, user = user, subscription = subscription,
                     isLoading = isLoadingSettings, onLogout = onLogout,
@@ -1115,65 +1125,6 @@ fun HomeScreen(
 
 
 
-@Composable
-fun RulesScreen() {
-    var selectedTab by remember { mutableStateOf(0) } // 0=Приложения, 1=Сайты
-
-    Column(
-        modifier = Modifier.fillMaxSize().background(BgDark)
-    ) {
-        // Заголовок
-        Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
-            Text("// ПРАВИЛА", color = Accent, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Раздельный туннель.", color = TextPrimary,
-                fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        }
-
-        // Вкладки Приложения / Сайты
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            Text(
-                text = "ПРИЛОЖЕНИЯ",
-                color = if (selectedTab == 0) Accent else TextMuted,
-                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { selectedTab = 0 }
-            )
-            Text(
-                text = "САЙТЫ",
-                color = if (selectedTab == 1) Accent else TextMuted,
-                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { selectedTab = 1 }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = Border, thickness = 1.dp)
-
-        // Заглушка
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = if (selectedTab == 0)
-                    "Раздельное туннелирование\nдля приложений будет скоро"
-                else "Исключения для сайтов\nбудут скоро",
-                color = TextMuted,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
 
 
 @Composable

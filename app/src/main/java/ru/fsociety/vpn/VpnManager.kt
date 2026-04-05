@@ -40,13 +40,19 @@ object VpnManager {
         }
     }
 
+    var splitSettings: SplitTunnelingSettings? = null
+
     suspend fun connect(context: Context, configString: String): Boolean = withContext(Dispatchers.IO) {
         try {
             init(context)
             currentTunnel?.let { t ->
                 runCatching { backend?.setState(t, Tunnel.State.DOWN, null) }
             }
-            val config = Config.parse(BufferedReader(StringReader(configString)))
+            // Применяем раздельное туннелирование для сайтов
+            val effectiveConfig = splitSettings?.let {
+                SplitTunnelingManager.applyToConfig(configString, it)
+            } ?: configString
+            val config = Config.parse(BufferedReader(StringReader(effectiveConfig)))
             val tunnel = WgTunnel("fsociety") { state ->
                 // Туннель упал не через наш disconnect() — kill switch
                 if (state == Tunnel.State.DOWN && killSwitchEnabled && currentTunnel != null) {
