@@ -3,6 +3,7 @@ package ru.fsociety.vpn
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
@@ -148,6 +149,12 @@ interface ApiService {
         @Header("Authorization") token: String,
         @retrofit2.http.Path("id") id: String
     ): TicketResponse
+
+    @DELETE("tickets/{id}")
+    suspend fun deleteTicket(
+        @Header("Authorization") token: String,
+        @retrofit2.http.Path("id") id: String
+    ): retrofit2.Response<okhttp3.ResponseBody?>
 
 }
 

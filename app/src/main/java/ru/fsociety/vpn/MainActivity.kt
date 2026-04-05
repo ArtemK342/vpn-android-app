@@ -1,15 +1,30 @@
 package ru.fsociety.vpn
 
 import kotlinx.coroutines.launch
+import android.Manifest
 import android.app.Activity
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,15 +69,164 @@ data class Server(
     val isActive: Boolean
 )
 
+object AutoConnectRequest {
+    val trigger = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        VpnNotificationHelper.init(this)
+        if (intent?.getBooleanExtra(VpnNotificationHelper.EXTRA_AUTO_CONNECT, false) == true) {
+            AutoConnectRequest.trigger.tryEmit(Unit)
+        }
         enableEdgeToEdge()
         setContent {
             VpnappTheme {
                 App(context = this)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(VpnNotificationHelper.EXTRA_AUTO_CONNECT, false)) {
+            AutoConnectRequest.trigger.tryEmit(Unit)
+        }
+    }
+}
+
+// ── VPN Events (для отключения из уведомления) ──
+
+object VpnEvents {
+    val disconnectRequested = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val connectSucceeded = MutableSharedFlow<ServerResponse>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    var isConnecting: Boolean = false
+}
+
+class VpnDisconnectReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == VpnNotificationHelper.ACTION_DISCONNECT) {
+            val pending = goAsync()
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    VpnManager.disconnect()
+                    VpnEvents.disconnectRequested.tryEmit(Unit)
+                } finally {
+                    pending.finish()
+                }
+            }
+        }
+    }
+}
+
+class VpnConnectReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != VpnNotificationHelper.ACTION_CONNECT) return
+
+        // Если разрешение ещё не выдано — открываем приложение
+        val vpnIntent = VpnService.prepare(context)
+        if (vpnIntent != null) {
+            val openApp = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(VpnNotificationHelper.EXTRA_AUTO_CONNECT, true)
+            }
+            context.startActivity(openApp)
+            return
+        }
+
+        // Разрешение есть — подключаем без открытия приложения
+        val pending = goAsync()
+        VpnEvents.isConnecting = true
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val prefs = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
+                val token = prefs.getString("token", "") ?: return@launch
+                // Получаем список серверов
+                val servers = ApiClient.service.getServers("Bearer $token")
+                    .filter { it.is_active }
+                if (servers.isEmpty()) return@launch
+                // Пингуем последовательно и берём лучший
+                var best: ServerResponse? = null
+                var bestPing = Int.MAX_VALUE
+                for (server in servers) {
+                    val ping = measurePing(server.id, servers)
+                    if (ping < bestPing) { bestPing = ping; best = server }
+                }
+                best ?: return@launch
+                // Подключаемся
+                val response = ApiClient.service.getVpnConfig("Bearer $token", best.id)
+                if (response.config != null) {
+                    val success = VpnManager.connect(context, response.config)
+                    if (success) {
+                        VpnManager.connectedServerName = best.name
+                        VpnEvents.connectSucceeded.tryEmit(best)
+                    }
+                }
+            } catch (_: Exception) {
+            } finally {
+                VpnEvents.isConnecting = false
+                pending.finish()
+            }
+        }
+    }
+}
+
+object VpnNotificationHelper {
+    const val CHANNEL_ID = "vpn_status_v2"
+    const val NOTIFICATION_ID = 1001
+    const val ACTION_DISCONNECT = "ru.fsociety.vpn.DISCONNECT"
+    const val ACTION_CONNECT = "ru.fsociety.vpn.CONNECT"
+    const val EXTRA_AUTO_CONNECT = "auto_connect"
+
+    fun init(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID, "Статус VPN",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { setShowBadge(false) }
+            context.getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+    }
+
+    fun show(context: Context, serverName: String, rx: Long, tx: Long) {
+        val disconnectIntent = PendingIntent.getBroadcast(
+            context, 0,
+            Intent(context, VpnDisconnectReceiver::class.java).apply { action = ACTION_DISCONNECT },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_secure)
+            .setContentTitle("[f]society VPN — Подключён")
+            .setContentText("$serverName · ↓ ${formatBytes(rx)} ↑ ${formatBytes(tx)}")
+            .setOngoing(true)
+            .setSilent(true)
+            .addAction(0, "ОТКЛЮЧИТЬСЯ", disconnectIntent)
+            .build()
+        context.getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, notification)
+    }
+
+    fun cancel(context: Context) {
+        context.getSystemService(NotificationManager::class.java)
+            .cancel(NOTIFICATION_ID)
+    }
+
+    fun formatBytes(bytes: Long): String = when {
+        bytes >= 1_073_741_824L -> "%.1f ГБ".format(bytes / 1_073_741_824.0)
+        bytes >= 1_048_576L -> "%.1f МБ".format(bytes / 1_048_576.0)
+        bytes >= 1024L -> "%.0f КБ".format(bytes / 1024.0)
+        else -> "$bytes Б"
     }
 }
 
@@ -434,9 +598,40 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     var subscription by remember { mutableStateOf<SubscriptionResponse?>(null) }
     var isLoadingServers by remember { mutableStateOf(true) }
     var isLoadingSettings by remember { mutableStateOf(true) }
+    var isRefreshingPings by remember { mutableStateOf(false) }
     var isConnected by remember { mutableStateOf(false) }
     var connectedServer by remember { mutableStateOf<ServerResponse?>(null) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
+    var backgroundMode by remember { mutableStateOf(prefs.getBoolean("background_mode", false)) }
+
+    // Запрашиваем разрешение на уведомления (Android 13+)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val notifPermLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { /* результат не важен */ }
+        LaunchedEffect(Unit) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Обновление пингов (только когда VPN не подключён)
+    val refreshPings: () -> Unit = {
+        if (!isRefreshingPings && servers.isNotEmpty() && !isConnected) {
+            isRefreshingPings = true
+            scope.launch {
+                val jobs = servers.map { server ->
+                    scope.launch {
+                        val ping = measurePing(server.id, servers)
+                        serverPings = serverPings + (server.id to ping)
+                    }
+                }
+                jobs.forEach { it.join() }
+                isRefreshingPings = false
+            }
+        }
+    }
 
     LaunchedEffect(token) {
         scope.launch {
@@ -461,6 +656,12 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
             finally { isLoadingSettings = false }
         }
     }
+
+    // Запуск фонового сервиса при старте если включён фоновый режим
+    LaunchedEffect(Unit) {
+        if (backgroundMode) VpnForegroundService.start(context)
+    }
+
 
     Scaffold(
         containerColor = BgDark,
@@ -505,11 +706,32 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                     isLoadingServers = isLoadingServers,
                     isConnected = isConnected,
                     connectedServer = connectedServer,
-                    onConnected = { server -> isConnected = true; connectedServer = server },
-                    onDisconnected = { isConnected = false; connectedServer = null }
+                    isRefreshingPings = isRefreshingPings,
+                    onRefreshPings = refreshPings,
+                    onConnected = { server ->
+                        isConnected = true
+                        connectedServer = server
+                        VpnManager.connectedServerName = server.name
+                        VpnForegroundService.start(context)
+                    },
+                    onDisconnected = {
+                        isConnected = false
+                        connectedServer = null
+                        if (!backgroundMode) VpnForegroundService.stop(context)
+                    }
                 )
                 1 -> RulesScreen()
-                2 -> SettingsScreen(token = token, user = user, subscription = subscription, isLoading = isLoadingSettings, onLogout = onLogout)
+                2 -> SettingsScreen(
+                    token = token, user = user, subscription = subscription,
+                    isLoading = isLoadingSettings, onLogout = onLogout,
+                    backgroundMode = backgroundMode,
+                    onBackgroundModeChange = { enabled ->
+                        backgroundMode = enabled
+                        prefs.edit().putBoolean("background_mode", enabled).apply()
+                        if (enabled) VpnForegroundService.start(context)
+                        else if (!isConnected) VpnForegroundService.stop(context)
+                    }
+                )
             }
         }
     }
@@ -518,19 +740,22 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
 // Измеряем TCP пинг до сервера (порт 51820 UDP недоступен из Android без root,
 // поэтому меряем через сокет до порта 443/80)
 suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-    try {
-        val start = System.currentTimeMillis()
-        val socket = java.net.Socket()
-        // Берём endpoint сервера из списка — пингуем по IP на порту 443
-        val server = servers.firstOrNull { it.id == serverId } ?: return@withContext 999
-        // Используем IP из endpoint если есть, иначе 999
-        socket.connect(java.net.InetSocketAddress("fsociety-vpn.org", 443), 3000)
-        socket.close()
-        (System.currentTimeMillis() - start).toInt()
-    } catch (_: Exception) { 999 }
+    servers.firstOrNull { it.id == serverId } ?: return@withContext 999
+    val samples = mutableListOf<Int>()
+    repeat(3) {
+        try {
+            val start = System.currentTimeMillis()
+            val socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress("fsociety-vpn.org", 443), 3000)
+            socket.close()
+            samples.add((System.currentTimeMillis() - start).toInt())
+        } catch (_: Exception) {}
+        delay(300)
+    }
+    if (samples.isEmpty()) 999 else samples.average().toInt()
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     token: String,
@@ -539,6 +764,8 @@ fun HomeScreen(
     isLoadingServers: Boolean,
     isConnected: Boolean,
     connectedServer: ServerResponse?,
+    isRefreshingPings: Boolean,
+    onRefreshPings: () -> Unit,
     onConnected: (ServerResponse) -> Unit,
     onDisconnected: () -> Unit
 ) {
@@ -584,6 +811,29 @@ fun HomeScreen(
             selectedServer = servers
                 .filter { it.is_active }
                 .minByOrNull { serverPings[it.id] ?: 999 }
+        }
+    }
+
+    // Авто-обновление пингов раз в 60 секунд
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            onRefreshPings()
+        }
+    }
+
+    // Отключение по нажатию кнопки в уведомлении
+    LaunchedEffect(Unit) {
+        VpnEvents.disconnectRequested.collect {
+            onDisconnected()
+            statusMsg = ""
+        }
+    }
+
+    // Подключение из уведомления без открытия приложения
+    LaunchedEffect(Unit) {
+        VpnEvents.connectSucceeded.collect { server ->
+            onConnected(server)
         }
     }
 
@@ -660,7 +910,7 @@ fun HomeScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
 
-        // Картинка — заглушка
+        // Заголовок
         Box(
             modifier = Modifier.fillMaxWidth().height(200.dp).background(Bg2),
             contentAlignment = Alignment.Center
@@ -670,6 +920,14 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 if (statusMsg.isNotEmpty()) {
                     Text(statusMsg, color = TextMuted, fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace)
+                } else if (isConnected && connectedServer != null) {
+                    val connectedPing = serverPings[connectedServer.id]
+                    val pingText = when {
+                        connectedPing == null || connectedPing >= 999 -> "● ${connectedServer.name}"
+                        else -> "● ${connectedServer.name} · ${connectedPing}мс"
+                    }
+                    Text(pingText, color = Accent, fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace)
                 }
             }
@@ -701,13 +959,18 @@ fun HomeScreen(
 
         HorizontalDivider(color = Border, thickness = 1.dp)
 
-        // Список серверов
+        // Список серверов с pull-to-refresh
+        PullToRefreshBox(
+            isRefreshing = isRefreshingPings && !isLoadingServers,
+            onRefresh = onRefreshPings,
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) {
         if (isLoadingServers) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
             }
         } else if (displayedServers.isEmpty()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     if (serverListTab == 1) "Удерживайте сервер\nчтобы добавить в избранное"
                     else "Нет доступных серверов",
@@ -716,7 +979,7 @@ fun HomeScreen(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(displayedServers) { server ->
                     val ping = serverPings[server.id]
                     val isThisConnected = connectedServer?.id == server.id && isConnected
@@ -789,6 +1052,7 @@ fun HomeScreen(
                 }
             }
         }
+        } // end PullToRefreshBox
 
         // Кнопка подключения
         HorizontalDivider(color = Border, thickness = 1.dp)
@@ -895,62 +1159,113 @@ fun RulesScreen() {
 
 
 @Composable
-fun SettingsScreen(token: String, user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit) {
-    var selectedTab by remember { mutableStateOf(0) }
+fun SettingsScreen(
+    token: String, user: UserResponse?, subscription: SubscriptionResponse?,
+    isLoading: Boolean, onLogout: () -> Unit,
+    backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit
+) {
+    var currentScreen by remember { mutableStateOf("main") }
 
+    BackHandler(enabled = currentScreen != "main") {
+        currentScreen = "main"
+    }
+
+    when (currentScreen) {
+        "account" -> AccountTab(user = user, subscription = subscription, isLoading = isLoading, onLogout = onLogout, onBack = { currentScreen = "main" })
+        "support" -> TicketsTab(token = token, onBack = { currentScreen = "main" })
+        "background" -> BackgroundModeTab(
+            backgroundMode = backgroundMode,
+            onBackgroundModeChange = onBackgroundModeChange,
+            onBack = { currentScreen = "main" }
+        )
+        else -> Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+            Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
+                Text("// НАСТРОЙКИ", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Настройки.", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsMenuItem(
+                icon = { Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                title = "Аккаунт",
+                subtitle = user?.email ?: "Загрузка...",
+                onClick = { currentScreen = "account" }
+            )
+            SettingsMenuItem(
+                icon = { Icon(Icons.Filled.SupportAgent, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                title = "Поддержка",
+                subtitle = "Сообщить о проблеме или задать вопрос",
+                onClick = { currentScreen = "support" }
+            )
+            SettingsMenuItem(
+                icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                title = "Фоновый режим",
+                subtitle = if (backgroundMode) "Включён" else "Выключен",
+                onClick = { currentScreen = "background" }
+            )
+        }
+    }
+}
+
+@Composable
+fun SettingsMenuItem(icon: @Composable () -> Unit, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(Surface, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) { icon() }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = TextMuted, fontSize = 12.sp)
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+    }
+    HorizontalDivider(color = Border, thickness = 1.dp)
+}
+
+@Composable
+fun AccountTab(user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit, onBack: () -> Unit) {
+    BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
-            Text("// НАСТРОЙКИ", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(if (selectedTab == 0) "Аккаунт." else "Поддержка.", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Аккаунт.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
-
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Text("АККАУНТ", color = if (selectedTab == 0) Accent else TextMuted,
-                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { selectedTab = 0 })
-            Text("ПОДДЕРЖКА", color = if (selectedTab == 1) Accent else TextMuted,
-                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { selectedTab = 1 })
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = Border, thickness = 1.dp)
-
-        when (selectedTab) {
-            0 -> AccountTab(user = user, subscription = subscription, isLoading = isLoading, onLogout = onLogout)
-            1 -> TicketsTab(token = token)
-        }
-    }
-}
-
-@Composable
-fun AccountTab(user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
-            }
-        } else {
-            SettingsRow(label = "Email", value = user?.email ?: "—")
-            SettingsRow(label = "Подписка", value = if (subscription?.is_active == true)
-                "${subscription.plan} · до ${subscription.expires_at?.take(10)}"
-            else "Нет активной подписки")
-            if (user?.role != "user" && user?.role != null) {
-                SettingsRow(label = "Роль", value = user.role)
-            }
-            SettingsRow(label = "Версия", value = "1.0.0")
-            Spacer(modifier = Modifier.height(32.dp))
-            Button(
-                onClick = onLogout,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = ErrorRed),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
-            ) {
-                Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        HorizontalDivider(color = Border)
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+                }
+            } else {
+                SettingsRow(label = "Email", value = user?.email ?: "—")
+                SettingsRow(label = "Подписка", value = if (subscription?.is_active == true)
+                    "${subscription.plan} · до ${subscription.expires_at?.take(10)}"
+                else "Нет активной подписки")
+                if (user?.role != "user" && user?.role != null) {
+                    SettingsRow(label = "Роль", value = user.role)
+                }
+                SettingsRow(label = "Версия", value = "1.0.0")
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = ErrorRed),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
+                ) {
+                    Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
             }
         }
     }
@@ -958,16 +1273,32 @@ fun AccountTab(user: UserResponse?, subscription: SubscriptionResponse?, isLoadi
 
 
 
+fun formatMsgTime(raw: String): String {
+    return try {
+        val s = raw.replace("T", " ").take(16)
+        s
+    } catch (_: Exception) { raw.take(16) }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TicketsTab(token: String) {
+fun TicketsTab(token: String, onBack: () -> Unit) {
     var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showLimitDialog by remember { mutableStateOf(false) }
     var selectedTicket by remember { mutableStateOf<TicketDetailResponse?>(null) }
     var newSubject by remember { mutableStateOf("") }
     var newMessage by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
+    var ticketToDelete by remember { mutableStateOf<TicketResponse?>(null) }
     val scope = rememberCoroutineScope()
+
+    // Системная кнопка "назад": из тикета → список, из списка → настройки
+    BackHandler {
+        if (selectedTicket != null) selectedTicket = null
+        else onBack()
+    }
 
     LaunchedEffect(token) {
         try { tickets = ApiClient.service.getTickets("Bearer $token") }
@@ -1015,11 +1346,52 @@ fun TicketsTab(token: String) {
         )
     }
 
-    // Экран тикета (диалог сообщений)
+    // Диалог лимита
+    if (showLimitDialog) {
+        AlertDialog(
+            onDismissRequest = { showLimitDialog = false },
+            containerColor = Bg2,
+            title = { Text("Лимит тикетов", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = { Text("У вас уже 3 открытых тикета. Закройте или удалите один из них перед созданием нового.", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            confirmButton = {
+                TextButton(onClick = { showLimitDialog = false }) {
+                    Text("ПОНЯТНО", color = Accent, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
+    }
+
+    // Диалог удаления тикета
+    ticketToDelete?.let { t ->
+        AlertDialog(
+            onDismissRequest = { ticketToDelete = null },
+            containerColor = Bg2,
+            title = { Text("Удалить тикет?", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = { Text("«${t.subject}» будет удалён без возможности восстановления.", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        try {
+                            ApiClient.service.deleteTicket("Bearer $token", t.id)
+                            tickets = tickets.filter { it.id != t.id }
+                        } catch (_: Exception) {}
+                        ticketToDelete = null
+                    }
+                }) { Text("УДАЛИТЬ", color = ErrorRed, fontFamily = FontFamily.Monospace) }
+            },
+            dismissButton = {
+                TextButton(onClick = { ticketToDelete = null }) {
+                    Text("ОТМЕНА", color = TextMuted, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
+    }
+
+    // Экран тикета
     selectedTicket?.let { detail ->
         Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(24.dp).padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 52.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
@@ -1036,7 +1408,7 @@ fun TicketsTab(token: String) {
                         scope.launch {
                             try {
                                 ApiClient.service.closeTicket("Bearer $token", detail.ticket.id)
-                                selectedTicket = selectedTicket?.copy(ticket = detail.ticket.copy(status = "closed"))
+                                selectedTicket = detail.copy(ticket = detail.ticket.copy(status = "closed"))
                                 tickets = tickets.map { if (it.id == detail.ticket.id) it.copy(status = "closed") else it }
                             } catch (_: Exception) {}
                         }
@@ -1046,11 +1418,18 @@ fun TicketsTab(token: String) {
             HorizontalDivider(color = Border)
 
             LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                if (detail.messages.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            Text("Нет сообщений", color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                        }
+                    }
+                }
                 items(detail.messages) { msg ->
                     val isUser = msg.sender == "user"
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
                     ) {
                         Box(
                             modifier = Modifier
@@ -1060,6 +1439,11 @@ fun TicketsTab(token: String) {
                         ) {
                             Text(msg.message, color = if (isUser) BgDark else TextPrimary, fontSize = 13.sp)
                         }
+                        Text(
+                            formatMsgTime(msg.created_at),
+                            color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
                     }
                 }
             }
@@ -1100,55 +1484,149 @@ fun TicketsTab(token: String) {
     }
 
     // Список тикетов
-    if (isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(horizontal = 24.dp).padding(top = 52.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Поддержка.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
-    } else {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (tickets.isEmpty()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("Нет обращений", color = TextMuted, fontFamily = FontFamily.Monospace)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(tickets) { ticket ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .clickable {
+        HorizontalDivider(color = Border)
+
+        if (isLoading) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+            }
+        } else if (tickets.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("Нет обращений", color = TextMuted, fontFamily = FontFamily.Monospace)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(tickets) { ticket ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {
                                     scope.launch {
                                         try {
                                             val detail = ApiClient.service.getTicket("Bearer $token", ticket.id)
                                             selectedTicket = detail
                                         } catch (_: Exception) {}
                                     }
-                                }
-                                .padding(horizontal = 24.dp, vertical = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(ticket.subject, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Text(ticket.updated_at.take(10), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                            }
-                            Text(
-                                if (ticket.status == "open") "● открыт" else "● закрыт",
-                                color = if (ticket.status == "open") Accent else TextMuted,
-                                fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                                },
+                                onLongClick = { ticketToDelete = ticket }
                             )
+                            .padding(horizontal = 24.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(ticket.subject, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(ticket.updated_at.take(10), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         }
-                        HorizontalDivider(color = Border)
+                        Text(
+                            if (ticket.status == "open") "● открыт" else "● закрыт",
+                            color = if (ticket.status == "open") Accent else TextMuted,
+                            fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                        )
                     }
+                    HorizontalDivider(color = Border)
                 }
             }
-            HorizontalDivider(color = Border)
-            Button(
-                onClick = { showCreateDialog = true },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+        }
+
+        HorizontalDivider(color = Border)
+        Button(
+            onClick = {
+                val openCount = tickets.count { it.status == "open" }
+                if (openCount >= 3) showLimitDialog = true
+                else showCreateDialog = true
+            },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+        ) {
+            Text("+ НОВОЕ ОБРАЩЕНИЕ", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Фоновый режим.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Когда включён — уведомление в шторке всегда видно. Кнопка «ОТКЛЮЧИТЬСЯ» доступна без открытия приложения.",
+                color = TextMuted, fontSize = 13.sp
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Bg2)
+                    .clickable {
+                        val enabled = !backgroundMode
+                        onBackgroundModeChange(enabled)
+                        if (enabled) {
+                            // Запрашиваем исключение из оптимизации батареи
+                            val pm = context.getSystemService(PowerManager::class.java)
+                            if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                                val intent = Intent(
+                                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            }
+                        }
+                    }
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("+ НОВОЕ ОБРАЩЕНИЕ", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Работа в фоне", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Показывать уведомление всегда", color = TextMuted, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = backgroundMode,
+                    onCheckedChange = { enabled ->
+                        onBackgroundModeChange(enabled)
+                        if (enabled) {
+                            val pm = context.getSystemService(PowerManager::class.java)
+                            if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                                val intent = Intent(
+                                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            }
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = BgDark,
+                        checkedTrackColor = Accent,
+                        uncheckedThumbColor = TextMuted,
+                        uncheckedTrackColor = Surface
+                    )
+                )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "После включения телефон покажет диалог с запросом разрешения — нажмите «Разрешить».",
+                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+            )
         }
     }
 }

@@ -3,9 +3,13 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- Разрешение на интернет -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Разрешение для VPN (понадобится позже) -->
+    <!-- Разрешение для VPN -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Разрешение для уведомлений (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Работа в фоновом режиме без ограничений батареи -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
 
     <application
@@ -35,6 +39,28 @@
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+        </service>
+        <receiver
+            android:name=".VpnDisconnectReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.fsociety.vpn.DISCONNECT" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".VpnConnectReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.fsociety.vpn.CONNECT" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".VpnForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="VPN status notification" />
         </service>
     </application>
 

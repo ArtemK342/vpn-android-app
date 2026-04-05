@@ -13,6 +13,12 @@ import java.io.StringReader
 object VpnManager {
     private var backend: GoBackend? = null
     private var currentTunnel: WgTunnel? = null
+    var connectedServerName: String = ""
+
+    fun isConnected(): Boolean {
+        val tunnel = currentTunnel ?: return false
+        return try { backend?.getState(tunnel) == Tunnel.State.UP } catch (_: Exception) { false }
+    }
 
     fun init(context: Context) {
         if (backend == null) {
@@ -48,6 +54,7 @@ object VpnManager {
                 backend?.setState(tunnel, Tunnel.State.DOWN, null)
             }
             currentTunnel = null
+            connectedServerName = ""
             true
         } catch (e: Exception) {
             false
