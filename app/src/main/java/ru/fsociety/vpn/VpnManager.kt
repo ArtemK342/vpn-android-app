@@ -2,6 +2,8 @@ package ru.fsociety.vpn
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.withContext
 import org.amnezia.awg.backend.GoBackend
 import org.amnezia.awg.backend.Tunnel
@@ -14,6 +16,13 @@ object VpnManager {
     private var backend: GoBackend? = null
     private var currentTunnel: WgTunnel? = null
     var connectedServerName: String = ""
+    var killSwitchEnabled: Boolean = false
+
+    // Эмитит когда туннель упал неожиданно (не через disconnect())
+    val tunnelDropped = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
 
     fun isConnected(): Boolean {
         val tunnel = currentTunnel ?: return false
@@ -38,7 +47,14 @@ object VpnManager {
                 runCatching { backend?.setState(t, Tunnel.State.DOWN, null) }
             }
             val config = Config.parse(BufferedReader(StringReader(configString)))
-            val tunnel = WgTunnel("fsociety")
+            val tunnel = WgTunnel("fsociety") { state ->
+                // Туннель упал не через наш disconnect() — kill switch
+                if (state == Tunnel.State.DOWN && killSwitchEnabled && currentTunnel != null) {
+                    currentTunnel = null
+                    connectedServerName = ""
+                    tunnelDropped.tryEmit(Unit)
+                }
+            }
             currentTunnel = tunnel
             backend?.setState(tunnel, Tunnel.State.UP, config)
             backend?.getState(tunnel) == Tunnel.State.UP
@@ -50,11 +66,10 @@ object VpnManager {
 
     suspend fun disconnect(): Boolean = withContext(Dispatchers.IO) {
         try {
-            currentTunnel?.let { tunnel ->
-                backend?.setState(tunnel, Tunnel.State.DOWN, null)
-            }
-            currentTunnel = null
+            val tunnel = currentTunnel
+            currentTunnel = null  // обнуляем ДО setState чтобы onStateChange не сработал как дроп
             connectedServerName = ""
+            tunnel?.let { backend?.setState(it, Tunnel.State.DOWN, null) }
             true
         } catch (e: Exception) {
             false
@@ -72,9 +87,12 @@ object VpnManager {
     }
 }
 
-class WgTunnel(private val name: String) : Tunnel {
+class WgTunnel(
+    private val name: String,
+    private val onStateChanged: ((Tunnel.State) -> Unit)? = null
+) : Tunnel {
     override fun getName() = name
-    override fun onStateChange(state: Tunnel.State) {}
+    override fun onStateChange(state: Tunnel.State) { onStateChanged?.invoke(state) }
     override fun isIpv4ResolutionPreferred(): Boolean = false
     override fun isMetered(): Boolean = false
 }

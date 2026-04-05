@@ -605,6 +605,10 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
     var backgroundMode by remember { mutableStateOf(prefs.getBoolean("background_mode", false)) }
+    var killSwitch by remember { mutableStateOf(prefs.getBoolean("kill_switch", false)) }
+
+    // Синхронизируем kill switch с VpnManager
+    LaunchedEffect(killSwitch) { VpnManager.killSwitchEnabled = killSwitch }
 
     // Запрашиваем разрешение на уведомления (Android 13+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -660,6 +664,15 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     // Запуск фонового сервиса при старте если включён фоновый режим
     LaunchedEffect(Unit) {
         if (backgroundMode) VpnForegroundService.start(context)
+    }
+
+    // Kill Switch: туннель упал неожиданно → обновляем UI + уведомление
+    LaunchedEffect(Unit) {
+        VpnManager.tunnelDropped.collect {
+            isConnected = false
+            connectedServer = null
+            if (!backgroundMode) VpnForegroundService.stop(context)
+        }
     }
 
 
@@ -730,6 +743,11 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                         prefs.edit().putBoolean("background_mode", enabled).apply()
                         if (enabled) VpnForegroundService.start(context)
                         else if (!isConnected) VpnForegroundService.stop(context)
+                    },
+                    killSwitch = killSwitch,
+                    onKillSwitchChange = { enabled ->
+                        killSwitch = enabled
+                        prefs.edit().putBoolean("kill_switch", enabled).apply()
                     }
                 )
             }
@@ -1162,7 +1180,8 @@ fun RulesScreen() {
 fun SettingsScreen(
     token: String, user: UserResponse?, subscription: SubscriptionResponse?,
     isLoading: Boolean, onLogout: () -> Unit,
-    backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit
+    backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit,
+    killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit
 ) {
     var currentScreen by remember { mutableStateOf("main") }
 
@@ -1171,13 +1190,19 @@ fun SettingsScreen(
     }
 
     when (currentScreen) {
-        "account" -> AccountTab(user = user, subscription = subscription, isLoading = isLoading, onLogout = onLogout, onBack = { currentScreen = "main" })
+        "account" -> AccountTab(token = token, user = user, subscription = subscription, isLoading = isLoading, onLogout = onLogout, onBack = { currentScreen = "main" })
         "support" -> TicketsTab(token = token, onBack = { currentScreen = "main" })
         "background" -> BackgroundModeTab(
             backgroundMode = backgroundMode,
             onBackgroundModeChange = onBackgroundModeChange,
             onBack = { currentScreen = "main" }
         )
+        "killswitch" -> KillSwitchTab(
+            killSwitch = killSwitch,
+            onKillSwitchChange = onKillSwitchChange,
+            onBack = { currentScreen = "main" }
+        )
+        "update" -> UpdateTab(onBack = { currentScreen = "main" })
         else -> Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
             Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
                 Text("// НАСТРОЙКИ", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
@@ -1199,9 +1224,21 @@ fun SettingsScreen(
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                title = "Kill Switch",
+                subtitle = if (killSwitch) "Включён — интернет блокируется при обрыве VPN" else "Выключен",
+                onClick = { currentScreen = "killswitch" }
+            )
+            SettingsMenuItem(
+                icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
                 title = "Фоновый режим",
                 subtitle = if (backgroundMode) "Включён" else "Выключен",
                 onClick = { currentScreen = "background" }
+            )
+            SettingsMenuItem(
+                icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                title = "Обновление",
+                subtitle = "Версия ${BuildConfig.VERSION_NAME}",
+                onClick = { currentScreen = "update" }
             )
         }
     }
@@ -1233,8 +1270,17 @@ fun SettingsMenuItem(icon: @Composable () -> Unit, title: String, subtitle: Stri
 }
 
 @Composable
-fun AccountTab(user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit, onBack: () -> Unit) {
+fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
+    var showChangePassword by remember { mutableStateOf(false) }
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var newPassword2 by remember { mutableStateOf("") }
+    var pwError by remember { mutableStateOf("") }
+    var pwSuccess by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
@@ -1242,7 +1288,9 @@ fun AccountTab(user: UserResponse?, subscription: SubscriptionResponse?, isLoadi
             Text("Аккаунт.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
-        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)
+        ) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
@@ -1255,7 +1303,101 @@ fun AccountTab(user: UserResponse?, subscription: SubscriptionResponse?, isLoadi
                 if (user?.role != "user" && user?.role != null) {
                     SettingsRow(label = "Роль", value = user.role)
                 }
-                SettingsRow(label = "Версия", value = "1.0.0")
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Смена пароля
+                Text("// СМЕНА ПАРОЛЯ", color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = oldPassword, onValueChange = { oldPassword = it; pwError = ""; pwSuccess = "" },
+                    label = { Text("Текущий пароль", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    enabled = !isSaving,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = newPassword, onValueChange = { newPassword = it; pwError = ""; pwSuccess = "" },
+                    label = { Text("Новый пароль", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    enabled = !isSaving,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = newPassword2, onValueChange = { newPassword2 = it; pwError = ""; pwSuccess = "" },
+                    label = { Text("Повторите новый пароль", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    enabled = !isSaving,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                )
+                if (pwError.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(pwError, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+                if (pwSuccess.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(pwSuccess, color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        if (oldPassword.isBlank() || newPassword.isBlank() || newPassword2.isBlank()) {
+                            pwError = "Заполните все поля"; return@Button
+                        }
+                        if (newPassword != newPassword2) {
+                            pwError = "Пароли не совпадают"; return@Button
+                        }
+                        if (newPassword.length < 8) {
+                            pwError = "Минимум 8 символов"; return@Button
+                        }
+                        scope.launch {
+                            isSaving = true
+                            pwError = ""
+                            try {
+                                val resp = ApiClient.service.changePassword(
+                                    "Bearer $token",
+                                    ChangePasswordRequest(oldPassword, newPassword)
+                                )
+                                if (resp.isSuccessful) {
+                                    pwSuccess = "Пароль изменён"
+                                    oldPassword = ""; newPassword = ""; newPassword2 = ""
+                                } else {
+                                    pwError = "Неверный текущий пароль"
+                                }
+                            } catch (_: Exception) {
+                                pwError = "Ошибка сети"
+                            } finally {
+                                isSaving = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    enabled = !isSaving,
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                ) {
+                    if (isSaving) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("СМЕНИТЬ ПАРОЛЬ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
                     onClick = onLogout,
@@ -1551,6 +1693,57 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
 }
 
 @Composable
+fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Kill Switch.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Если VPN-соединение неожиданно обрывается — весь интернет блокируется до повторного подключения. Защищает от утечки реального IP.",
+                color = TextMuted, fontSize = 13.sp
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Bg2)
+                    .clickable { onKillSwitchChange(!killSwitch) }
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Kill Switch", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (killSwitch) "Включён" else "Выключен",
+                        color = if (killSwitch) Accent else TextMuted, fontSize = 12.sp
+                    )
+                }
+                Switch(
+                    checked = killSwitch,
+                    onCheckedChange = onKillSwitchChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = BgDark, checkedTrackColor = Accent,
+                        uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "// При обрыве VPN приложение отключит туннель и покажет уведомление.",
+                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
+
+@Composable
 fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -1627,6 +1820,123 @@ fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean)
                 "После включения телефон покажет диалог с запросом разрешения — нажмите «Разрешить».",
                 color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
             )
+        }
+    }
+}
+
+@Composable
+fun UpdateTab(onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val currentVersion = BuildConfig.VERSION_NAME
+    var updateInfo by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
+    var isChecking by remember { mutableStateOf(true) }
+    var checkError by remember { mutableStateOf("") }
+    var downloadProgress by remember { mutableStateOf(-1) } // -1 = не качаем
+    var downloadError by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        val result = UpdateManager.checkForUpdate(currentVersion)
+        result.onSuccess { updateInfo = it }
+        result.onFailure { checkError = "Не удалось проверить обновления" }
+        isChecking = false
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Обновление.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsRow(label = "Текущая версия", value = currentVersion)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            when {
+                isChecking -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(color = Accent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Проверяем обновления...", color = TextMuted, fontSize = 13.sp)
+                    }
+                }
+                checkError.isNotEmpty() -> {
+                    Text(checkError, color = ErrorRed, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(onClick = {
+                        isChecking = true; checkError = ""
+                        scope.launch {
+                            val result = UpdateManager.checkForUpdate(currentVersion)
+                            result.onSuccess { updateInfo = it }
+                            result.onFailure { checkError = "Не удалось проверить обновления" }
+                            isChecking = false
+                        }
+                    }) { Text("Попробовать снова", color = Accent, fontFamily = FontFamily.Monospace) }
+                }
+                updateInfo?.hasUpdate == true -> {
+                    val info = updateInfo!!
+                    SettingsRow(label = "Новая версия", value = info.latestVersion)
+                    if (info.releaseNotes.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("// ЧТО НОВОГО", color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(info.releaseNotes, color = TextMuted, fontSize = 12.sp)
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    if (downloadProgress in 0..99) {
+                        Column {
+                            Text("Загрузка... $downloadProgress%", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { downloadProgress / 100f },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Accent,
+                                trackColor = Surface
+                            )
+                        }
+                    } else if (downloadProgress == 100) {
+                        Text("✓ Установщик запущен", color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    } else {
+                        if (downloadError.isNotEmpty()) {
+                            Text(downloadError, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        Button(
+                            onClick = {
+                                downloadProgress = 0; downloadError = ""
+                                scope.launch {
+                                    UpdateManager.downloadAndInstall(context, info.downloadUrl) { p ->
+                                        downloadProgress = p
+                                    }.onFailure {
+                                        downloadError = "Ошибка загрузки"
+                                        downloadProgress = -1
+                                    }.onSuccess {
+                                        downloadProgress = 100
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                        ) {
+                            Text(
+                                "ОБНОВИТЬ → ${VpnNotificationHelper.formatBytes(info.sizeBytes)}",
+                                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    Text("✓ Установлена актуальная версия", color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
         }
     }
 }

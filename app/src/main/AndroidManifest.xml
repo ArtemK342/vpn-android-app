@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Работа в фоновом режиме без ограничений батареи -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Установка APK обновлений -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
 
     <application
@@ -40,6 +42,15 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <receiver
             android:name=".VpnDisconnectReceiver"
             android:exported="false">

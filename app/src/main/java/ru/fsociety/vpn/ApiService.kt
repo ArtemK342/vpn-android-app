@@ -79,6 +79,7 @@ data class TicketDetailResponse(
 
 data class TicketCreateRequest(val subject: String)
 data class MessageCreateRequest(val message: String)
+data class ChangePasswordRequest(val old_password: String, val new_password: String)
 
 // ── Интерфейс API ──
 
@@ -154,6 +155,12 @@ interface ApiService {
     suspend fun deleteTicket(
         @Header("Authorization") token: String,
         @retrofit2.http.Path("id") id: String
+    ): retrofit2.Response<okhttp3.ResponseBody?>
+
+    @POST("change-password")
+    suspend fun changePassword(
+        @Header("Authorization") token: String,
+        @Body body: ChangePasswordRequest
     ): retrofit2.Response<okhttp3.ResponseBody?>
 
 }
