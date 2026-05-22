@@ -1,7 +1,13 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+val localProps = Properties()
+rootProject.file("local.properties").takeIf { it.exists() }
+    ?.inputStream()?.use { localProps.load(it) }
 
 android {
     namespace = "ru.fsociety.vpn"
@@ -11,9 +17,18 @@ android {
         applicationId = "ru.fsociety.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.0.1"
+        versionCode = 2
+        versionName = "0.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile     = file(localProps["KEYSTORE_PATH"] as String)
+            storePassword = localProps["STORE_PASSWORD"] as String
+            keyAlias      = localProps["KEY_ALIAS"] as String
+            keyPassword   = localProps["KEY_PASSWORD"] as String
+        }
     }
 
     buildTypes {
@@ -22,6 +37,7 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
