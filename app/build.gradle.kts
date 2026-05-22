@@ -31,6 +31,16 @@ android {
         }
     }
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("direct") {
+            dimension = "distribution"
+        }
+        create("playstore") {
+            dimension = "distribution"
+        }
+    }
+
     buildTypes {
         debug {
             isDebuggable = true
