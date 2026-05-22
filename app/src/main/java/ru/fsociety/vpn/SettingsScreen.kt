@@ -17,10 +17,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,15 +58,22 @@ fun SettingsScreen(
     when (currentScreen) {
         "account" -> AccountTab(token = token, user = user, subscription = subscription, isLoading = isLoading, onLogout = onLogout, onBack = { currentScreen = "main" })
         "support" -> TicketsTab(token = token, onBack = { currentScreen = "main" })
+        "app_settings" -> AppSettingsTab(
+            killSwitch = killSwitch, onKillSwitchChange = onKillSwitchChange,
+            backgroundMode = backgroundMode, onBackgroundModeChange = onBackgroundModeChange,
+            onBack = { currentScreen = "main" },
+            onKillSwitch = { currentScreen = "killswitch" },
+            onBackground = { currentScreen = "background" }
+        )
         "background" -> BackgroundModeTab(
             backgroundMode = backgroundMode,
             onBackgroundModeChange = onBackgroundModeChange,
-            onBack = { currentScreen = "main" }
+            onBack = { currentScreen = "app_settings" }
         )
         "killswitch" -> KillSwitchTab(
             killSwitch = killSwitch,
             onKillSwitchChange = onKillSwitchChange,
-            onBack = { currentScreen = "main" }
+            onBack = { currentScreen = "app_settings" }
         )
         "update" -> UpdateTab(onBack = { currentScreen = "main" })
         "subscription" -> ComingSoonTab(title = "Подписка", onBack = { currentScreen = "main" })
@@ -86,32 +99,26 @@ fun SettingsScreen(
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Kill Switch",
-                subtitle = if (killSwitch) "Включён — интернет блокируется при обрыве VPN" else "Выключен",
-                onClick = { currentScreen = "killswitch" }
+                title = "Настройки",
+                subtitle = "Kill Switch, фоновый режим",
+                onClick = { currentScreen = "app_settings" }
             )
             SettingsMenuItem(
-                icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Фоновый режим",
-                subtitle = if (backgroundMode) "Включён" else "Выключен",
-                onClick = { currentScreen = "background" }
-            )
-            SettingsMenuItem(
-                icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                icon = { Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
                 title = "Подписка",
                 subtitle = "В разработке",
                 onClick = { currentScreen = "subscription" }
             )
             SettingsMenuItem(
-                icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                icon = { Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
                 title = "История платежей",
                 subtitle = "В разработке",
                 onClick = { currentScreen = "payments" }
             )
             SettingsMenuItem(
-                icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Обновление",
-                subtitle = "Версия ${BuildConfig.VERSION_NAME}",
+                icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                title = "Версия",
+                subtitle = "${BuildConfig.VERSION_NAME}",
                 onClick = { currentScreen = "update" }
             )
         }
@@ -613,6 +620,38 @@ fun ComingSoonTab(title: String, onBack: () -> Unit) {
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
+    }
+}
+
+@Composable
+fun AppSettingsTab(
+    killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit,
+    backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    onKillSwitch: () -> Unit,
+    onBackground: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Настройки.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.PowerSettingsNew, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = "Kill Switch",
+            subtitle = if (killSwitch) "Включён — интернет блокируется при обрыве VPN" else "Выключен",
+            onClick = onKillSwitch
+        )
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = "Фоновый режим",
+            subtitle = if (backgroundMode) "Включён" else "Выключен",
+            onClick = onBackground
+        )
     }
 }
 

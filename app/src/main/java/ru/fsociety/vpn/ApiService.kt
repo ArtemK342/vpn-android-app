@@ -48,7 +48,13 @@ data class ServerResponse(
     val country: String,
     val is_active: Boolean,
     val endpoint: String? = null,
-    val allow_auto_connect: Boolean = true
+    val allow_auto_connect: Boolean = true,
+    val server_type: String = "wireguard"  // "wireguard" | "vless"
+)
+
+data class VlessConfigResponse(
+    val config: String,
+    val server_type: String
 )
 
 data class SubscriptionResponse(
@@ -185,6 +191,12 @@ interface ApiService {
     suspend fun getUsage(
         @Header("Authorization") token: String
     ): UsageResponse
+
+    @GET("vpn/vless-config")
+    suspend fun getVlessConfig(
+        @Header("Authorization") token: String,
+        @Query("server_id") serverId: String
+    ): VlessConfigResponse
 
 }
 
