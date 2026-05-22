@@ -27,6 +27,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.fsociety.vpn.ui.theme.*
 
+fun formatBytes(bytes: Long): String = when {
+    bytes >= 1_073_741_824L -> "%.1f ГБ".format(bytes / 1_073_741_824.0)
+    bytes >= 1_048_576L -> "%.1f МБ".format(bytes / 1_048_576.0)
+    bytes >= 1024L -> "%.0f КБ".format(bytes / 1024.0)
+    else -> "$bytes Б"
+}
+
 suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val server = servers.firstOrNull { it.id == serverId } ?: return@withContext 999
@@ -50,6 +57,7 @@ fun HomeScreen(
     isConnected: Boolean,
     connectedServer: ServerResponse?,
     isRefreshingPings: Boolean,
+    usage: UsageResponse? = null,
     onRefreshPings: () -> Unit,
     onConnected: (ServerResponse) -> Unit,
     onDisconnected: () -> Unit
@@ -212,6 +220,38 @@ fun HomeScreen(
                     }
                     Text(pingText, color = Accent, fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace)
+                }
+                // Баннер трафика для бесплатных пользователей
+                if (usage != null && usage.is_limited) {
+                    val used = usage.bytes_used
+                    val limit = usage.limit_bytes
+                    val remaining = (limit - used).coerceAtLeast(0L)
+                    val fraction = (used.toFloat() / limit.toFloat()).coerceIn(0f, 1f)
+                    val bannerColor = when {
+                        fraction >= 1f -> ErrorRed
+                        fraction >= 0.8f -> Color(0xFFFFAA00)
+                        else -> TextMuted
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Осталось ${formatBytes(remaining)} из ${formatBytes(limit)}",
+                        color = bannerColor, fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(2.dp)
+                            .background(Border)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fraction)
+                                .fillMaxHeight()
+                                .background(bannerColor)
+                        )
+                    }
                 }
             }
         }

@@ -272,6 +272,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     var isLoadingServers by remember { mutableStateOf(true) }
     var isLoadingSettings by remember { mutableStateOf(true) }
     var isRefreshingPings by remember { mutableStateOf(false) }
+    var usage by remember { mutableStateOf<UsageResponse?>(null) }
     var isConnected by remember { mutableStateOf(false) }
     var connectedServer by remember { mutableStateOf<ServerResponse?>(null) }
     val scope = rememberCoroutineScope()
@@ -347,6 +348,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
             try {
                 user = ApiClient.service.getMe("Bearer $token")
                 subscription = ApiClient.service.getSubscription("Bearer $token")
+                try { usage = ApiClient.service.getUsage("Bearer $token") } catch (_: Exception) {}
             } catch (e: Exception) {
                 if ((e as? retrofit2.HttpException)?.code() == 401) {
                     val savedRefresh = prefs.getString("refresh_token", null)
@@ -435,6 +437,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     isConnected = isConnected,
                     connectedServer = connectedServer,
                     isRefreshingPings = isRefreshingPings,
+                    usage = usage,
                     onRefreshPings = refreshPings,
                     onConnected = { server ->
                         isConnected = true

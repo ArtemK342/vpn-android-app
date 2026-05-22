@@ -87,6 +87,13 @@ data class TicketCreateRequest(val subject: String)
 data class MessageCreateRequest(val message: String)
 data class ChangePasswordRequest(val old_password: String, val new_password: String)
 
+data class UsageResponse(
+    val is_limited: Boolean,
+    val bytes_used: Long,
+    val limit_bytes: Long,
+    val resets_at: String?
+)
+
 // ── Интерфейс API ──
 
 interface ApiService {
@@ -173,6 +180,11 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Body body: ChangePasswordRequest
     ): retrofit2.Response<okhttp3.ResponseBody?>
+
+    @GET("vpn/usage")
+    suspend fun getUsage(
+        @Header("Authorization") token: String
+    ): UsageResponse
 
 }
 
