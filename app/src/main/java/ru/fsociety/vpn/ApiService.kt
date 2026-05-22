@@ -20,9 +20,13 @@ data class LoginRequest(
 
 data class LoginResponse(
     val access_token: String,
-    val token_type: String
+    val token_type: String,
+    val refresh_token: String = ""
 )
 
+data class RefreshRequest(
+    val refresh_token: String
+)
 
 data class VpnConfigResponse(
     val config: String?,
@@ -42,7 +46,9 @@ data class ServerResponse(
     val id: String,
     val name: String,
     val country: String,
-    val is_active: Boolean
+    val is_active: Boolean,
+    val endpoint: String? = null,
+    val allow_auto_connect: Boolean = true
 )
 
 data class SubscriptionResponse(
@@ -92,6 +98,11 @@ interface ApiService {
         @Field("username") username: String,
         @Field("password") password: String,
         @Field("grant_type") grantType: String = "password"
+    ): LoginResponse
+
+    @POST("refresh")
+    suspend fun refresh(
+        @Body body: RefreshRequest
     ): LoginResponse
 
     // Данные текущего пользователя
