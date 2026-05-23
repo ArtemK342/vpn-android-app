@@ -37,6 +37,47 @@ object XrayManager {
         }
     }
 
+    /** Проверяет TCP-доступность сервера до запуска xray */
+    private fun testServerReachability(host: String, port: Int): Boolean {
+        return try {
+            val socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(host, port), 5000)
+            socket.close()
+            Log.d(TAG, "Server $host:$port is reachable ✓")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Server $host:$port NOT reachable: ${e.message}")
+            false
+        }
+    }
+
+    /** Читает первый пакет из TUN fd и логирует его — для диагностики */
+    private fun logFirstTunPacket(tunFd: Long) {
+        Thread {
+            try {
+                val fis = java.io.FileInputStream(
+                    java.io.FileDescriptor().also {
+                        val f = java.io.FileDescriptor::class.java.getDeclaredField("descriptor")
+                        f.isAccessible = true
+                        f.set(it, tunFd.toInt())
+                    }
+                )
+                val buf = ByteArray(4096)
+                val n = fis.read(buf)
+                if (n > 4) {
+                    val ver = (buf[0].toInt() and 0xF0) shr 4
+                    val proto = buf[9].toInt() and 0xFF
+                    val dst = "${buf[16].toInt() and 0xFF}.${buf[17].toInt() and 0xFF}.${buf[18].toInt() and 0xFF}.${buf[19].toInt() and 0xFF}"
+                    Log.d(TAG, "TUN first packet: IPv$ver proto=$proto dst=$dst len=$n — TUN is receiving traffic ✓")
+                } else {
+                    Log.d(TAG, "TUN read $n bytes")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "TUN read failed: ${e.message}")
+            }
+        }.also { it.isDaemon = true; it.start() }
+    }
+
     suspend fun connect(
         context: Context,
         service: XrayVpnService,
@@ -55,12 +96,27 @@ object XrayManager {
                 return@withContext false
             }
 
+            // Тест доступности сервера ДО запуска xray
+            // (addDisallowedApplication гарантирует что наш трафик идёт напрямую)
+            try {
+                val cfg = org.json.JSONObject(configJson)
+                val vless = cfg.getJSONArray("outbounds").getJSONObject(0)
+                val vnext = vless.getJSONObject("settings").getJSONArray("vnext").getJSONObject(0)
+                val host = vnext.getString("address")
+                val port = vnext.getInt("port")
+                testServerReachability(host, port)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not test reachability: ${e.message}")
+            }
+
+            // Запускаем слушатель первого TUN-пакета для диагностики
+            logFirstTunPacket(tunFd)
+
             Libv2ray.initCoreEnv(context.filesDir.absolutePath, "")
             Log.d(TAG, "initCoreEnv done")
 
             val ctrl = Libv2ray.newCoreController(makeHandler(service))
             Log.d(TAG, "Controller created, calling startLoop with tunFd=$tunFd...")
-            // Второй параметр — tunFd (не prefIPv6!). 0 = не использовать TUN.
             ctrl.startLoop(configJson, tunFd.toInt())
             Log.d(TAG, "startLoop returned, isRunning=${ctrl.isRunning}")
 
