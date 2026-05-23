@@ -70,6 +70,7 @@ fun HomeScreen(
     var statusMsg by remember { mutableStateOf("") }
     var pendingConfig by remember { mutableStateOf<String?>(null) }
     var pendingServer by remember { mutableStateOf<ServerResponse?>(null) }
+    var pendingServerType by remember { mutableStateOf("wireguard") }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -79,16 +80,19 @@ fun HomeScreen(
         if (result.resultCode == Activity.RESULT_OK) {
             val config = pendingConfig ?: return@rememberLauncherForActivityResult
             val server = pendingServer ?: return@rememberLauncherForActivityResult
+            val serverType = pendingServerType
             pendingConfig = null
             pendingServer = null
             scope.launch {
                 statusMsg = "Подключение..."
-                val success = VpnManager.connect(context, config)
-                if (success) {
+                if (serverType == "vless") {
+                    XrayVpnService.start(context, config, server.name)
                     onConnected(server)
                     statusMsg = ""
                 } else {
-                    statusMsg = "Ошибка подключения"
+                    val success = VpnManager.connect(context, config)
+                    if (success) { onConnected(server); statusMsg = "" }
+                    else statusMsg = "Ошибка подключения"
                 }
                 isConnecting = false
             }
@@ -133,28 +137,43 @@ fun HomeScreen(
     suspend fun connectToServer(server: ServerResponse) {
         isConnecting = true
         statusMsg = "Получение конфигурации..."
+        android.util.Log.d("HomeScreen", "connectToServer: ${server.name}, type=${server.server_type}")
         try {
-            val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
-            if (response.config != null) {
+            if (server.server_type == "vless") {
+                val response = ApiClient.service.getVlessConfig("Bearer $token", server.id)
                 val intent = VpnService.prepare(context)
                 if (intent != null) {
                     pendingConfig = response.config
                     pendingServer = server
+                    pendingServerType = "vless"
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = "Подключение..."
-                    val success = VpnManager.connect(context, response.config)
-                    if (success) {
-                        onConnected(server)
-                        statusMsg = ""
-                    } else {
-                        statusMsg = "Ошибка подключения"
-                    }
+                    XrayVpnService.start(context, response.config, server.name)
+                    onConnected(server)
+                    statusMsg = ""
                     isConnecting = false
                 }
             } else {
-                statusMsg = response.message ?: "Ошибка"
-                isConnecting = false
+                val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
+                if (response.config != null) {
+                    val intent = VpnService.prepare(context)
+                    if (intent != null) {
+                        pendingConfig = response.config
+                        pendingServer = server
+                        pendingServerType = "wireguard"
+                        vpnPermissionLauncher.launch(intent)
+                    } else {
+                        statusMsg = "Подключение..."
+                        val success = VpnManager.connect(context, response.config)
+                        if (success) { onConnected(server); statusMsg = "" }
+                        else statusMsg = "Ошибка подключения"
+                        isConnecting = false
+                    }
+                } else {
+                    statusMsg = response.message ?: "Ошибка"
+                    isConnecting = false
+                }
             }
         } catch (e: java.net.SocketTimeoutException) {
             statusMsg = "Таймаут, попробуйте ещё раз"
@@ -319,7 +338,12 @@ fun HomeScreen(
                                                 scope.launch {
                                                     isConnecting = true
                                                     statusMsg = "Отключение..."
-                                                    VpnManager.disconnect()
+                                                    if (XrayManager.isConnected()) {
+                                                        XrayVpnService.stop(context)
+                                                        XrayManager.disconnect()
+                                                    } else {
+                                                        VpnManager.disconnect()
+                                                    }
                                                     onDisconnected()
                                                     connectToServer(server)
                                                 }
@@ -385,7 +409,12 @@ fun HomeScreen(
                     if (isConnected) {
                         isConnecting = true
                         statusMsg = "Отключение..."
-                        VpnManager.disconnect()
+                        if (XrayManager.isConnected()) {
+                            XrayVpnService.stop(context)
+                            XrayManager.disconnect()
+                        } else {
+                            VpnManager.disconnect()
+                        }
                         onDisconnected()
                         statusMsg = ""
                         isConnecting = false
