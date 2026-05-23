@@ -8,17 +8,16 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import io.nekohasekai.libbox.TunOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class XrayVpnService : VpnService() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var pfd: ParcelFileDescriptor? = null
+    var pfd: ParcelFileDescriptor? = null
 
     companion object {
         const val ACTION_START = "ru.fsociety.vpn.XRAY_START"
@@ -33,45 +32,42 @@ class XrayVpnService : VpnService() {
                 putExtra(EXTRA_CONFIG, configJson)
                 putExtra(EXTRA_SERVER_NAME, serverName)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 context.startForegroundService(intent)
-            } else {
+            else
                 context.startService(intent)
-            }
         }
 
         fun stop(context: Context) {
-            val intent = Intent(context, XrayVpnService::class.java).apply {
+            context.startService(Intent(context, XrayVpnService::class.java).apply {
                 action = ACTION_STOP
-            }
-            context.startService(intent)
+            })
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val config     = intent.getStringExtra(EXTRA_CONFIG) ?: return START_NOT_STICKY
+                val config     = intent.getStringExtra(EXTRA_CONFIG)     ?: return START_NOT_STICKY
                 val serverName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: ""
-                val notifId = VpnNotificationHelper.NOTIFICATION_ID + 1
-                startForeground(notifId, buildNotification(serverName, 0L, 0L))
+
+                startForeground(
+                    VpnNotificationHelper.NOTIFICATION_ID + 1,
+                    buildNotification(serverName)
+                )
+
                 scope.launch {
-                    XrayManager.connect(applicationContext, this@XrayVpnService, config, serverName)
-                    // Обновляем нотификацию с трафиком каждую секунду
-                    while (isActive && XrayManager.isConnected()) {
-                        val (rx, tx) = XrayManager.getTrafficStats()
-                        val notif = buildNotification(serverName, rx, tx)
-                        getSystemService(NotificationManager::class.java)
-                            .notify(notifId, notif)
-                        delay(1000)
+                    val ok = SingboxManager.connect(applicationContext, this@XrayVpnService, config, serverName)
+                    if (!ok) {
+                        Log.e(TAG, "SingboxManager.connect failed — stopping service")
+                        stopSelf()
                     }
                 }
             }
             ACTION_STOP -> {
                 scope.launch {
-                    XrayManager.disconnect()
-                    pfd?.close()
-                    pfd = null
+                    SingboxManager.disconnect()
+                    pfd?.close(); pfd = null
                     stopSelf()
                 }
             }
@@ -79,43 +75,57 @@ class XrayVpnService : VpnService() {
         return START_NOT_STICKY
     }
 
-    /** Создаёт TUN-интерфейс и возвращает его fd для xray */
-    fun setupVpnInterface(): Long {
-        return try {
-            val builder = Builder()
-                .setSession("FsocietyXray")
-                .addAddress("26.26.26.1", 24)
-                .addDnsServer("1.1.1.1")
-                .addDnsServer("8.8.8.8")
-                .addRoute("0.0.0.0", 0)
-                .setMtu(1500)
-                // Исключаем наш пакет — xray подключается к серверу напрямую, минуя TUN
-                .addDisallowedApplication(packageName)
+    /**
+     * Вызывается из SingboxManager.PlatformInterface.openTun().
+     * sing-box передаёт параметры TUN (адреса, MTU) — мы поднимаем VPN-интерфейс
+     * и возвращаем fd.
+     */
+    fun openTunForSingbox(options: TunOptions): Int {
+        val builder = Builder()
+            .setSession("FsocietySingbox")
+            .setMtu(options.mtu)
 
-            val openAppPi = PendingIntent.getActivity(
-                this, 10,
-                Intent(this, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-                },
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            builder.setConfigureIntent(openAppPi)
-
-            pfd?.close()
-            pfd = builder.establish()
-            pfd?.fd?.toLong() ?: -1L
-        } catch (e: Exception) {
-            Log.e(TAG, "setupVpnInterface failed: ${e.message}", e)
-            -1L
+        // Адреса интерфейса из конфига sing-box
+        val v4 = options.inet4Address
+        while (v4.hasNext()) {
+            val p = v4.next()
+            builder.addAddress(p.address(), p.prefix())
+            Log.d(TAG, "TUN addr: ${p.address()}/${p.prefix()}")
         }
+        val v6 = options.inet6Address
+        while (v6.hasNext()) {
+            val p = v6.next()
+            builder.addAddress(p.address(), p.prefix())
+        }
+
+        // Маршруты: весь трафик через TUN
+        builder.addRoute("0.0.0.0", 0)
+
+        // DNS
+        builder.addDnsServer("1.1.1.1")
+        builder.addDnsServer("8.8.8.8")
+
+        // Исключаем наш пакет — sing-box подключается к серверу напрямую
+        builder.addDisallowedApplication(packageName)
+
+        // Configure intent
+        val pi = PendingIntent.getActivity(
+            this, 10,
+            Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.setConfigureIntent(pi)
+
+        pfd?.close()
+        pfd = builder.establish() ?: throw IllegalStateException("VPN establish() returned null")
+        Log.d(TAG, "TUN established, fd=${pfd!!.fd}")
+        return pfd!!.fd
     }
 
-    private fun buildNotification(serverName: String, rx: Long, tx: Long): android.app.Notification {
-        val openAppPi = PendingIntent.getActivity(
+    private fun buildNotification(serverName: String): android.app.Notification {
+        val openPi = PendingIntent.getActivity(
             this, 11,
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-            },
+            Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val disconnectPi = PendingIntent.getBroadcast(
@@ -125,21 +135,19 @@ class XrayVpnService : VpnService() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val trafficText = if (rx == 0L && tx == 0L) serverName
-            else "$serverName · ↓ ${VpnNotificationHelper.formatBytes(rx)} ↑ ${VpnNotificationHelper.formatBytes(tx)}"
         return androidx.core.app.NotificationCompat.Builder(this, VpnNotificationHelper.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_secure)
             .setContentTitle("[f]society VPN — VLESS подключён")
-            .setContentText(trafficText)
+            .setContentText(serverName)
             .setOngoing(true)
             .setSilent(true)
-            .setContentIntent(openAppPi)
+            .setContentIntent(openPi)
             .addAction(0, "ОТКЛЮЧИТЬСЯ", disconnectPi)
             .build()
     }
 
     override fun onDestroy() {
-        scope.launch { XrayManager.disconnect() }
+        scope.launch { SingboxManager.disconnect() }
         pfd?.close()
         super.onDestroy()
     }

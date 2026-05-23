@@ -86,7 +86,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("com.zaneschepke:amneziawg-android:2.3.4")
     implementation("com.getkeepsafe.relinker:relinker:1.4.5")
-    implementation("com.v2ray:libv2ray:1.0")
+    implementation("io.nekohasekai:libbox:1.0")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

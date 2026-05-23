@@ -338,9 +338,8 @@ fun HomeScreen(
                                                 scope.launch {
                                                     isConnecting = true
                                                     statusMsg = "Отключение..."
-                                                    if (XrayManager.isConnected()) {
+                                                    if (SingboxManager.isConnected()) {
                                                         XrayVpnService.stop(context)
-                                                        XrayManager.disconnect()
                                                     } else {
                                                         VpnManager.disconnect()
                                                     }
@@ -409,9 +408,8 @@ fun HomeScreen(
                     if (isConnected) {
                         isConnecting = true
                         statusMsg = "Отключение..."
-                        if (XrayManager.isConnected()) {
+                        if (SingboxManager.isConnected()) {
                             XrayVpnService.stop(context)
-                            XrayManager.disconnect()
                         } else {
                             VpnManager.disconnect()
                         }
