@@ -20,10 +20,10 @@ object XrayManager {
     private fun makeHandler(service: XrayVpnService): CoreCallbackHandler {
         return object : CoreCallbackHandler {
             override fun startup(): Long {
-                Log.d(TAG, "startup() called — creating TUN interface")
-                val fd = service.setupVpnInterface()
-                Log.d(TAG, "startup() returning fd=$fd")
-                return fd
+                // TUN уже создан до startLoop и передан через tunFd параметр.
+                // startup() — это lifecycle-колбэк, просто сигнализирует что xray готов.
+                Log.d(TAG, "startup() lifecycle callback — xray core ready")
+                return 0
             }
             override fun shutdown(): Long {
                 Log.d(TAG, "shutdown() called")
@@ -46,12 +46,22 @@ object XrayManager {
         try {
             disconnect()
 
+            // Сначала создаём TUN-интерфейс — fd нужен до вызова startLoop
+            Log.d(TAG, "Setting up TUN interface before startLoop...")
+            val tunFd = service.setupVpnInterface()
+            Log.d(TAG, "TUN fd=$tunFd")
+            if (tunFd <= 0) {
+                Log.e(TAG, "Failed to create TUN interface, fd=$tunFd")
+                return@withContext false
+            }
+
             Libv2ray.initCoreEnv(context.filesDir.absolutePath, "")
             Log.d(TAG, "initCoreEnv done")
 
             val ctrl = Libv2ray.newCoreController(makeHandler(service))
-            Log.d(TAG, "Controller created, calling startLoop...")
-            ctrl.startLoop(configJson, 0)
+            Log.d(TAG, "Controller created, calling startLoop with tunFd=$tunFd...")
+            // Второй параметр — tunFd (не prefIPv6!). 0 = не использовать TUN.
+            ctrl.startLoop(configJson, tunFd.toInt())
             Log.d(TAG, "startLoop returned, isRunning=${ctrl.isRunning}")
 
             controller = ctrl

@@ -94,7 +94,12 @@ class VpnDisconnectReceiver : BroadcastReceiver() {
             val pending = goAsync()
             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    VpnManager.disconnect()
+                    if (XrayManager.isConnected()) {
+                        XrayManager.disconnect()
+                        XrayVpnService.stop(context)
+                    } else {
+                        VpnManager.disconnect()
+                    }
                     VpnEvents.disconnectRequested.tryEmit(Unit)
                 } finally {
                     pending.finish()
@@ -443,7 +448,13 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         isConnected = true
                         connectedServer = server
                         VpnManager.connectedServerName = server.name
-                        VpnForegroundService.start(context)
+                        // VpnForegroundService только для WireGuard.
+                        // Для VLESS уведомление управляется XrayVpnService.
+                        // Нельзя проверять XrayManager.isConnected() — он ещё false
+                        // в момент вызова (сервис стартует асинхронно).
+                        if (server.server_type != "vless") {
+                            VpnForegroundService.start(context)
+                        }
                     },
                     onDisconnected = {
                         isConnected = false
