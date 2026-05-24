@@ -106,7 +106,7 @@ fun HomeScreen(
     LaunchedEffect(servers, serverPings) {
         if (selectedServer == null && servers.isNotEmpty() && !isConnected) {
             selectedServer = servers
-                .filter { it.isConnectable && it.allow_auto_connect }
+                .filter { it.connectable && it.allow_auto_connect }
                 .minByOrNull { serverPings[it.id] ?: 999 }
         }
     }
@@ -330,7 +330,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .combinedClickable(
                                     onClick = {
-                                        if (server.isConnectable && !isConnecting) {
+                                        if (server.connectable && !isConnecting) {
                                             selectedServer = server
                                             if (!isConnected) {
                                                 scope.launch { connectToServer(server) }
@@ -387,7 +387,7 @@ fun HomeScreen(
                                 text = when {
                                     isThisConnected        -> "● ПОДКЛЮЧЁН"
                                     server.isUnavailable   -> "СКОРО"
-                                    !server.isConnectable  -> when (server.status) {
+                                    !server.connectable  -> when (server.status) {
                                         "testing"     -> "⚡ ТЕСТ."
                                         "maintenance" -> "🔧 ОБСЛ."
                                         else          -> "СКОРО"
@@ -400,7 +400,7 @@ fun HomeScreen(
                                 color = when {
                                     isThisConnected       -> Accent
                                     server.isUnavailable  -> TextMuted
-                                    !server.isConnectable -> TextMuted
+                                    !server.connectable -> TextMuted
                                     server.hasWarning     -> Color(0xFFF59E0B)
                                     ping == null || ping >= 999 -> TextMuted
                                     ping < 100  -> Accent

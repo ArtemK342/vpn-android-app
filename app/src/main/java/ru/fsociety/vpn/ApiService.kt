@@ -52,10 +52,9 @@ data class ServerResponse(
     val server_type: String = "wireguard",  // "wireguard" | "vless"
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
     val status_message: String? = null,
-    val status_message_extra: String? = null
+    val status_message_extra: String? = null,
+    val connectable: Boolean = is_active    // вычисляется сервером с учётом роли пользователя
 ) {
-    // Можно ли подключиться (для обычного юзера — только active/degraded/attacked/beta)
-    val isConnectable: Boolean get() = status in setOf("active", "degraded", "attacked", "beta", "hidden")
     // Отображать как "серый / недоступный"
     val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
     // Предупреждение о нестабильности
