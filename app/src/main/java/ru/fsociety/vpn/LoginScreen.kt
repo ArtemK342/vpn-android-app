@@ -18,9 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.fsociety.vpn.ui.theme.*
+
+// Форматирует 16 цифр как "XXXX XXXX XXXX XXXX"
+fun formatNumericCode(raw: String): String {
+    val digits = raw.filter { it.isDigit() }.take(16)
+    return digits.chunked(4).joinToString(" ")
+}
 
 @Composable
 fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
@@ -28,6 +35,8 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var isAnonymousMode by remember { mutableStateOf(false) }
+    var numericCode by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     Box(
@@ -54,53 +63,78 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text("// ВХОД В АККАУНТ", color = TextMuted, fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp)
+            Text(
+                if (isAnonymousMode) "// АНОНИМНЫЙ ВХОД" else "// ВХОД В АККАУНТ",
+                color = TextMuted, fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp
+            )
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            OutlinedTextField(
-                value = email, onValueChange = { email = it },
-                label = { Text("EMAIL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                enabled = !isLoading,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Accent, unfocusedBorderColor = Border,
-                    focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent
+            if (!isAnonymousMode) {
+                // ── Email / Password ──
+                OutlinedTextField(
+                    value = email, onValueChange = { email = it },
+                    label = { Text("EMAIL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    singleLine = true, enabled = !isLoading,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
+                        cursorColor = Accent)
                 )
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = password, onValueChange = { password = it },
-                label = { Text("ПАРОЛЬ", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                enabled = !isLoading,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Accent, unfocusedBorderColor = Border,
-                    focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = password, onValueChange = { password = it },
+                    label = { Text("ПАРОЛЬ", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    singleLine = true, enabled = !isLoading,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
+                        cursorColor = Accent)
                 )
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Забыл пароль?",
-                color = TextMuted, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.fillMaxWidth().clickable { }
-            )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Забыл пароль?", color = TextMuted, fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace, textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.fillMaxWidth().clickable { })
+            } else {
+                // ── Numeric code ──
+                OutlinedTextField(
+                    value = formatNumericCode(numericCode),
+                    onValueChange = { raw ->
+                        val digits = raw.filter { it.isDigit() }.take(16)
+                        numericCode = digits
+                    },
+                    label = { Text("16-ЗНАЧНЫЙ КОД", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    placeholder = { Text("XXXX XXXX XXXX XXXX",
+                        fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true, enabled = !isLoading,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 18.sp,
+                        textAlign = TextAlign.Center,
+                        color = TextPrimary,
+                        letterSpacing = 2.sp
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        cursorColor = Accent)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Код из 16 цифр — ваш единственный способ войти",
+                    color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
 
             if (errorMsg.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -112,20 +146,22 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
 
             Button(
                 onClick = {
-                    if (email.isEmpty() || password.isEmpty()) {
-                        errorMsg = "Заполните все поля"
-                        return@Button
-                    }
                     scope.launch {
-                        isLoading = true
-                        errorMsg = ""
+                        isLoading = true; errorMsg = ""
                         try {
-                            val response = ApiClient.service.login(email, password)
+                            val response = if (isAnonymousMode) {
+                                val digits = numericCode.filter { it.isDigit() }
+                                if (digits.length != 16) { errorMsg = "Введите 16 цифр"; return@launch }
+                                ApiClient.service.loginNumeric(NumericLoginRequest(digits))
+                            } else {
+                                if (email.isEmpty() || password.isEmpty()) { errorMsg = "Заполните все поля"; return@launch }
+                                ApiClient.service.login(email, password)
+                            }
                             onLogin(response.access_token, response.refresh_token)
                         } catch (e: java.net.SocketTimeoutException) {
                             errorMsg = "Ошибка сети, попробуйте ещё раз"
                         } catch (e: Exception) {
-                            errorMsg = "Неверный email или пароль"
+                            errorMsg = if (isAnonymousMode) "Код не найден" else "Неверный email или пароль"
                         } finally {
                             isLoading = false
                         }
@@ -133,51 +169,52 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Accent, contentColor = BgDark),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = BgDark,
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("ВОЙТИ →", fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
+                if (isLoading) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                else Text("ВОЙТИ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = "Поддержка в Telegram",
-                color = TextMuted, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable { }
+                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                textDecoration = TextDecoration.Underline, modifier = Modifier.clickable { }
             )
 
             Spacer(modifier = Modifier.height(32.dp))
             HorizontalDivider(color = Border, thickness = 1.dp)
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text("Нет аккаунта?", color = TextMuted, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace)
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            // Переключатель anonymous / email
             Button(
-                onClick = onRegister,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent, contentColor = TextPrimary),
+                onClick = { isAnonymousMode = !isAnonymousMode; errorMsg = "" },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextMuted),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Border)
             ) {
-                Text("ЗАРЕГИСТРИРОВАТЬСЯ →", fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(
+                    if (isAnonymousMode) "← ВОЙТИ ПО EMAIL" else "ВОЙТИ АНОНИМНО",
+                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp
+                )
+            }
+
+            if (!isAnonymousMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Нет аккаунта?", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onRegister,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextPrimary),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Border)
+                ) {
+                    Text("ЗАРЕГИСТРИРОВАТЬСЯ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
             }
         }
     }

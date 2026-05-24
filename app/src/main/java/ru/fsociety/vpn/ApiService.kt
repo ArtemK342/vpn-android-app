@@ -77,6 +77,8 @@ data class RegisterRequest(
     val password: String
 )
 
+data class NumericLoginRequest(val code: String)
+
 data class TicketResponse(
     val id: String,
     val subject: String,
@@ -144,6 +146,11 @@ interface ApiService {
     suspend fun getSubscription(
         @Header("Authorization") token: String
     ): SubscriptionResponse
+
+    @POST("login-numeric")
+    suspend fun loginNumeric(
+        @Body body: NumericLoginRequest
+    ): LoginResponse
 
     @POST("register")
     suspend fun register(
