@@ -15,8 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var isAnonymousMode by remember { mutableStateOf(false) }
     var numericCode by remember { mutableStateOf("") }
+    var numericFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     val scope = rememberCoroutineScope()
 
     Box(
@@ -106,10 +109,17 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
             } else {
                 // ── Numeric code ──
                 OutlinedTextField(
-                    value = formatNumericCode(numericCode),
-                    onValueChange = { raw ->
-                        val digits = raw.filter { it.isDigit() }.take(16)
+                    value = numericFieldValue,
+                    onValueChange = { newVal ->
+                        val digits = newVal.text.filter { it.isDigit() }.take(16)
+                        val formatted = digits.chunked(4).joinToString(" ")
                         numericCode = digits
+                        // Фиксируем курсор в конце — иначе Compose сбрасывает его в начало
+                        // при каждом переформатировании, и цифры вставляются в обратном порядке
+                        numericFieldValue = TextFieldValue(
+                            text = formatted,
+                            selection = TextRange(formatted.length)
+                        )
                     },
                     label = { Text("16-ЗНАЧНЫЙ КОД", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     placeholder = { Text("XXXX XXXX XXXX XXXX",
