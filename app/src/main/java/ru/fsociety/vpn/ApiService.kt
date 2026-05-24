@@ -49,8 +49,18 @@ data class ServerResponse(
     val is_active: Boolean,
     val endpoint: String? = null,
     val allow_auto_connect: Boolean = true,
-    val server_type: String = "wireguard"  // "wireguard" | "vless"
-)
+    val server_type: String = "wireguard",  // "wireguard" | "vless"
+    val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
+    val status_message: String? = null,
+    val status_message_extra: String? = null
+) {
+    // Можно ли подключиться (для обычного юзера — только active/degraded/attacked/beta)
+    val isConnectable: Boolean get() = status in setOf("active", "degraded", "attacked", "beta", "hidden")
+    // Отображать как "серый / недоступный"
+    val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
+    // Предупреждение о нестабильности
+    val hasWarning: Boolean get() = status in setOf("degraded", "attacked")
+}
 
 data class VlessConfigResponse(
     val config: String,

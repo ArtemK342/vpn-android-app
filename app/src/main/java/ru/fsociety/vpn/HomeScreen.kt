@@ -106,7 +106,7 @@ fun HomeScreen(
     LaunchedEffect(servers, serverPings) {
         if (selectedServer == null && servers.isNotEmpty() && !isConnected) {
             selectedServer = servers
-                .filter { it.is_active && it.allow_auto_connect }
+                .filter { it.isConnectable && it.allow_auto_connect }
                 .minByOrNull { serverPings[it.id] ?: 999 }
         }
     }
@@ -330,7 +330,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .combinedClickable(
                                     onClick = {
-                                        if (server.is_active && !isConnecting) {
+                                        if (server.isConnectable && !isConnecting) {
                                             selectedServer = server
                                             if (!isConnected) {
                                                 scope.launch { connectToServer(server) }
@@ -368,28 +368,44 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(server.name,
-                                    color = if (server.is_active) TextPrimary else TextMuted,
+                                    color = if (server.isUnavailable) TextMuted else TextPrimary,
                                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 if (favoriteServers.contains(server.name)) {
                                     Text("★ избранное", color = Accent,
                                         fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                                 }
+                                // Статус-сообщение для degraded/attacked
+                                if (server.hasWarning && server.status_message != null) {
+                                    Text(
+                                        "⚠ ${server.status_message}${if (server.status_message_extra != null) " — ${server.status_message_extra}" else ""}",
+                                        color = Color(0xFFF59E0B),
+                                        fontSize = 9.sp, fontFamily = FontFamily.Monospace
+                                    )
+                                }
                             }
                             Text(
                                 text = when {
-                                    isThisConnected -> "● ПОДКЛЮЧЁН"
-                                    !server.is_active -> "СКОРО"
-                                    ping == null -> "● ..."
-                                    ping >= 999 -> "● —"
-                                    else -> "● ${ping}мс"
+                                    isThisConnected        -> "● ПОДКЛЮЧЁН"
+                                    server.isUnavailable   -> "СКОРО"
+                                    !server.isConnectable  -> when (server.status) {
+                                        "testing"     -> "⚡ ТЕСТ."
+                                        "maintenance" -> "🔧 ОБСЛ."
+                                        else          -> "СКОРО"
+                                    }
+                                    server.hasWarning      -> "⚠ ${ping?.let { if (it >= 999) "—" else "${it}мс" } ?: "..."}"
+                                    ping == null           -> "● ..."
+                                    ping >= 999            -> "● —"
+                                    else                   -> "● ${ping}мс"
                                 },
                                 color = when {
-                                    isThisConnected -> Accent
-                                    !server.is_active -> TextMuted
+                                    isThisConnected       -> Accent
+                                    server.isUnavailable  -> TextMuted
+                                    !server.isConnectable -> TextMuted
+                                    server.hasWarning     -> Color(0xFFF59E0B)
                                     ping == null || ping >= 999 -> TextMuted
-                                    ping < 100 -> Accent
-                                    ping < 200 -> Color(0xFFFFAA00)
-                                    else -> ErrorRed
+                                    ping < 100  -> Accent
+                                    ping < 200  -> Color(0xFFFFAA00)
+                                    else        -> ErrorRed
                                 },
                                 fontSize = 10.sp, fontFamily = FontFamily.Monospace
                             )
