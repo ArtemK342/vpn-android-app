@@ -49,19 +49,24 @@ data class ServerResponse(
     val is_active: Boolean,
     val endpoint: String? = null,
     val allow_auto_connect: Boolean = true,
-    val server_type: String = "wireguard",  // "wireguard" | "vless"
+    val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria"
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
     val status_message: String? = null,
     val status_message_extra: String? = null,
-    val connectable: Boolean = is_active    // вычисляется сервером с учётом роли пользователя
+    val connectable: Boolean = is_active    // computed server-side based on user role
 ) {
-    // Отображать как "серый / недоступный"
     val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
-    // Предупреждение о нестабильности
     val hasWarning: Boolean get() = status in setOf("degraded", "attacked")
+    // Both VLESS and Hysteria2 use sing-box under the hood
+    val usesSingbox: Boolean get() = server_type == "vless" || server_type == "hysteria"
 }
 
 data class VlessConfigResponse(
+    val config: String,
+    val server_type: String
+)
+
+data class HysteriaConfigResponse(
     val config: String,
     val server_type: String
 )
@@ -213,6 +218,12 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Query("server_id") serverId: String
     ): VlessConfigResponse
+
+    @GET("vpn/hysteria-config")
+    suspend fun getHysteriaConfig(
+        @Header("Authorization") token: String,
+        @Query("server_id") serverId: String
+    ): HysteriaConfigResponse
 
 }
 

@@ -85,7 +85,7 @@ fun HomeScreen(
             pendingServer = null
             scope.launch {
                 statusMsg = "Подключение..."
-                if (serverType == "vless") {
+                if (serverType == "vless" || serverType == "hysteria") {
                     XrayVpnService.start(context, config, server.name)
                     onConnected(server)
                     statusMsg = ""
@@ -146,6 +146,21 @@ fun HomeScreen(
                     pendingConfig = response.config
                     pendingServer = server
                     pendingServerType = "vless"
+                    vpnPermissionLauncher.launch(intent)
+                } else {
+                    statusMsg = "Подключение..."
+                    XrayVpnService.start(context, response.config, server.name)
+                    onConnected(server)
+                    statusMsg = ""
+                    isConnecting = false
+                }
+            } else if (server.server_type == "hysteria") {
+                val response = ApiClient.service.getHysteriaConfig("Bearer $token", server.id)
+                val intent = VpnService.prepare(context)
+                if (intent != null) {
+                    pendingConfig = response.config
+                    pendingServer = server
+                    pendingServerType = "hysteria"
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = "Подключение..."
