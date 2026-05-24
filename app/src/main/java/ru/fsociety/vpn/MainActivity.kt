@@ -448,8 +448,8 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         connectedServer = server
                         VpnManager.connectedServerName = server.name
                         // VpnForegroundService только для WireGuard/AmneziaWG.
-                        // Для VLESS уведомление управляется XrayVpnService (sing-box).
-                        if (server.server_type != "vless") {
+                        // Для sing-box протоколов (VLESS/Hysteria2) уведомление управляется XrayVpnService.
+                        if (!server.usesSingbox) {
                             VpnForegroundService.start(context)
                         }
                     },

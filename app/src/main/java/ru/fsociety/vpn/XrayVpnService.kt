@@ -102,7 +102,6 @@ class XrayVpnService : VpnService() {
         while (v4.hasNext()) {
             val p = v4.next()
             builder.addAddress(p.address(), p.prefix())
-            Log.d(TAG, "TUN addr: ${p.address()}/${p.prefix()}")
         }
         val v6 = options.inet6Address
         while (v6.hasNext()) {
@@ -130,7 +129,6 @@ class XrayVpnService : VpnService() {
 
         pfd?.close()
         pfd = builder.establish() ?: throw IllegalStateException("VPN establish() returned null")
-        Log.d(TAG, "TUN established, fd=${pfd!!.fd}")
         return pfd!!.fd
     }
 

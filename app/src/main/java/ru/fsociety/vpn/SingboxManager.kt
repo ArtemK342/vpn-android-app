@@ -53,13 +53,11 @@ object SingboxManager {
                 opts.fixAndroidStack = true
                 Libbox.setup(opts)
                 setupDone = true
-                Log.d(TAG, "Libbox.setup done")
             }
 
             // Проверяем конфиг до запуска
             try {
                 Libbox.checkConfig(configJson)
-                Log.d(TAG, "Config OK")
             } catch (e: Exception) {
                 Log.e(TAG, "Config invalid: ${e.message}")
                 return false
@@ -74,7 +72,6 @@ object SingboxManager {
             val uid = Process.myUid()
             baseRx = TrafficStats.getUidRxBytes(uid).coerceAtLeast(0L)
             baseTx = TrafficStats.getUidTxBytes(uid).coerceAtLeast(0L)
-            Log.d(TAG, "sing-box started: $serverName")
             true
         } catch (e: Exception) {
             Log.e(TAG, "connect failed: ${e.message}", e)
@@ -109,7 +106,7 @@ object SingboxManager {
         override fun serviceReload() {}
         override fun serviceStop() { disconnect() }
         override fun setSystemProxyEnabled(enabled: Boolean) {}
-        override fun writeDebugMessage(msg: String) { Log.d(TAG, "sb: $msg") }
+        override fun writeDebugMessage(msg: String) {}
     }
 
     // ── PlatformInterface ───────────────────────────────────────────────────
@@ -118,7 +115,6 @@ object SingboxManager {
 
         /** sing-box вызывает openTun() при старте — мы поднимаем VPN-интерфейс */
         override fun openTun(options: TunOptions): Int {
-            Log.d(TAG, "openTun: mtu=${options.mtu}")
             return service.openTunForSingbox(options)
         }
 

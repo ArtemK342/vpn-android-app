@@ -85,7 +85,7 @@ fun HomeScreen(
             pendingServer = null
             scope.launch {
                 statusMsg = "Подключение..."
-                if (serverType == "vless" || serverType == "hysteria") {
+                if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan") {
                     XrayVpnService.start(context, config, server.name)
                     onConnected(server)
                     statusMsg = ""
@@ -137,7 +137,6 @@ fun HomeScreen(
     suspend fun connectToServer(server: ServerResponse) {
         isConnecting = true
         statusMsg = "Получение конфигурации..."
-        android.util.Log.d("HomeScreen", "connectToServer: ${server.name}, type=${server.server_type}")
         try {
             if (server.server_type == "vless") {
                 val response = ApiClient.service.getVlessConfig("Bearer $token", server.id)
@@ -161,6 +160,21 @@ fun HomeScreen(
                     pendingConfig = response.config
                     pendingServer = server
                     pendingServerType = "hysteria"
+                    vpnPermissionLauncher.launch(intent)
+                } else {
+                    statusMsg = "Подключение..."
+                    XrayVpnService.start(context, response.config, server.name)
+                    onConnected(server)
+                    statusMsg = ""
+                    isConnecting = false
+                }
+            } else if (server.server_type == "trojan") {
+                val response = ApiClient.service.getTrojanConfig("Bearer $token", server.id)
+                val intent = VpnService.prepare(context)
+                if (intent != null) {
+                    pendingConfig = response.config
+                    pendingServer = server
+                    pendingServerType = "trojan"
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = "Подключение..."
@@ -385,6 +399,17 @@ fun HomeScreen(
                                 Text(server.name,
                                     color = if (server.isUnavailable) TextMuted else TextPrimary,
                                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "· " + when (server.server_type) {
+                                        "vless"     -> "VLESS+Reality"
+                                        "hysteria"  -> "Hysteria2"
+                                        "trojan"    -> "Trojan"
+                                        else        -> "AmneziaWG"
+                                    },
+                                    color = TextMuted,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
                                 if (favoriteServers.contains(server.name)) {
                                     Text("★ избранное", color = Accent,
                                         fontSize = 10.sp, fontFamily = FontFamily.Monospace)
