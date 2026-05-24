@@ -12,6 +12,7 @@ import io.nekohasekai.libbox.TunOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class XrayVpnService : VpnService() {
@@ -61,6 +62,17 @@ class XrayVpnService : VpnService() {
                     if (!ok) {
                         Log.e(TAG, "SingboxManager.connect failed — stopping service")
                         stopSelf()
+                        return@launch
+                    }
+                    // Обновляем уведомление с трафиком каждую секунду
+                    val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                    while (SingboxManager.isConnected()) {
+                        val (rx, tx) = SingboxManager.getTrafficStats()
+                        nm.notify(
+                            VpnNotificationHelper.NOTIFICATION_ID + 1,
+                            buildNotification(serverName, rx, tx)
+                        )
+                        delay(1000)
                     }
                 }
             }
@@ -122,7 +134,7 @@ class XrayVpnService : VpnService() {
         return pfd!!.fd
     }
 
-    private fun buildNotification(serverName: String): android.app.Notification {
+    private fun buildNotification(serverName: String, rx: Long = 0L, tx: Long = 0L): android.app.Notification {
         val openPi = PendingIntent.getActivity(
             this, 11,
             Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP },
@@ -138,7 +150,10 @@ class XrayVpnService : VpnService() {
         return androidx.core.app.NotificationCompat.Builder(this, VpnNotificationHelper.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_secure)
             .setContentTitle("[f]society VPN — VLESS подключён")
-            .setContentText(serverName)
+            .setContentText(
+                if (rx == 0L && tx == 0L) serverName
+                else "$serverName · ↓ ${VpnNotificationHelper.formatBytes(rx)} ↑ ${VpnNotificationHelper.formatBytes(tx)}"
+            )
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(openPi)

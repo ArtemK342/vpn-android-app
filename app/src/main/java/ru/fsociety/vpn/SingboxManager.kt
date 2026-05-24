@@ -1,6 +1,8 @@
 package ru.fsociety.vpn
 
 import android.content.Context
+import android.net.TrafficStats
+import android.os.Process
 import android.util.Log
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
@@ -26,6 +28,10 @@ object SingboxManager {
     private var commandServer: CommandServer? = null
     private var setupDone = false
     var connectedServerName: String = ""
+
+    // Трафик: baseline при подключении
+    private var baseRx = 0L
+    private var baseTx = 0L
 
     fun isConnected(): Boolean = commandServer != null
 
@@ -64,6 +70,10 @@ object SingboxManager {
 
             commandServer = server
             connectedServerName = serverName
+            // Сохраняем baseline трафика в момент подключения
+            val uid = Process.myUid()
+            baseRx = TrafficStats.getUidRxBytes(uid).coerceAtLeast(0L)
+            baseTx = TrafficStats.getUidTxBytes(uid).coerceAtLeast(0L)
             Log.d(TAG, "sing-box started: $serverName")
             true
         } catch (e: Exception) {
@@ -82,8 +92,14 @@ object SingboxManager {
         connectedServerName = ""
     }
 
-    // Трафик-статистика — stub (можно подключить CommandClient позже)
-    fun getTrafficStats(): Pair<Long, Long> = Pair(0L, 0L)
+    // Трафик-статистика — дельта от момента подключения
+    fun getTrafficStats(): Pair<Long, Long> {
+        if (commandServer == null) return Pair(0L, 0L)
+        val uid = Process.myUid()
+        val rx = (TrafficStats.getUidRxBytes(uid) - baseRx).coerceAtLeast(0L)
+        val tx = (TrafficStats.getUidTxBytes(uid) - baseTx).coerceAtLeast(0L)
+        return Pair(rx, tx)
+    }
 
     // ── CommandServerHandler ────────────────────────────────────────────────
 
