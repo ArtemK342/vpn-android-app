@@ -49,7 +49,7 @@ data class ServerResponse(
     val is_active: Boolean,
     val endpoint: String? = null,
     val allow_auto_connect: Boolean = true,
-    val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria" | "trojan"
+    val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria" | "trojan" | "openvpn_cloak"
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
     val status_message: String? = null,
     val status_message_extra: String? = null,
@@ -59,6 +59,7 @@ data class ServerResponse(
     val hasWarning: Boolean get() = status in setOf("degraded", "attacked")
     // VLESS, Hysteria2 and Trojan all use sing-box under the hood
     val usesSingbox: Boolean get() = server_type in setOf("vless", "hysteria", "trojan")
+    val usesOpenVpn: Boolean get() = server_type == "openvpn_cloak"
 }
 
 data class VlessConfigResponse(
@@ -73,6 +74,14 @@ data class HysteriaConfigResponse(
 
 data class TrojanConfigResponse(
     val config: String,
+    val server_type: String
+)
+
+// OpenVPN+Cloak config: ovpn = full .ovpn text, cloak = cloak client JSON (raw)
+data class OpenVpnCloakConfigResponse(
+    val ovpn_config: String,
+    val cloak_config: String,
+    val host: String,
     val server_type: String
 )
 
@@ -235,6 +244,12 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Query("server_id") serverId: String
     ): TrojanConfigResponse
+
+    @GET("vpn/openvpn-cloak-config")
+    suspend fun getOpenVpnCloakConfig(
+        @Header("Authorization") token: String,
+        @Query("server_id") serverId: String
+    ): OpenVpnCloakConfigResponse
 
 }
 

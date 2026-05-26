@@ -1,6 +1,7 @@
 package ru.fsociety.vpn
 
 import android.app.Activity
+import android.content.Context
 import android.net.VpnService
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +19,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -27,11 +30,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.fsociety.vpn.ui.theme.*
 
-fun formatBytes(bytes: Long): String = when {
-    bytes >= 1_073_741_824L -> "%.1f ГБ".format(bytes / 1_073_741_824.0)
-    bytes >= 1_048_576L -> "%.1f МБ".format(bytes / 1_048_576.0)
-    bytes >= 1024L -> "%.0f КБ".format(bytes / 1024.0)
-    else -> "$bytes Б"
+fun formatBytes(bytes: Long, context: Context): String {
+    val gb = context.getString(R.string.unit_gb)
+    val mb = context.getString(R.string.unit_mb)
+    val kb = context.getString(R.string.unit_kb)
+    val b  = context.getString(R.string.unit_b)
+    return when {
+        bytes >= 1_073_741_824L -> "%.1f $gb".format(bytes / 1_073_741_824.0)
+        bytes >= 1_048_576L     -> "%.1f $mb".format(bytes / 1_048_576.0)
+        bytes >= 1024L          -> "%.0f $kb".format(bytes / 1024.0)
+        else                    -> "$bytes $b"
+    }
 }
 
 suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int =
@@ -72,7 +81,15 @@ fun HomeScreen(
     var pendingServer by remember { mutableStateOf<ServerResponse?>(null) }
     var pendingServerType by remember { mutableStateOf("wireguard") }
     val scope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
+
+    val strConnecting   = stringResource(R.string.home_connecting)
+    val strGettingConfig = stringResource(R.string.home_getting_config)
+    val strDisconnecting = stringResource(R.string.home_disconnecting)
+    val strErrorConnect = stringResource(R.string.home_error_connect)
+    val strVpnDenied    = stringResource(R.string.home_vpn_denied)
+    val strTimeout      = stringResource(R.string.home_error_timeout)
+    val strMs           = stringResource(R.string.unit_ms)
 
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -84,25 +101,28 @@ fun HomeScreen(
             pendingConfig = null
             pendingServer = null
             scope.launch {
-                statusMsg = "Подключение..."
+                statusMsg = strConnecting
                 if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan") {
                     XrayVpnService.start(context, config, server.name)
+                    onConnected(server)
+                    statusMsg = ""
+                } else if (serverType == "openvpn_cloak") {
+                    OpenVpnService.start(context, config, server.name)
                     onConnected(server)
                     statusMsg = ""
                 } else {
                     val success = VpnManager.connect(context, config)
                     if (success) { onConnected(server); statusMsg = "" }
-                    else statusMsg = "Ошибка подключения"
+                    else statusMsg = strErrorConnect
                 }
                 isConnecting = false
             }
         } else {
-            statusMsg = "Разрешение VPN отклонено"
+            statusMsg = strVpnDenied
             isConnecting = false
         }
     }
 
-    // Автовыбор сервера с лучшим пингом когда список загрузился
     LaunchedEffect(servers, serverPings) {
         if (selectedServer == null && servers.isNotEmpty() && !isConnected) {
             selectedServer = servers
@@ -111,7 +131,6 @@ fun HomeScreen(
         }
     }
 
-    // Авто-обновление пингов раз в 60 секунд
     LaunchedEffect(Unit) {
         while (true) {
             delay(60_000)
@@ -119,7 +138,6 @@ fun HomeScreen(
         }
     }
 
-    // Отключение по нажатию кнопки в уведомлении
     LaunchedEffect(Unit) {
         VpnEvents.disconnectRequested.collect {
             onDisconnected()
@@ -127,7 +145,6 @@ fun HomeScreen(
         }
     }
 
-    // Подключение из уведомления без открытия приложения
     LaunchedEffect(Unit) {
         VpnEvents.connectSucceeded.collect { server ->
             onConnected(server)
@@ -136,7 +153,7 @@ fun HomeScreen(
 
     suspend fun connectToServer(server: ServerResponse) {
         isConnecting = true
-        statusMsg = "Получение конфигурации..."
+        statusMsg = strGettingConfig
         try {
             if (server.server_type == "vless") {
                 val response = ApiClient.service.getVlessConfig("Bearer $token", server.id)
@@ -147,7 +164,7 @@ fun HomeScreen(
                     pendingServerType = "vless"
                     vpnPermissionLauncher.launch(intent)
                 } else {
-                    statusMsg = "Подключение..."
+                    statusMsg = strConnecting
                     XrayVpnService.start(context, response.config, server.name)
                     onConnected(server)
                     statusMsg = ""
@@ -162,7 +179,7 @@ fun HomeScreen(
                     pendingServerType = "hysteria"
                     vpnPermissionLauncher.launch(intent)
                 } else {
-                    statusMsg = "Подключение..."
+                    statusMsg = strConnecting
                     XrayVpnService.start(context, response.config, server.name)
                     onConnected(server)
                     statusMsg = ""
@@ -177,8 +194,29 @@ fun HomeScreen(
                     pendingServerType = "trojan"
                     vpnPermissionLauncher.launch(intent)
                 } else {
-                    statusMsg = "Подключение..."
+                    statusMsg = strConnecting
                     XrayVpnService.start(context, response.config, server.name)
+                    onConnected(server)
+                    statusMsg = ""
+                    isConnecting = false
+                }
+            } else if (server.server_type == "openvpn_cloak") {
+                val response = ApiClient.service.getOpenVpnCloakConfig("Bearer $token", server.id)
+                // bundle into single JSON for OpenVpnWithCloak.parseConfig
+                val bundle = org.json.JSONObject().apply {
+                    put("hostName", response.host)
+                    put("openvpn_config_data", org.json.JSONObject().put("config", response.ovpn_config))
+                    put("cloak_config", response.cloak_config)
+                }.toString()
+                val intent = VpnService.prepare(context)
+                if (intent != null) {
+                    pendingConfig = bundle
+                    pendingServer = server
+                    pendingServerType = "openvpn_cloak"
+                    vpnPermissionLauncher.launch(intent)
+                } else {
+                    statusMsg = strConnecting
+                    OpenVpnService.start(context, bundle, server.name)
                     onConnected(server)
                     statusMsg = ""
                     isConnecting = false
@@ -193,22 +231,22 @@ fun HomeScreen(
                         pendingServerType = "wireguard"
                         vpnPermissionLauncher.launch(intent)
                     } else {
-                        statusMsg = "Подключение..."
+                        statusMsg = strConnecting
                         val success = VpnManager.connect(context, response.config)
                         if (success) { onConnected(server); statusMsg = "" }
-                        else statusMsg = "Ошибка подключения"
+                        else statusMsg = strErrorConnect
                         isConnecting = false
                     }
                 } else {
-                    statusMsg = response.message ?: "Ошибка"
+                    statusMsg = response.message ?: context.getString(R.string.home_error_connect)
                     isConnecting = false
                 }
             }
         } catch (e: java.net.SocketTimeoutException) {
-            statusMsg = "Таймаут, попробуйте ещё раз"
+            statusMsg = strTimeout
             isConnecting = false
         } catch (e: Exception) {
-            statusMsg = "Ошибка: ${e.message}"
+            statusMsg = context.getString(R.string.home_error_generic, e.message ?: "")
             isConnecting = false
         }
     }
@@ -217,31 +255,31 @@ fun HomeScreen(
     else servers.filter { favoriteServers.contains(it.name) }
 
     showFavoriteDialog?.let { serverName ->
+        val isFav = favoriteServers.contains(serverName)
         AlertDialog(
             onDismissRequest = { showFavoriteDialog = null },
             containerColor = Bg2,
             title = { Text(serverName, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    if (favoriteServers.contains(serverName)) "Убрать из избранного?" else "Добавить в избранное?",
+                    stringResource(if (isFav) R.string.home_remove_favorite else R.string.home_add_favorite),
                     color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    favoriteServers = if (favoriteServers.contains(serverName))
-                        favoriteServers - serverName else favoriteServers + serverName
+                    favoriteServers = if (isFav) favoriteServers - serverName else favoriteServers + serverName
                     showFavoriteDialog = null
                 }) {
                     Text(
-                        if (favoriteServers.contains(serverName)) "УБРАТЬ" else "ДОБАВИТЬ",
+                        stringResource(if (isFav) R.string.home_btn_remove else R.string.home_btn_add),
                         color = Accent, fontFamily = FontFamily.Monospace, fontSize = 11.sp
                     )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showFavoriteDialog = null }) {
-                    Text("ОТМЕНА", color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    Text(stringResource(R.string.home_btn_cancel), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                 }
             }
         )
@@ -249,7 +287,6 @@ fun HomeScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
 
-        // Заголовок
         Box(
             modifier = Modifier.fillMaxWidth().height(200.dp).background(Bg2),
             contentAlignment = Alignment.Center
@@ -264,12 +301,11 @@ fun HomeScreen(
                     val connectedPing = serverPings[connectedServer.id]
                     val pingText = when {
                         connectedPing == null || connectedPing >= 999 -> "● ${connectedServer.name}"
-                        else -> "● ${connectedServer.name} · ${connectedPing}мс"
+                        else -> "● ${connectedServer.name} · ${connectedPing}$strMs"
                     }
                     Text(pingText, color = Accent, fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace)
                 }
-                // Баннер трафика для бесплатных пользователей
                 if (usage != null && usage.is_limited) {
                     val used = usage.bytes_used
                     val limit = usage.limit_bytes
@@ -282,22 +318,17 @@ fun HomeScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Осталось ${formatBytes(remaining)} из ${formatBytes(limit)}",
+                        stringResource(R.string.home_traffic_remaining,
+                            formatBytes(remaining, context), formatBytes(limit, context)),
                         color = bannerColor, fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.6f)
-                            .height(2.dp)
-                            .background(Border)
+                        modifier = Modifier.fillMaxWidth(0.6f).height(2.dp).background(Border)
                     ) {
                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth(fraction)
-                                .fillMaxHeight()
-                                .background(bannerColor)
+                            modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(bannerColor)
                         )
                     }
                 }
@@ -306,23 +337,25 @@ fun HomeScreen(
 
         HorizontalDivider(color = Border, thickness = 1.dp)
 
-        // Вкладки + статус
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("ВСЕ", color = if (serverListTab == 0) Accent else TextMuted,
+            Text(stringResource(R.string.home_tab_all),
+                color = if (serverListTab == 0) Accent else TextMuted,
                 fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 fontWeight = if (serverListTab == 0) FontWeight.Bold else FontWeight.Normal,
                 modifier = Modifier.clickable { serverListTab = 0 })
-            Text("ИЗБРАННЫЕ", color = if (serverListTab == 1) Accent else TextMuted,
+            Text(stringResource(R.string.home_tab_favorites),
+                color = if (serverListTab == 1) Accent else TextMuted,
                 fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 fontWeight = if (serverListTab == 1) FontWeight.Bold else FontWeight.Normal,
                 modifier = Modifier.clickable { serverListTab = 1 })
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = if (isConnected) "● ${connectedServer?.name ?: ""}" else "○ Отключён",
+                text = if (isConnected) "● ${connectedServer?.name ?: ""}"
+                       else stringResource(R.string.home_disconnected),
                 color = if (isConnected) Accent else TextMuted,
                 fontSize = 10.sp, fontFamily = FontFamily.Monospace
             )
@@ -330,7 +363,6 @@ fun HomeScreen(
 
         HorizontalDivider(color = Border, thickness = 1.dp)
 
-        // Список серверов с pull-to-refresh
         PullToRefreshBox(
             isRefreshing = isRefreshingPings && !isLoadingServers,
             onRefresh = onRefreshPings,
@@ -343,8 +375,10 @@ fun HomeScreen(
             } else if (displayedServers.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (serverListTab == 1) "Удерживайте сервер\nчтобы добавить в избранное"
-                        else "Нет доступных серверов",
+                        stringResource(
+                            if (serverListTab == 1) R.string.home_hint_long_press
+                            else R.string.home_no_servers
+                        ),
                         color = TextMuted, fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
                     )
@@ -366,7 +400,7 @@ fun HomeScreen(
                                             } else if (!isThisConnected) {
                                                 scope.launch {
                                                     isConnecting = true
-                                                    statusMsg = "Отключение..."
+                                                    statusMsg = strDisconnecting
                                                     if (SingboxManager.isConnected()) {
                                                         XrayVpnService.stop(context)
                                                     } else {
@@ -386,12 +420,12 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = when (server.country) {
-                                    "Finland" -> "🇫🇮"
+                                    "Finland"     -> "🇫🇮"
                                     "Switzerland" -> "🇨🇭"
-                                    "Russia" -> "🇷🇺"
-                                    "Germany" -> "🇩🇪"
+                                    "Russia"      -> "🇷🇺"
+                                    "Germany"     -> "🇩🇪"
                                     "Netherlands" -> "🇳🇱"
-                                    else -> "🌍"
+                                    else          -> "🌍"
                                 }, fontSize = 20.sp
                             )
                             Spacer(modifier = Modifier.width(16.dp))
@@ -401,20 +435,18 @@ fun HomeScreen(
                                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 Text(
                                     text = "· " + when (server.server_type) {
-                                        "vless"     -> "VLESS+Reality"
-                                        "hysteria"  -> "Hysteria2"
-                                        "trojan"    -> "Trojan"
-                                        else        -> "AmneziaWG"
+                                        "vless"         -> "VLESS+Reality"
+                                        "hysteria"      -> "Hysteria2"
+                                        "trojan"        -> "Trojan"
+                                        "openvpn_cloak" -> "OpenVPN+Cloak"
+                                        else            -> "AmneziaWG"
                                     },
-                                    color = TextMuted,
-                                    fontSize = 10.sp,
-                                    fontFamily = FontFamily.Monospace
+                                    color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace
                                 )
                                 if (favoriteServers.contains(server.name)) {
-                                    Text("★ избранное", color = Accent,
-                                        fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                    Text(stringResource(R.string.home_favorite_label),
+                                        color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                                 }
-                                // Статус-сообщение для degraded/attacked
                                 if (server.hasWarning && server.status_message != null) {
                                     Text(
                                         "⚠ ${server.status_message}${if (server.status_message_extra != null) " — ${server.status_message_extra}" else ""}",
@@ -425,23 +457,23 @@ fun HomeScreen(
                             }
                             Text(
                                 text = when {
-                                    isThisConnected        -> "● ПОДКЛЮЧЁН"
-                                    server.isUnavailable   -> "СКОРО"
+                                    isThisConnected      -> stringResource(R.string.home_status_connected)
+                                    server.isUnavailable -> stringResource(R.string.home_status_soon)
                                     !server.connectable  -> when (server.status) {
-                                        "testing"     -> "⚡ ТЕСТ."
-                                        "maintenance" -> "🔧 ОБСЛ."
-                                        else          -> "СКОРО"
+                                        "testing"     -> stringResource(R.string.home_status_test)
+                                        "maintenance" -> stringResource(R.string.home_status_maintenance)
+                                        else          -> stringResource(R.string.home_status_soon)
                                     }
-                                    server.hasWarning      -> "⚠ ${ping?.let { if (it >= 999) "—" else "${it}мс" } ?: "..."}"
-                                    ping == null           -> "● ..."
-                                    ping >= 999            -> "● —"
-                                    else                   -> "● ${ping}мс"
+                                    server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
+                                    ping == null         -> "● ..."
+                                    ping >= 999          -> "● —"
+                                    else                 -> "● $ping$strMs"
                                 },
                                 color = when {
-                                    isThisConnected       -> Accent
-                                    server.isUnavailable  -> TextMuted
-                                    !server.connectable -> TextMuted
-                                    server.hasWarning     -> Color(0xFFF59E0B)
+                                    isThisConnected      -> Accent
+                                    server.isUnavailable -> TextMuted
+                                    !server.connectable  -> TextMuted
+                                    server.hasWarning    -> Color(0xFFF59E0B)
                                     ping == null || ping >= 999 -> TextMuted
                                     ping < 100  -> Accent
                                     ping < 200  -> Color(0xFFFFAA00)
@@ -456,14 +488,13 @@ fun HomeScreen(
             }
         }
 
-        // Кнопка подключения
         HorizontalDivider(color = Border, thickness = 1.dp)
         Button(
             onClick = {
                 scope.launch {
                     if (isConnected) {
                         isConnecting = true
-                        statusMsg = "Отключение..."
+                        statusMsg = strDisconnecting
                         if (SingboxManager.isConnected()) {
                             XrayVpnService.stop(context)
                         } else {
@@ -491,7 +522,7 @@ fun HomeScreen(
                     modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
                 Text(
-                    if (isConnected) "● ОТКЛЮЧИТЬСЯ" else "○ ПОДКЛЮЧИТЬСЯ",
+                    stringResource(if (isConnected) R.string.home_btn_disconnect else R.string.home_btn_connect),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold, fontSize = 13.sp
                 )

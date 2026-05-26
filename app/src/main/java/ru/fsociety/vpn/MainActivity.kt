@@ -30,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,15 @@ class MainActivity : ComponentActivity() {
             AutoConnectRequest.trigger.tryEmit(Unit)
         }
     }
+
+    override fun attachBaseContext(newBase: Context) {
+        val prefs = newBase.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
+        val lang = prefs.getString("language", "ru") ?: "ru"
+        val locale = java.util.Locale(lang)
+        val config = android.content.res.Configuration(newBase.resources.configuration)
+        config.setLocale(locale)
+        super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
 }
 
 // ── VPN Events (для отключения из уведомления) ──
@@ -94,10 +104,10 @@ class VpnDisconnectReceiver : BroadcastReceiver() {
             val pending = goAsync()
             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    if (SingboxManager.isConnected()) {
-                        XrayVpnService.stop(context) // service сам вызовет SingboxManager.disconnect()
-                    } else {
-                        VpnManager.disconnect()
+                    when {
+                        OpenVpnService.isRunning -> OpenVpnService.stop(context)
+                        SingboxManager.isConnected() -> XrayVpnService.stop(context)
+                        else -> VpnManager.disconnect()
                     }
                     VpnEvents.disconnectRequested.tryEmit(Unit)
                 } finally {
@@ -167,7 +177,7 @@ object VpnNotificationHelper {
     fun init(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "Статус VPN",
+                CHANNEL_ID, context.getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply { setShowBadge(false) }
             context.getSystemService(NotificationManager::class.java)
@@ -183,11 +193,11 @@ object VpnNotificationHelper {
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_secure)
-            .setContentTitle("[f]society VPN — Подключён")
-            .setContentText("$serverName · ↓ ${formatBytes(rx)} ↑ ${formatBytes(tx)}")
+            .setContentTitle(context.getString(R.string.notification_title_connected))
+            .setContentText("$serverName · ↓ ${formatBytes(context, rx)} ↑ ${formatBytes(context, tx)}")
             .setOngoing(true)
             .setSilent(true)
-            .addAction(0, "ОТКЛЮЧИТЬСЯ", disconnectIntent)
+            .addAction(0, context.getString(R.string.notification_disconnect), disconnectIntent)
             .build()
         context.getSystemService(NotificationManager::class.java)
             .notify(NOTIFICATION_ID, notification)
@@ -198,11 +208,11 @@ object VpnNotificationHelper {
             .cancel(NOTIFICATION_ID)
     }
 
-    fun formatBytes(bytes: Long): String = when {
-        bytes >= 1_073_741_824L -> "%.1f ГБ".format(bytes / 1_073_741_824.0)
-        bytes >= 1_048_576L -> "%.1f МБ".format(bytes / 1_048_576.0)
-        bytes >= 1024L -> "%.0f КБ".format(bytes / 1024.0)
-        else -> "$bytes Б"
+    fun formatBytes(context: Context, bytes: Long): String = when {
+        bytes >= 1_073_741_824L -> "%.1f ${context.getString(R.string.unit_gb)}".format(bytes / 1_073_741_824.0)
+        bytes >= 1_048_576L -> "%.1f ${context.getString(R.string.unit_mb)}".format(bytes / 1_048_576.0)
+        bytes >= 1024L -> "%.0f ${context.getString(R.string.unit_kb)}".format(bytes / 1024.0)
+        else -> "$bytes ${context.getString(R.string.unit_b)}"
     }
 }
 
@@ -284,6 +294,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
     var backgroundMode by remember { mutableStateOf(prefs.getBoolean("background_mode", false)) }
     var killSwitch by remember { mutableStateOf(prefs.getBoolean("kill_switch", false)) }
+    var language by remember { mutableStateOf(prefs.getString("language", "ru") ?: "ru") }
     var splitSettings by remember { mutableStateOf(SplitTunnelingManager.load(prefs)) }
 
     LaunchedEffect(killSwitch) { VpnManager.killSwitchEnabled = killSwitch }
@@ -404,7 +415,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                 NavigationBarItem(
                     selected = selectedTab == 0, onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Filled.Home, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    label = { Text("ГЛАВНАЯ", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    label = { Text(stringResource(R.string.nav_home), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
@@ -413,7 +424,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                 NavigationBarItem(
                     selected = selectedTab == 1, onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Filled.List, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    label = { Text("ПРАВИЛА", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    label = { Text(stringResource(R.string.nav_rules), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
@@ -422,7 +433,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                 NavigationBarItem(
                     selected = selectedTab == 2, onClick = { selectedTab = 2 },
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    label = { Text("НАСТРОЙКИ", fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    label = { Text(stringResource(R.string.nav_settings), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
@@ -449,7 +460,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         VpnManager.connectedServerName = server.name
                         // VpnForegroundService только для WireGuard/AmneziaWG.
                         // Для sing-box протоколов (VLESS/Hysteria2) уведомление управляется XrayVpnService.
-                        if (!server.usesSingbox) {
+                        if (!server.usesSingbox && !server.usesOpenVpn) {
                             VpnForegroundService.start(context)
                         }
                     },
@@ -480,6 +491,12 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     onKillSwitchChange = { enabled ->
                         killSwitch = enabled
                         prefs.edit().putBoolean("kill_switch", enabled).apply()
+                    },
+                    language = language,
+                    onLanguageChange = { lang ->
+                        language = lang
+                        prefs.edit().putString("language", lang).apply()
+                        (context as? android.app.Activity)?.recreate()
                     }
                 )
             }
