@@ -1,3 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FsocietyNet</string>
+
+    <!-- Units -->
+    <string name="unit_gb">ГБ</string>
+    <string name="unit_mb">МБ</string>
+    <string name="unit_kb">КБ</string>
+    <string name="unit_b">Б</string>
+    <string name="unit_ms">мс</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ГЛАВНАЯ</string>
+    <string name="nav_rules">ПРАВИЛА</string>
+    <string name="nav_settings">НАСТРОЙКИ</string>
+
+    <!-- Home -->
+    <string name="home_connecting">Подключение…</string>
+    <string name="home_getting_config">Получение конфигурации…</string>
+    <string name="home_disconnecting">Отключение…</string>
+    <string name="home_error_connect">Ошибка подключения</string>
+    <string name="home_vpn_denied">Разрешение VPN отклонено</string>
+    <string name="home_error_timeout">Таймаут, попробуйте ещё раз</string>
+    <string name="home_error_generic">Ошибка: %s</string>
+    <string name="home_tab_all">ВСЕ</string>
+    <string name="home_tab_favorites">ИЗБРАННЫЕ</string>
+    <string name="home_disconnected">○ Отключён</string>
+    <string name="home_traffic_remaining">Осталось %1$s из %2$s</string>
+    <string name="home_add_favorite">Добавить в избранное?</string>
+    <string name="home_remove_favorite">Убрать из избранного?</string>
+    <string name="home_btn_add">ДОБАВИТЬ</string>
+    <string name="home_btn_remove">УБРАТЬ</string>
+    <string name="home_btn_cancel">ОТМЕНА</string>
+    <string name="home_favorite_label">★ избранное</string>
+    <string name="home_hint_long_press">Удерживайте сервер\nчтобы добавить в избранное</string>
+    <string name="home_no_servers">Нет доступных серверов</string>
+    <string name="home_status_connected">● ПОДКЛЮЧЁН</string>
+    <string name="home_status_soon">СКОРО</string>
+    <string name="home_status_test">⚡ ТЕСТ.</string>
+    <string name="home_status_maintenance">🔧 ОБСЛ.</string>
+    <string name="home_btn_disconnect">● ОТКЛЮЧИТЬСЯ</string>
+    <string name="home_btn_connect">○ ПОДКЛЮЧИТЬСЯ</string>
+
+    <!-- Login -->
+    <string name="login_subtitle_anon">// АНОНИМНЫЙ ВХОД</string>
+    <string name="login_subtitle_email">// ВХОД В АККАУНТ</string>
+    <string name="login_field_password">ПАРОЛЬ</string>
+    <string name="login_forgot_password">Забыл пароль?</string>
+    <string name="login_field_code">16-ЗНАЧНЫЙ КОД</string>
+    <string name="login_code_hint">Код из 16 цифр — ваш единственный способ войти</string>
+    <string name="login_btn">ВОЙТИ →</string>
+    <string name="login_error_code_length">Введите 16 цифр</string>
+    <string name="login_error_empty">Заполните все поля</string>
+    <string name="login_error_network">Ошибка сети, попробуйте ещё раз</string>
+    <string name="login_error_code_not_found">Код не найден</string>
+    <string name="login_error_credentials">Неверный email или пароль</string>
+    <string name="login_telegram_support">Поддержка в Telegram</string>
+    <string name="login_btn_email">← ВОЙТИ ПО EMAIL</string>
+    <string name="login_btn_anon">ВОЙТИ АНОНИМНО</string>
+    <string name="login_no_account">Нет аккаунта?</string>
+    <string name="login_btn_register">ЗАРЕГИСТРИРОВАТЬСЯ →</string>
+
+    <!-- Register -->
+    <string name="register_subtitle">// РЕГИСТРАЦИЯ</string>
+    <string name="register_field_password_repeat">ПОВТОРИТЕ ПАРОЛЬ</string>
+    <string name="register_error_passwords_mismatch">Пароли не совпадают</string>
+    <string name="register_error_password_length">Пароль минимум 8 символов</string>
+    <string name="register_success">Письмо отправлено на %s — подтвердите аккаунт</string>
+    <string name="register_error_server">Email уже зарегистрирован или ошибка сервера</string>
+    <string name="register_back">← Уже есть аккаунт? Войти</string>
+
+    <!-- Rules -->
+    <string name="rules_section">// ПРАВИЛА</string>
+    <string name="rules_title">Раздельный туннель.</string>
+    <string name="rules_apps">Приложения</string>
+    <string name="rules_in_progress">В разработке</string>
+    <string name="rules_sites">Сайты</string>
+    <string name="rules_sites_off">Выключено</string>
+    <string name="rules_sites_none">Нет выбранных сайтов</string>
+    <string name="rules_sites_exclude">VPN везде, кроме %d сайтов</string>
+    <string name="rules_sites_include">VPN только для %d сайтов</string>
+    <string name="rules_footer">// Приложения и сайты работают независимо друг от друга</string>
+    <string name="rules_apps_title">Приложения.</string>
+    <string name="rules_apps_toggle">Раздельный туннель для приложений</string>
+    <string name="rules_mode_exclude">Везде, кроме</string>
+    <string name="rules_mode_include">Только выбранные</string>
+    <string name="rules_search_hint">Поиск приложения…</string>
+    <string name="rules_enable_hint">Включите раздельный туннель выше</string>
+    <string name="rules_sites_title">Сайты.</string>
+    <string name="rules_sites_toggle">Раздельный туннель для сайтов</string>
+    <string name="rules_vpn_except">// VPN не работает на этих сайтах</string>
+    <string name="rules_vpn_only">// VPN работает только на этих сайтах</string>
+    <string name="rules_presets">// ПРЕСЕТЫ</string>
+    <string name="rules_zone_ru_soon">Зона .ru — скоро</string>
+    <string name="rules_sites_placeholder">https://gosuslugi.ru или gosuslugi.ru</string>
+    <string name="rules_sites_empty">Добавьте сайты выше</string>
+    <string name="rules_sites_error_invalid">Введите корректный URL или домен</string>
+    <string name="rules_sites_error_duplicate">Домен уже добавлен</string>
+    <string name="rules_delete_cd">Удалить</string>
+
+    <!-- Settings main menu -->
+    <string name="settings_section">// НАСТРОЙКИ</string>
+    <string name="settings_title">Настройки.</string>
+    <string name="settings_account">Аккаунт</string>
+    <string name="settings_loading">Загрузка…</string>
+    <string name="settings_support">Поддержка</string>
+    <string name="settings_support_sub">Сообщить о проблеме или задать вопрос</string>
+    <string name="settings_app">Настройки</string>
+    <string name="settings_app_sub">Kill Switch, фоновый режим</string>
+    <string name="settings_subscription">Подписка</string>
+    <string name="settings_in_dev">В разработке</string>
+    <string name="settings_payments">История платежей</string>
+    <string name="settings_version">Версия</string>
+
+    <!-- Account -->
+    <string name="account_title">Аккаунт.</string>
+    <string name="account_label_subscription">Подписка</string>
+    <string name="account_sub_active">%1$s · до %2$s</string>
+    <string name="account_sub_none">Нет активной подписки</string>
+    <string name="account_label_role">Роль</string>
+    <string name="account_change_password">// СМЕНА ПАРОЛЯ</string>
+    <string name="account_field_old_password">Текущий пароль</string>
+    <string name="account_field_new_password">Новый пароль</string>
+    <string name="account_field_repeat_password">Повторите новый пароль</string>
+    <string name="account_error_empty">Заполните все поля</string>
+    <string name="account_error_mismatch">Пароли не совпадают</string>
+    <string name="account_error_length">Минимум 8 символов</string>
+    <string name="account_password_changed">Пароль изменён</string>
+    <string name="account_error_wrong_password">Неверный текущий пароль</string>
+    <string name="account_error_network">Ошибка сети</string>
+    <string name="account_btn_change_password">СМЕНИТЬ ПАРОЛЬ →</string>
+    <string name="account_btn_logout">ВЫЙТИ →</string>
+
+    <!-- Support / Tickets -->
+    <string name="support_title">Поддержка.</string>
+    <string name="tickets_open">● открыт</string>
+    <string name="tickets_closed">● закрыт</string>
+    <string name="tickets_btn_close">ЗАКРЫТЬ</string>
+    <string name="tickets_no_messages">Нет сообщений</string>
+    <string name="tickets_message_hint">Сообщение…</string>
+    <string name="tickets_telegram_urgent">Срочный вопрос?</string>
+    <string name="tickets_telegram_link">Написать в Telegram</string>
+    <string name="tickets_limit_title">Лимит тикетов</string>
+    <string name="tickets_limit_msg">У вас уже 3 открытых тикета. Закройте или удалите один из них перед созданием нового.</string>
+    <string name="tickets_limit_ok">ПОНЯТНО</string>
+    <string name="tickets_delete_title">Удалить тикет?</string>
+    <string name="tickets_delete_msg">«%s» будет удалён без возможности восстановления.</string>
+    <string name="tickets_delete_confirm">УДАЛИТЬ</string>
+    <string name="tickets_cancel">ОТМЕНА</string>
+    <string name="tickets_empty">Нет обращений</string>
+    <string name="tickets_btn_new">+ НОВОЕ ОБРАЩЕНИЕ</string>
+    <string name="tickets_new_title">Новый тикет</string>
+    <string name="tickets_new_subject">Тема</string>
+    <string name="tickets_btn_create">СОЗДАТЬ</string>
+
+    <!-- Coming Soon -->
+    <string name="coming_soon_section">// В РАЗРАБОТКЕ</string>
+    <string name="coming_soon_msg">Раздел будет доступен\nв следующих версиях</string>
+
+    <!-- App Settings -->
+    <string name="app_settings_title">Настройки.</string>
+    <string name="killswitch_enabled_sub">Включён — интернет блокируется при обрыве VPN</string>
+    <string name="killswitch_disabled_sub">Выключен</string>
+    <string name="lang_label">Язык</string>
+    <string name="lang_ru">Русский</string>
+    <string name="lang_en">English</string>
+    <string name="lang_current_ru">Русский</string>
+    <string name="lang_current_en">English</string>
+    <string name="background_enabled_sub">Включён</string>
+    <string name="background_disabled_sub">Выключен</string>
+
+    <!-- Language tab -->
+    <string name="lang_title">Язык.</string>
+
+    <!-- Kill Switch tab -->
+    <string name="killswitch_title">Kill Switch.</string>
+    <string name="killswitch_description">Если VPN-соединение неожиданно обрывается — весь интернет блокируется до повторного подключения. Защищает от утечки реального IP.</string>
+    <string name="killswitch_switch_enabled">Включён</string>
+    <string name="killswitch_switch_disabled">Выключен</string>
+    <string name="killswitch_note">// При обрыве VPN приложение отключит туннель и покажет уведомление.</string>
+
+    <!-- Background Mode tab -->
+    <string name="background_title">Фоновый режим.</string>
+    <string name="background_description">Когда включён — уведомление в шторке всегда видно. Кнопка «ОТКЛЮЧИТЬСЯ» доступна без открытия приложения.</string>
+    <string name="background_switch_label">Работа в фоне</string>
+    <string name="background_switch_sub">Показывать уведомление всегда</string>
+    <string name="background_note">После включения телефон покажет диалог с запросом разрешения — нажмите «Разрешить».</string>
+
+    <!-- Update tab -->
+    <string name="update_title">Обновление.</string>
+    <string name="update_current_version">Текущая версия</string>
+    <string name="update_checking">Проверяем обновления…</string>
+    <string name="update_error">Не удалось проверить обновления</string>
+    <string name="update_retry">Попробовать снова</string>
+    <string name="update_new_version">Новая версия</string>
+    <string name="update_whats_new">// ЧТО НОВОГО</string>
+    <string name="update_downloading">Загрузка… %d%%</string>
+    <string name="update_installed">✓ Установщик запущен</string>
+    <string name="update_error_download">Ошибка загрузки</string>
+    <string name="update_btn">ОБНОВИТЬ → %s</string>
+    <string name="update_up_to_date">✓ Установлена актуальная версия</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">Статус VPN</string>
+    <string name="notification_title_connected">[f]society VPN — Подключён</string>
+    <string name="notification_title_connecting">[f]society VPN — Подключение…</string>
+    <string name="notification_text_connecting">Выбираем лучший сервер</string>
+    <string name="notification_title_disconnected">[f]society VPN — Отключён</string>
+    <string name="notification_text_disconnected">Подключиться к лучшему серверу</string>
+    <string name="notification_disconnect">ОТКЛЮЧИТЬСЯ</string>
+    <string name="notification_connect">ПОДКЛЮЧИТЬСЯ</string>
 </resources>

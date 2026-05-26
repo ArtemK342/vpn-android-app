@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
@@ -32,6 +33,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,7 +50,8 @@ fun SettingsScreen(
     token: String, user: UserResponse?, subscription: SubscriptionResponse?,
     isLoading: Boolean, onLogout: () -> Unit,
     backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit,
-    killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit
+    killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit,
+    language: String, onLanguageChange: (String) -> Unit
 ) {
     var currentScreen by remember { mutableStateOf("main") }
 
@@ -61,9 +65,11 @@ fun SettingsScreen(
         "app_settings" -> AppSettingsTab(
             killSwitch = killSwitch, onKillSwitchChange = onKillSwitchChange,
             backgroundMode = backgroundMode, onBackgroundModeChange = onBackgroundModeChange,
+            language = language,
             onBack = { currentScreen = "main" },
             onKillSwitch = { currentScreen = "killswitch" },
-            onBackground = { currentScreen = "background" }
+            onBackground = { currentScreen = "background" },
+            onLanguage = { currentScreen = "language" }
         )
         "background" -> BackgroundModeTab(
             backgroundMode = backgroundMode,
@@ -75,49 +81,54 @@ fun SettingsScreen(
             onKillSwitchChange = onKillSwitchChange,
             onBack = { currentScreen = "app_settings" }
         )
+        "language" -> LanguageTab(
+            language = language,
+            onLanguageChange = onLanguageChange,
+            onBack = { currentScreen = "app_settings" }
+        )
         "update" -> UpdateTab(onBack = { currentScreen = "main" })
-        "subscription" -> ComingSoonTab(title = "Подписка", onBack = { currentScreen = "main" })
-        "payments" -> ComingSoonTab(title = "История платежей", onBack = { currentScreen = "main" })
+        "subscription" -> ComingSoonTab(title = stringResource(R.string.settings_subscription), onBack = { currentScreen = "main" })
+        "payments" -> ComingSoonTab(title = stringResource(R.string.settings_payments), onBack = { currentScreen = "main" })
         else -> Column(modifier = Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
             Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
-                Text("// НАСТРОЙКИ", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.settings_section), color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Настройки.", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.settings_title), color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(8.dp))
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Аккаунт",
-                subtitle = user?.email ?: "Загрузка...",
+                title = stringResource(R.string.settings_account),
+                subtitle = user?.email ?: stringResource(R.string.settings_loading),
                 onClick = { currentScreen = "account" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.SupportAgent, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Поддержка",
-                subtitle = "Сообщить о проблеме или задать вопрос",
+                title = stringResource(R.string.settings_support),
+                subtitle = stringResource(R.string.settings_support_sub),
                 onClick = { currentScreen = "support" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Настройки",
-                subtitle = "Kill Switch, фоновый режим",
+                title = stringResource(R.string.settings_app),
+                subtitle = stringResource(R.string.settings_app_sub),
                 onClick = { currentScreen = "app_settings" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Подписка",
-                subtitle = "В разработке",
+                title = stringResource(R.string.settings_subscription),
+                subtitle = stringResource(R.string.settings_in_dev),
                 onClick = { currentScreen = "subscription" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "История платежей",
-                subtitle = "В разработке",
+                title = stringResource(R.string.settings_payments),
+                subtitle = stringResource(R.string.settings_in_dev),
                 onClick = { currentScreen = "payments" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Версия",
+                title = stringResource(R.string.settings_version),
                 subtitle = "${BuildConfig.VERSION_NAME}",
                 onClick = { currentScreen = "update" }
             )
@@ -153,16 +164,11 @@ fun SettingsMenuItem(icon: @Composable () -> Unit, title: String, subtitle: Stri
 @Composable
 fun SettingsRow(label: String, value: String) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, Border)
-            .padding(16.dp)
+        modifier = Modifier.fillMaxWidth().border(1.dp, Border).padding(16.dp)
     ) {
-        Text(label.uppercase(), color = TextMuted, fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace)
+        Text(label.uppercase(), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(value, color = TextPrimary, fontSize = 14.sp,
-            fontWeight = FontWeight.Bold)
+        Text(value, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
     Spacer(modifier = Modifier.height(8.dp))
 }
@@ -178,37 +184,45 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
     var isSaving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    val strErrorEmpty    = stringResource(R.string.account_error_empty)
+    val strErrorMismatch = stringResource(R.string.account_error_mismatch)
+    val strErrorLength   = stringResource(R.string.account_error_length)
+    val strPasswordChanged = stringResource(R.string.account_password_changed)
+    val strErrorWrongPw  = stringResource(R.string.account_error_wrong_password)
+    val strErrorNetwork  = stringResource(R.string.account_error_network)
+
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Аккаунт.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.account_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
                 }
             } else {
                 SettingsRow(label = "Email", value = user?.email ?: "—")
-                SettingsRow(label = "Подписка", value = if (subscription?.is_active == true)
-                    "${subscription.plan} · до ${subscription.expires_at?.take(10)}"
-                else "Нет активной подписки")
+                SettingsRow(
+                    label = stringResource(R.string.account_label_subscription),
+                    value = if (subscription?.is_active == true)
+                        stringResource(R.string.account_sub_active, subscription.plan ?: "", subscription.expires_at?.take(10) ?: "")
+                    else stringResource(R.string.account_sub_none)
+                )
                 if (user?.role != "user" && user?.role != null) {
-                    SettingsRow(label = "Роль", value = user.role)
+                    SettingsRow(label = stringResource(R.string.account_label_role), value = user.role)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("// СМЕНА ПАРОЛЯ", color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.account_change_password), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = oldPassword, onValueChange = { oldPassword = it; pwError = ""; pwSuccess = "" },
-                    label = { Text("Текущий пароль", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.account_field_old_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -221,7 +235,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = newPassword, onValueChange = { newPassword = it; pwError = ""; pwSuccess = "" },
-                    label = { Text("Новый пароль", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.account_field_new_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -234,7 +248,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = newPassword2, onValueChange = { newPassword2 = it; pwError = ""; pwSuccess = "" },
-                    label = { Text("Повторите новый пароль", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.account_field_repeat_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -256,30 +270,29 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                 Button(
                     onClick = {
                         if (oldPassword.isBlank() || newPassword.isBlank() || newPassword2.isBlank()) {
-                            pwError = "Заполните все поля"; return@Button
+                            pwError = strErrorEmpty; return@Button
                         }
                         if (newPassword != newPassword2) {
-                            pwError = "Пароли не совпадают"; return@Button
+                            pwError = strErrorMismatch; return@Button
                         }
                         if (newPassword.length < 8) {
-                            pwError = "Минимум 8 символов"; return@Button
+                            pwError = strErrorLength; return@Button
                         }
                         scope.launch {
-                            isSaving = true
-                            pwError = ""
+                            isSaving = true; pwError = ""
                             try {
                                 val resp = ApiClient.service.changePassword(
                                     "Bearer $token",
                                     ChangePasswordRequest(oldPassword, newPassword)
                                 )
                                 if (resp.isSuccessful) {
-                                    pwSuccess = "Пароль изменён"
+                                    pwSuccess = strPasswordChanged
                                     oldPassword = ""; newPassword = ""; newPassword2 = ""
                                 } else {
-                                    pwError = "Неверный текущий пароль"
+                                    pwError = strErrorWrongPw
                                 }
                             } catch (_: Exception) {
-                                pwError = "Ошибка сети"
+                                pwError = strErrorNetwork
                             } finally {
                                 isSaving = false
                             }
@@ -291,7 +304,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
                 ) {
                     if (isSaving) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Text("СМЕНИТЬ ПАРОЛЬ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    else Text(stringResource(R.string.account_btn_change_password), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -302,7 +315,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
                 ) {
-                    Text("ВЫЙТИ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(stringResource(R.string.account_btn_logout), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -310,10 +323,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
 }
 
 fun formatMsgTime(raw: String): String {
-    return try {
-        val s = raw.replace("T", " ").take(16)
-        s
-    } catch (_: Exception) { raw.take(16) }
+    return try { raw.replace("T", " ").take(16) } catch (_: Exception) { raw.take(16) }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -345,11 +355,11 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false; newSubject = "" },
             containerColor = Bg2,
-            title = { Text("Новый тикет", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.tickets_new_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = newSubject, onValueChange = { newSubject = it },
-                    label = { Text("Тема", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.tickets_new_subject), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Accent, unfocusedBorderColor = Border,
@@ -365,16 +375,15 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                         try {
                             val t = ApiClient.service.createTicket("Bearer $token", TicketCreateRequest(newSubject))
                             tickets = listOf(t) + tickets
-                            showCreateDialog = false
-                            newSubject = ""
+                            showCreateDialog = false; newSubject = ""
                         } catch (_: Exception) {}
                         finally { isSending = false }
                     }
-                }) { Text("СОЗДАТЬ", color = Accent, fontFamily = FontFamily.Monospace) }
+                }) { Text(stringResource(R.string.tickets_btn_create), color = Accent, fontFamily = FontFamily.Monospace) }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false; newSubject = "" }) {
-                    Text("ОТМЕНА", color = TextMuted, fontFamily = FontFamily.Monospace)
+                    Text(stringResource(R.string.tickets_cancel), color = TextMuted, fontFamily = FontFamily.Monospace)
                 }
             }
         )
@@ -384,11 +393,11 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showLimitDialog = false },
             containerColor = Bg2,
-            title = { Text("Лимит тикетов", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-            text = { Text("У вас уже 3 открытых тикета. Закройте или удалите один из них перед созданием нового.", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            title = { Text(stringResource(R.string.tickets_limit_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.tickets_limit_msg), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
             confirmButton = {
                 TextButton(onClick = { showLimitDialog = false }) {
-                    Text("ПОНЯТНО", color = Accent, fontFamily = FontFamily.Monospace)
+                    Text(stringResource(R.string.tickets_limit_ok), color = Accent, fontFamily = FontFamily.Monospace)
                 }
             }
         )
@@ -398,8 +407,8 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { ticketToDelete = null },
             containerColor = Bg2,
-            title = { Text("Удалить тикет?", color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-            text = { Text("«${t.subject}» будет удалён без возможности восстановления.", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            title = { Text(stringResource(R.string.tickets_delete_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.tickets_delete_msg, t.subject), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -409,11 +418,11 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                         } catch (_: Exception) {}
                         ticketToDelete = null
                     }
-                }) { Text("УДАЛИТЬ", color = ErrorRed, fontFamily = FontFamily.Monospace) }
+                }) { Text(stringResource(R.string.tickets_delete_confirm), color = ErrorRed, fontFamily = FontFamily.Monospace) }
             },
             dismissButton = {
                 TextButton(onClick = { ticketToDelete = null }) {
-                    Text("ОТМЕНА", color = TextMuted, fontFamily = FontFamily.Monospace)
+                    Text(stringResource(R.string.tickets_cancel), color = TextMuted, fontFamily = FontFamily.Monospace)
                 }
             }
         )
@@ -430,9 +439,11 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(detail.ticket.subject, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(if (detail.ticket.status == "open") "● открыт" else "● закрыт",
+                    Text(
+                        stringResource(if (detail.ticket.status == "open") R.string.tickets_open else R.string.tickets_closed),
                         color = if (detail.ticket.status == "open") Accent else TextMuted,
-                        fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                    )
                 }
                 if (detail.ticket.status == "open") {
                     TextButton(onClick = {
@@ -443,7 +454,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                                 tickets = tickets.map { if (it.id == detail.ticket.id) it.copy(status = "closed") else it }
                             } catch (_: Exception) {}
                         }
-                    }) { Text("ЗАКРЫТЬ", color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
+                    }) { Text(stringResource(R.string.tickets_btn_close), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
                 }
             }
             HorizontalDivider(color = Border)
@@ -452,7 +463,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                 if (detail.messages.isEmpty()) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text("Нет сообщений", color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                            Text(stringResource(R.string.tickets_no_messages), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                         }
                     }
                 }
@@ -463,18 +474,13 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
                     ) {
                         Box(
-                            modifier = Modifier
-                                .widthIn(max = 280.dp)
-                                .background(if (isUser) Accent else Bg2)
-                                .padding(12.dp)
+                            modifier = Modifier.widthIn(max = 280.dp).background(if (isUser) Accent else Bg2).padding(12.dp)
                         ) {
                             Text(msg.message, color = if (isUser) BgDark else TextPrimary, fontSize = 13.sp)
                         }
-                        Text(
-                            formatMsgTime(msg.created_at),
-                            color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
+                        Text(formatMsgTime(msg.created_at), color = TextMuted, fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                     }
                 }
             }
@@ -484,7 +490,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newMessage, onValueChange = { newMessage = it },
-                        placeholder = { Text("Сообщение...", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = TextMuted) },
+                        placeholder = { Text(stringResource(R.string.tickets_message_hint), fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = TextMuted) },
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Accent, unfocusedBorderColor = Border,
@@ -514,12 +520,11 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
         return
     }
 
-    // Список тикетов
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.padding(horizontal = 24.dp).padding(top = 52.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Поддержка.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.support_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
 
@@ -529,7 +534,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
             }
         } else if (tickets.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("Нет обращений", color = TextMuted, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.tickets_empty), color = TextMuted, fontFamily = FontFamily.Monospace)
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -555,7 +560,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                             Text(ticket.updated_at.take(10), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         }
                         Text(
-                            if (ticket.status == "open") "● открыт" else "● закрыт",
+                            stringResource(if (ticket.status == "open") R.string.tickets_open else R.string.tickets_closed),
                             color = if (ticket.status == "open") Accent else TextMuted,
                             fontSize = 10.sp, fontFamily = FontFamily.Monospace
                         )
@@ -565,10 +570,9 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
             }
         }
 
-        val context = androidx.compose.ui.platform.LocalContext.current
+        val context = LocalContext.current
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = Modifier.fillMaxWidth()
                 .clickable {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/reich_kanzlei"))
                     context.startActivity(intent)
@@ -579,8 +583,8 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
             Text("✈", fontSize = 16.sp)
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("Срочный вопрос?", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text("Написать в Telegram", color = TextMuted, fontSize = 12.sp,
+                Text(stringResource(R.string.tickets_telegram_urgent), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.tickets_telegram_link), color = TextMuted, fontSize = 12.sp,
                     textDecoration = TextDecoration.Underline)
             }
         }
@@ -595,7 +599,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
             colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
         ) {
-            Text("+ НОВОЕ ОБРАЩЕНИЕ", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(stringResource(R.string.tickets_btn_new), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
     }
 }
@@ -613,9 +617,9 @@ fun ComingSoonTab(title: String, onBack: () -> Unit) {
         HorizontalDivider(color = Border)
         Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("// В РАЗРАБОТКЕ", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.coming_soon_section), color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Раздел будет доступен\nв следующих версиях",
+                Text(stringResource(R.string.coming_soon_msg),
                     color = TextMuted, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
@@ -627,9 +631,11 @@ fun ComingSoonTab(title: String, onBack: () -> Unit) {
 fun AppSettingsTab(
     killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit,
     backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit,
+    language: String,
     onBack: () -> Unit,
     onKillSwitch: () -> Unit,
-    onBackground: () -> Unit
+    onBackground: () -> Unit,
+    onLanguage: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
@@ -637,21 +643,55 @@ fun AppSettingsTab(
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Настройки.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.app_settings_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
         SettingsMenuItem(
             icon = { Icon(Icons.Filled.PowerSettingsNew, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
             title = "Kill Switch",
-            subtitle = if (killSwitch) "Включён — интернет блокируется при обрыве VPN" else "Выключен",
+            subtitle = stringResource(if (killSwitch) R.string.killswitch_enabled_sub else R.string.killswitch_disabled_sub),
             onClick = onKillSwitch
         )
         SettingsMenuItem(
+            icon = { Icon(Icons.Filled.Language, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.lang_label),
+            subtitle = stringResource(if (language == "en") R.string.lang_current_en else R.string.lang_current_ru),
+            onClick = onLanguage
+        )
+        SettingsMenuItem(
             icon = { Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-            title = "Фоновый режим",
-            subtitle = if (backgroundMode) "Включён" else "Выключен",
+            title = stringResource(R.string.background_title).removeSuffix("."),
+            subtitle = stringResource(if (backgroundMode) R.string.background_enabled_sub else R.string.background_disabled_sub),
             onClick = onBackground
         )
+    }
+}
+
+@Composable
+fun LanguageTab(language: String, onLanguageChange: (String) -> Unit, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(stringResource(R.string.lang_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        listOf("ru" to stringResource(R.string.lang_ru), "en" to stringResource(R.string.lang_en)).forEach { (code, label) ->
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onLanguageChange(code) }
+                    .padding(horizontal = 24.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(label, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                if (language == code) {
+                    Text("✓", color = Accent, fontSize = 16.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+            HorizontalDivider(color = Border)
+        }
     }
 }
 
@@ -663,20 +703,15 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Kill Switch.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.killswitch_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Если VPN-соединение неожиданно обрывается — весь интернет блокируется до повторного подключения. Защищает от утечки реального IP.",
-                color = TextMuted, fontSize = 13.sp
-            )
+            Text(stringResource(R.string.killswitch_description), color = TextMuted, fontSize = 13.sp)
             Spacer(modifier = Modifier.height(24.dp))
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Bg2)
+                modifier = Modifier.fillMaxWidth().background(Bg2)
                     .clickable { onKillSwitchChange(!killSwitch) }
                     .padding(horizontal = 20.dp, vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -684,24 +719,19 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Kill Switch", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        if (killSwitch) "Включён" else "Выключен",
+                        stringResource(if (killSwitch) R.string.killswitch_switch_enabled else R.string.killswitch_switch_disabled),
                         color = if (killSwitch) Accent else TextMuted, fontSize = 12.sp
                     )
                 }
                 Switch(
-                    checked = killSwitch,
-                    onCheckedChange = onKillSwitchChange,
+                    checked = killSwitch, onCheckedChange = onKillSwitchChange,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = BgDark, checkedTrackColor = Accent,
-                        uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface
-                    )
+                        uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface)
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "// При обрыве VPN приложение отключит туннель и покажет уведомление.",
-                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
-            )
+            Text(stringResource(R.string.killswitch_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -709,29 +739,24 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
 @Composable
 fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Фоновый режим.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.background_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
 
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Когда включён — уведомление в шторке всегда видно. Кнопка «ОТКЛЮЧИТЬСЯ» доступна без открытия приложения.",
-                color = TextMuted, fontSize = 13.sp
-            )
+            Text(stringResource(R.string.background_description), color = TextMuted, fontSize = 13.sp)
             Spacer(modifier = Modifier.height(24.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Bg2)
+                modifier = Modifier.fillMaxWidth().background(Bg2)
                     .clickable {
                         val enabled = !backgroundMode
                         onBackgroundModeChange(enabled)
@@ -750,8 +775,8 @@ fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean)
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Работа в фоне", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Показывать уведомление всегда", color = TextMuted, fontSize = 12.sp)
+                    Text(stringResource(R.string.background_switch_label), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.background_switch_sub), color = TextMuted, fontSize = 12.sp)
                 }
                 Switch(
                     checked = backgroundMode,
@@ -769,19 +794,13 @@ fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean)
                         }
                     },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = BgDark,
-                        checkedTrackColor = Accent,
-                        uncheckedThumbColor = TextMuted,
-                        uncheckedTrackColor = Surface
-                    )
+                        checkedThumbColor = BgDark, checkedTrackColor = Accent,
+                        uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface)
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "После включения телефон покажет диалог с запросом разрешения — нажмите «Разрешить».",
-                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
-            )
+            Text(stringResource(R.string.background_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -789,7 +808,7 @@ fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean)
 @Composable
 fun UpdateTab(onBack: () -> Unit) {
     BackHandler { onBack() }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val currentVersion = BuildConfig.VERSION_NAME
     var updateInfo by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
     var isChecking by remember { mutableStateOf(true) }
@@ -798,10 +817,13 @@ fun UpdateTab(onBack: () -> Unit) {
     var downloadError by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
+    val strCheckError    = stringResource(R.string.update_error)
+    val strDownloadError = stringResource(R.string.update_error_download)
+
     LaunchedEffect(Unit) {
         val result = UpdateManager.checkForUpdate(currentVersion)
         result.onSuccess { updateInfo = it }
-        result.onFailure { checkError = "Не удалось проверить обновления" }
+        result.onFailure { checkError = strCheckError }
         isChecking = false
     }
 
@@ -810,13 +832,13 @@ fun UpdateTab(onBack: () -> Unit) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Обновление.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.update_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
 
         Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
             Spacer(modifier = Modifier.height(8.dp))
-            SettingsRow(label = "Текущая версия", value = currentVersion)
+            SettingsRow(label = stringResource(R.string.update_current_version), value = currentVersion)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -825,7 +847,7 @@ fun UpdateTab(onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(color = Accent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Проверяем обновления...", color = TextMuted, fontSize = 13.sp)
+                        Text(stringResource(R.string.update_checking), color = TextMuted, fontSize = 13.sp)
                     }
                 }
                 checkError.isNotEmpty() -> {
@@ -836,17 +858,17 @@ fun UpdateTab(onBack: () -> Unit) {
                         scope.launch {
                             val result = UpdateManager.checkForUpdate(currentVersion)
                             result.onSuccess { updateInfo = it }
-                            result.onFailure { checkError = "Не удалось проверить обновления" }
+                            result.onFailure { checkError = strCheckError }
                             isChecking = false
                         }
-                    }) { Text("Попробовать снова", color = Accent, fontFamily = FontFamily.Monospace) }
+                    }) { Text(stringResource(R.string.update_retry), color = Accent, fontFamily = FontFamily.Monospace) }
                 }
                 updateInfo?.hasUpdate == true -> {
                     val info = updateInfo!!
-                    SettingsRow(label = "Новая версия", value = info.latestVersion)
+                    SettingsRow(label = stringResource(R.string.update_new_version), value = info.latestVersion)
                     if (info.releaseNotes.isNotBlank()) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("// ЧТО НОВОГО", color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Text(stringResource(R.string.update_whats_new), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(info.releaseNotes, color = TextMuted, fontSize = 12.sp)
                     }
@@ -854,17 +876,17 @@ fun UpdateTab(onBack: () -> Unit) {
 
                     if (downloadProgress in 0..99) {
                         Column {
-                            Text("Загрузка... $downloadProgress%", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            Text(stringResource(R.string.update_downloading, downloadProgress),
+                                color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                             Spacer(modifier = Modifier.height(8.dp))
                             LinearProgressIndicator(
                                 progress = { downloadProgress / 100f },
                                 modifier = Modifier.fillMaxWidth(),
-                                color = Accent,
-                                trackColor = Surface
+                                color = Accent, trackColor = Surface
                             )
                         }
                     } else if (downloadProgress == 100) {
-                        Text("✓ Установщик запущен", color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                        Text(stringResource(R.string.update_installed), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     } else {
                         if (downloadError.isNotEmpty()) {
                             Text(downloadError, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
@@ -877,7 +899,7 @@ fun UpdateTab(onBack: () -> Unit) {
                                     UpdateManager.downloadAndInstall(context, info.downloadUrl) { p ->
                                         downloadProgress = p
                                     }.onFailure {
-                                        downloadError = "Ошибка загрузки"
+                                        downloadError = strDownloadError
                                         downloadProgress = -1
                                     }.onSuccess {
                                         downloadProgress = 100
@@ -889,14 +911,14 @@ fun UpdateTab(onBack: () -> Unit) {
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
                         ) {
                             Text(
-                                "ОБНОВИТЬ → ${VpnNotificationHelper.formatBytes(info.sizeBytes)}",
+                                stringResource(R.string.update_btn, formatBytes(info.sizeBytes, context)),
                                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp
                             )
                         }
                     }
                 }
                 else -> {
-                    Text("✓ Установлена актуальная версия", color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text(stringResource(R.string.update_up_to_date), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                 }
             }
         }

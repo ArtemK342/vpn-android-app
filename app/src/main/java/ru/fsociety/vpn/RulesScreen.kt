@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -44,7 +45,7 @@ fun RulesScreen(
     settings: SplitTunnelingSettings,
     onSettingsChange: (SplitTunnelingSettings) -> Unit
 ) {
-    var currentScreen by remember { mutableStateOf("main") } // main / apps / sites
+    var currentScreen by remember { mutableStateOf("main") }
 
     BackHandler(enabled = currentScreen != "main") { currentScreen = "main" }
 
@@ -70,14 +71,13 @@ fun RulesScreen(
 fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
-            Text("// ПРАВИЛА", color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text(stringResource(R.string.rules_section), color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Раздельный туннель.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.rules_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Приложения
         Row(
             modifier = Modifier.fillMaxWidth().clickable { /* в разработке */ }
                 .padding(horizontal = 24.dp, vertical = 16.dp),
@@ -87,26 +87,16 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
                 modifier = Modifier.size(40.dp)
                     .background(Surface, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
-            ) {
-                Text("📱", fontSize = 18.sp)
-            }
+            ) { Text("📱", fontSize = 18.sp) }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Приложения", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    color = TextMuted, fontSize = 12.sp,
-                    text = "В разработке"
-                )
+                Text(stringResource(R.string.rules_apps), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.rules_in_progress), color = TextMuted, fontSize = 12.sp)
             }
-            Icon(Icons.Filled.Close.let { Icons.Default.Search }.let { Icons.Filled.Close }
-                .run { Icons.Filled.Close },
-                contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp)
-            )
             Text("›", color = TextMuted, fontSize = 20.sp)
         }
         HorizontalDivider(color = Border)
 
-        // Сайты
         Row(
             modifier = Modifier.fillMaxWidth().clickable { onNavigate("sites") }
                 .padding(horizontal = 24.dp, vertical = 16.dp),
@@ -116,20 +106,18 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
                 modifier = Modifier.size(40.dp)
                     .background(Surface, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
-            ) {
-                Text("🌐", fontSize = 18.sp)
-            }
+            ) { Text("🌐", fontSize = 18.sp) }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Сайты", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.rules_sites), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text(
                     color = TextMuted, fontSize = 12.sp,
                     text = when {
-                        !settings.sitesEnabled -> "Выключено"
-                        settings.selectedDomains.isEmpty() -> "Нет выбранных сайтов"
+                        !settings.sitesEnabled -> stringResource(R.string.rules_sites_off)
+                        settings.selectedDomains.isEmpty() -> stringResource(R.string.rules_sites_none)
                         settings.sitesMode == SplitMode.EXCLUDE ->
-                            "VPN везде, кроме ${settings.selectedDomains.size} сайтов"
-                        else -> "VPN только для ${settings.selectedDomains.size} сайтов"
+                            stringResource(R.string.rules_sites_exclude, settings.selectedDomains.size)
+                        else -> stringResource(R.string.rules_sites_include, settings.selectedDomains.size)
                     }
                 )
             }
@@ -139,9 +127,8 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
 
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "// Приложения и сайты работают независимо друг от друга",
-            color = TextMuted, fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
+            stringResource(R.string.rules_footer),
+            color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
     }
@@ -164,7 +151,7 @@ fun AppsRulesScreen(
         withContext(Dispatchers.IO) {
             val pm = context.packageManager
             allApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 } // только пользовательские
+                .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
                 .map { AppInfo(it.packageName, pm.getApplicationLabel(it).toString()) }
                 .sortedBy { it.label.lowercase() }
         }
@@ -175,52 +162,47 @@ fun AppsRulesScreen(
     else allApps.filter { it.label.contains(searchQuery, ignoreCase = true) }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        // Шапка
         Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Приложения.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.rules_apps_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
 
-        // Включить/выключить
         Row(
             modifier = Modifier.fillMaxWidth()
                 .clickable { onSettingsChange(settings.copy(appsEnabled = !settings.appsEnabled)) }
                 .padding(horizontal = 24.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Раздельный туннель для приложений", color = TextPrimary, fontSize = 14.sp,
+            Text(stringResource(R.string.rules_apps_toggle), color = TextPrimary, fontSize = 14.sp,
                 modifier = Modifier.weight(1f))
             Switch(
                 checked = settings.appsEnabled,
                 onCheckedChange = { onSettingsChange(settings.copy(appsEnabled = it)) },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = BgDark, checkedTrackColor = Accent,
-                    uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface
-                )
+                    uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface)
             )
         }
         HorizontalDivider(color = Border)
 
         if (settings.appsEnabled) {
-            // Режим
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ModeChip("Везде, кроме", settings.appsMode == SplitMode.EXCLUDE) {
+                ModeChip(stringResource(R.string.rules_mode_exclude), settings.appsMode == SplitMode.EXCLUDE) {
                     onSettingsChange(settings.copy(appsMode = SplitMode.EXCLUDE))
                 }
-                ModeChip("Только выбранные", settings.appsMode == SplitMode.INCLUDE) {
+                ModeChip(stringResource(R.string.rules_mode_include), settings.appsMode == SplitMode.INCLUDE) {
                     onSettingsChange(settings.copy(appsMode = SplitMode.INCLUDE))
                 }
             }
             HorizontalDivider(color = Border)
 
-            // Поиск
             OutlinedTextField(
                 value = searchQuery, onValueChange = { searchQuery = it },
-                placeholder = { Text("Поиск приложения...", fontSize = 13.sp, color = TextMuted,
+                placeholder = { Text(stringResource(R.string.rules_search_hint), fontSize = 13.sp, color = TextMuted,
                     fontFamily = FontFamily.Monospace) },
                 leadingIcon = { Icon(Icons.Filled.Search, null, tint = TextMuted) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -265,10 +247,7 @@ fun AppsRulesScreen(
                                     onSettingsChange(settings.copy(selectedApps = newSet))
                                 },
                                 colors = CheckboxDefaults.colors(
-                                    checkedColor = Accent,
-                                    uncheckedColor = TextMuted,
-                                    checkmarkColor = BgDark
-                                )
+                                    checkedColor = Accent, uncheckedColor = TextMuted, checkmarkColor = BgDark)
                             )
                         }
                         HorizontalDivider(color = Border)
@@ -277,7 +256,7 @@ fun AppsRulesScreen(
             }
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Включите раздельный туннель выше",
+                Text(stringResource(R.string.rules_enable_hint),
                     color = TextMuted, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
             }
         }
@@ -295,19 +274,19 @@ fun SitesRulesScreen(
     var inputError by remember { mutableStateOf("") }
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    val strErrorInvalid   = stringResource(R.string.rules_sites_error_invalid)
+    val strErrorDuplicate = stringResource(R.string.rules_sites_error_duplicate)
+
     fun addDomain() {
         val domain = SplitTunnelingManager.extractDomain(inputUrl)
         if (domain.isBlank() || !domain.contains(".")) {
-            inputError = "Введите корректный URL или домен"
-            return
+            inputError = strErrorInvalid; return
         }
         if (settings.selectedDomains.contains(domain)) {
-            inputError = "Домен уже добавлен"
-            return
+            inputError = strErrorDuplicate; return
         }
         onSettingsChange(settings.copy(selectedDomains = settings.selectedDomains + domain))
-        inputUrl = ""
-        inputError = ""
+        inputUrl = ""; inputError = ""
         keyboardController?.hide()
     }
 
@@ -316,58 +295,51 @@ fun SitesRulesScreen(
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Сайты.", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.rules_sites_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
 
-        // Включить/выключить
         Row(
             modifier = Modifier.fillMaxWidth()
                 .clickable { onSettingsChange(settings.copy(sitesEnabled = !settings.sitesEnabled)) }
                 .padding(horizontal = 24.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Раздельный туннель для сайтов", color = TextPrimary, fontSize = 14.sp,
+            Text(stringResource(R.string.rules_sites_toggle), color = TextPrimary, fontSize = 14.sp,
                 modifier = Modifier.weight(1f))
             Switch(
                 checked = settings.sitesEnabled,
                 onCheckedChange = { onSettingsChange(settings.copy(sitesEnabled = it)) },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = BgDark, checkedTrackColor = Accent,
-                    uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface
-                )
+                    uncheckedThumbColor = TextMuted, uncheckedTrackColor = Surface)
             )
         }
         HorizontalDivider(color = Border)
 
         if (settings.sitesEnabled) {
-            // Режим
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ModeChip("Везде, кроме", settings.sitesMode == SplitMode.EXCLUDE) {
+                ModeChip(stringResource(R.string.rules_mode_exclude), settings.sitesMode == SplitMode.EXCLUDE) {
                     onSettingsChange(settings.copy(sitesMode = SplitMode.EXCLUDE))
                 }
-                ModeChip("Только выбранные", settings.sitesMode == SplitMode.INCLUDE) {
+                ModeChip(stringResource(R.string.rules_mode_include), settings.sitesMode == SplitMode.INCLUDE) {
                     onSettingsChange(settings.copy(sitesMode = SplitMode.INCLUDE))
                 }
             }
 
             Text(
-                if (settings.sitesMode == SplitMode.EXCLUDE)
-                    "// VPN не работает на этих сайтах"
-                else "// VPN работает только на этих сайтах",
+                stringResource(if (settings.sitesMode == SplitMode.EXCLUDE) R.string.rules_vpn_except else R.string.rules_vpn_only),
                 color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = Border)
 
-            // Пресеты
             Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                Text("// ПРЕСЕТЫ", color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.rules_presets), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // RU Essential — toggle
                     val ruEssentialActive = settings.selectedDomains.containsAll(Presets.ruEssential)
                     Box(
                         modifier = Modifier
@@ -387,24 +359,21 @@ fun SitesRulesScreen(
                         Text(
                             if (ruEssentialActive) "✓ RU Essential" else "+ RU Essential",
                             color = if (ruEssentialActive) BgDark else Accent,
-                            fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold
                         )
                     }
-                    // Зона .ru — в разработке
                     Box(
                         modifier = Modifier
                             .background(Surface, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text("Зона .ru — скоро", color = TextMuted, fontSize = 11.sp,
+                        Text(stringResource(R.string.rules_zone_ru_soon), color = TextMuted, fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace)
                     }
                 }
             }
             HorizontalDivider(color = Border)
 
-            // Поле ввода
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -412,14 +381,11 @@ fun SitesRulesScreen(
                 OutlinedTextField(
                     value = inputUrl,
                     onValueChange = { inputUrl = it; inputError = "" },
-                    placeholder = { Text("https://gosuslugi.ru или gosuslugi.ru",
+                    placeholder = { Text(stringResource(R.string.rules_sites_placeholder),
                         fontSize = 12.sp, color = TextMuted, fontFamily = FontFamily.Monospace) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Done
-                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { addDomain() }),
                     isError = inputError.isNotEmpty(),
                     supportingText = if (inputError.isNotEmpty()) {
@@ -427,8 +393,7 @@ fun SitesRulesScreen(
                     } else null,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Accent, unfocusedBorderColor = Border,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                        cursorColor = Accent)
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -443,29 +408,25 @@ fun SitesRulesScreen(
 
             if (settings.selectedDomains.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Добавьте сайты выше", color = TextMuted,
+                    Text(stringResource(R.string.rules_sites_empty), color = TextMuted,
                         fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(settings.selectedDomains.sorted()) { domain ->
                         Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 14.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("🌐", fontSize = 16.sp)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(domain, color = TextPrimary, fontSize = 14.sp,
-                                modifier = Modifier.weight(1f))
+                            Text(domain, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "Удалить",
+                                contentDescription = stringResource(R.string.rules_delete_cd),
                                 tint = TextMuted,
                                 modifier = Modifier.size(18.dp).clickable {
-                                    onSettingsChange(settings.copy(
-                                        selectedDomains = settings.selectedDomains - domain
-                                    ))
+                                    onSettingsChange(settings.copy(selectedDomains = settings.selectedDomains - domain))
                                 }
                             )
                         }
@@ -475,7 +436,7 @@ fun SitesRulesScreen(
             }
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Включите раздельный туннель выше",
+                Text(stringResource(R.string.rules_enable_hint),
                     color = TextMuted, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
             }
         }

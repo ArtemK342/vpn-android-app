@@ -20,6 +20,15 @@ class XrayVpnService : VpnService() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     var pfd: ParcelFileDescriptor? = null
 
+    override fun attachBaseContext(newBase: Context) {
+        val prefs = newBase.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
+        val lang = prefs.getString("language", "ru") ?: "ru"
+        val locale = java.util.Locale(lang)
+        val config = android.content.res.Configuration(newBase.resources.configuration)
+        config.setLocale(locale)
+        super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
+
     companion object {
         const val ACTION_START = "ru.fsociety.vpn.XRAY_START"
         const val ACTION_STOP  = "ru.fsociety.vpn.XRAY_STOP"
@@ -147,15 +156,15 @@ class XrayVpnService : VpnService() {
         )
         return androidx.core.app.NotificationCompat.Builder(this, VpnNotificationHelper.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_secure)
-            .setContentTitle("[f]society VPN — VLESS подключён")
+            .setContentTitle(getString(R.string.notification_title_connected))
             .setContentText(
                 if (rx == 0L && tx == 0L) serverName
-                else "$serverName · ↓ ${VpnNotificationHelper.formatBytes(rx)} ↑ ${VpnNotificationHelper.formatBytes(tx)}"
+                else "$serverName · ↓ ${VpnNotificationHelper.formatBytes(this, rx)} ↑ ${VpnNotificationHelper.formatBytes(this, tx)}"
             )
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(openPi)
-            .addAction(0, "ОТКЛЮЧИТЬСЯ", disconnectPi)
+            .addAction(0, getString(R.string.notification_disconnect), disconnectPi)
             .build()
     }
 

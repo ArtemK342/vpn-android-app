@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextRange
@@ -25,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.fsociety.vpn.ui.theme.*
 
-// Форматирует 16 цифр как "XXXX XXXX XXXX XXXX"
 fun formatNumericCode(raw: String): String {
     val digits = raw.filter { it.isDigit() }.take(16)
     return digits.chunked(4).joinToString(" ")
@@ -42,11 +42,14 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var numericFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     val scope = rememberCoroutineScope()
 
+    val strErrorCodeLength  = stringResource(R.string.login_error_code_length)
+    val strErrorEmpty       = stringResource(R.string.login_error_empty)
+    val strErrorNetwork     = stringResource(R.string.login_error_network)
+    val strErrorCodeNotFound = stringResource(R.string.login_error_code_not_found)
+    val strErrorCredentials = stringResource(R.string.login_error_credentials)
+
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDark)
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().background(BgDark).padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -67,7 +70,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                if (isAnonymousMode) "// АНОНИМНЫЙ ВХОД" else "// ВХОД В АККАУНТ",
+                stringResource(if (isAnonymousMode) R.string.login_subtitle_anon else R.string.login_subtitle_email),
                 color = TextMuted, fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp
             )
@@ -75,7 +78,6 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
             Spacer(modifier = Modifier.height(40.dp))
 
             if (!isAnonymousMode) {
-                // ── Email / Password ──
                 OutlinedTextField(
                     value = email, onValueChange = { email = it },
                     label = { Text("EMAIL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
@@ -91,7 +93,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = password, onValueChange = { password = it },
-                    label = { Text("ПАРОЛЬ", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.login_field_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -103,25 +105,22 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                         cursorColor = Accent)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Забыл пароль?", color = TextMuted, fontSize = 11.sp,
+                Text(stringResource(R.string.login_forgot_password), color = TextMuted, fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace, textDecoration = TextDecoration.Underline,
                     modifier = Modifier.fillMaxWidth().clickable { })
             } else {
-                // ── Numeric code ──
                 OutlinedTextField(
                     value = numericFieldValue,
                     onValueChange = { newVal ->
                         val digits = newVal.text.filter { it.isDigit() }.take(16)
                         val formatted = digits.chunked(4).joinToString(" ")
                         numericCode = digits
-                        // Фиксируем курсор в конце — иначе Compose сбрасывает его в начало
-                        // при каждом переформатировании, и цифры вставляются в обратном порядке
                         numericFieldValue = TextFieldValue(
                             text = formatted,
                             selection = TextRange(formatted.length)
                         )
                     },
-                    label = { Text("16-ЗНАЧНЫЙ КОД", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.login_field_code), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     placeholder = { Text("XXXX XXXX XXXX XXXX",
                         fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()) },
@@ -141,15 +140,14 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                         cursorColor = Accent)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Код из 16 цифр — ваш единственный способ войти",
+                Text(stringResource(R.string.login_code_hint),
                     color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
 
             if (errorMsg.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(errorMsg, color = ErrorRed, fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace)
+                Text(errorMsg, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -161,17 +159,17 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                         try {
                             val response = if (isAnonymousMode) {
                                 val digits = numericCode.filter { it.isDigit() }
-                                if (digits.length != 16) { errorMsg = "Введите 16 цифр"; return@launch }
+                                if (digits.length != 16) { errorMsg = strErrorCodeLength; return@launch }
                                 ApiClient.service.loginNumeric(NumericLoginRequest(digits))
                             } else {
-                                if (email.isEmpty() || password.isEmpty()) { errorMsg = "Заполните все поля"; return@launch }
+                                if (email.isEmpty() || password.isEmpty()) { errorMsg = strErrorEmpty; return@launch }
                                 ApiClient.service.login(email, password)
                             }
                             onLogin(response.access_token, response.refresh_token)
                         } catch (e: java.net.SocketTimeoutException) {
-                            errorMsg = "Ошибка сети, попробуйте ещё раз"
+                            errorMsg = strErrorNetwork
                         } catch (e: Exception) {
-                            errorMsg = if (isAnonymousMode) "Код не найден" else "Неверный email или пароль"
+                            errorMsg = if (isAnonymousMode) strErrorCodeNotFound else strErrorCredentials
                         } finally {
                             isLoading = false
                         }
@@ -183,13 +181,13 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
                 if (isLoading) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                else Text("ВОЙТИ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                else Text(stringResource(R.string.login_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Поддержка в Telegram",
+                text = stringResource(R.string.login_telegram_support),
                 color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 textDecoration = TextDecoration.Underline, modifier = Modifier.clickable { }
             )
@@ -198,7 +196,6 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
             HorizontalDivider(color = Border, thickness = 1.dp)
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Переключатель anonymous / email
             Button(
                 onClick = { isAnonymousMode = !isAnonymousMode; errorMsg = "" },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -207,14 +204,14 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, Border)
             ) {
                 Text(
-                    if (isAnonymousMode) "← ВОЙТИ ПО EMAIL" else "ВОЙТИ АНОНИМНО",
+                    stringResource(if (isAnonymousMode) R.string.login_btn_email else R.string.login_btn_anon),
                     fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp
                 )
             }
 
             if (!isAnonymousMode) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Нет аккаунта?", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.login_no_account), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onRegister,
@@ -223,7 +220,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Border)
                 ) {
-                    Text("ЗАРЕГИСТРИРОВАТЬСЯ →", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(stringResource(R.string.login_btn_register), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -240,11 +237,14 @@ fun RegisterScreen(onBack: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    val strErrorEmpty    = stringResource(R.string.login_error_empty)
+    val strErrorMismatch = stringResource(R.string.register_error_passwords_mismatch)
+    val strErrorLength   = stringResource(R.string.register_error_password_length)
+    val strErrorServer   = stringResource(R.string.register_error_server)
+    val strSuccess       = stringResource(R.string.register_success, email)
+
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDark)
-            .imePadding(),
+        modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -264,7 +264,7 @@ fun RegisterScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text("// РЕГИСТРАЦИЯ", color = TextMuted, fontSize = 10.sp,
+            Text(stringResource(R.string.register_subtitle), color = TextMuted, fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp)
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -274,62 +274,54 @@ fun RegisterScreen(onBack: () -> Unit) {
                 label = { Text("EMAIL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                enabled = !isLoading,
+                singleLine = true, enabled = !isLoading,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Accent, unfocusedBorderColor = Border,
                     focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent
-                )
+                    cursorColor = Accent)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = password, onValueChange = { password = it },
-                label = { Text("ПАРОЛЬ", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                label = { Text(stringResource(R.string.login_field_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                enabled = !isLoading,
+                singleLine = true, enabled = !isLoading,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Accent, unfocusedBorderColor = Border,
                     focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent
-                )
+                    cursorColor = Accent)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = password2, onValueChange = { password2 = it },
-                label = { Text("ПОВТОРИТЕ ПАРОЛЬ", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                label = { Text(stringResource(R.string.register_field_password_repeat), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true,
-                enabled = !isLoading,
+                singleLine = true, enabled = !isLoading,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Accent, unfocusedBorderColor = Border,
                     focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent
-                )
+                    cursorColor = Accent)
             )
 
             if (errorMsg.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(errorMsg, color = ErrorRed, fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace)
+                Text(errorMsg, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
 
             if (successMsg.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(successMsg, color = Accent, fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace)
+                Text(successMsg, color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -337,25 +329,21 @@ fun RegisterScreen(onBack: () -> Unit) {
             Button(
                 onClick = {
                     if (email.isEmpty() || password.isEmpty() || password2.isEmpty()) {
-                        errorMsg = "Заполните все поля"
-                        return@Button
+                        errorMsg = strErrorEmpty; return@Button
                     }
                     if (password != password2) {
-                        errorMsg = "Пароли не совпадают"
-                        return@Button
+                        errorMsg = strErrorMismatch; return@Button
                     }
                     if (password.length < 8) {
-                        errorMsg = "Пароль минимум 8 символов"
-                        return@Button
+                        errorMsg = strErrorLength; return@Button
                     }
                     scope.launch {
-                        isLoading = true
-                        errorMsg = ""
+                        isLoading = true; errorMsg = ""
                         try {
                             ApiClient.service.register(RegisterRequest(email, password))
-                            successMsg = "Письмо отправлено на $email — подтвердите аккаунт"
+                            successMsg = strSuccess
                         } catch (e: Exception) {
-                            errorMsg = "Email уже зарегистрирован или ошибка сервера"
+                            errorMsg = strErrorServer
                         } finally {
                             isLoading = false
                         }
@@ -363,15 +351,13 @@ fun RegisterScreen(onBack: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Accent, contentColor = BgDark),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(color = BgDark,
-                        modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("ЗАРЕГИСТРИРОВАТЬСЯ →", fontFamily = FontFamily.Monospace,
+                    Text(stringResource(R.string.login_btn_register), fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
@@ -379,9 +365,8 @@ fun RegisterScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "← Уже есть аккаунт? Войти",
-                color = TextMuted, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
+                text = stringResource(R.string.register_back),
+                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 textDecoration = TextDecoration.Underline,
                 modifier = Modifier.clickable { onBack() }
             )

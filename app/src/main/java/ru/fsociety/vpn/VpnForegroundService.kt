@@ -13,6 +13,15 @@ class VpnForegroundService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    override fun attachBaseContext(newBase: Context) {
+        val prefs = newBase.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
+        val lang = prefs.getString("language", "ru") ?: "ru"
+        val locale = java.util.Locale(lang)
+        val config = android.content.res.Configuration(newBase.resources.configuration)
+        config.setLocale(locale)
+        super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(VpnNotificationHelper.NOTIFICATION_ID, buildNotification())
         scope.launch {
@@ -62,22 +71,22 @@ class VpnForegroundService : Service() {
 
         if (isConnected) {
             builder
-                .setContentTitle("[f]society VPN — Подключён")
+                .setContentTitle(getString(R.string.notification_title_connected))
                 .setContentText(
-                    "${VpnManager.connectedServerName} · ↓ ${VpnNotificationHelper.formatBytes(rx)} ↑ ${VpnNotificationHelper.formatBytes(tx)}"
+                    "${VpnManager.connectedServerName} · ↓ ${VpnNotificationHelper.formatBytes(this, rx)} ↑ ${VpnNotificationHelper.formatBytes(this, tx)}"
                 )
-                .addAction(0, "ОТКЛЮЧИТЬСЯ", disconnectPi)
+                .addAction(0, getString(R.string.notification_disconnect), disconnectPi)
         } else if (isConnecting) {
             builder
-                .setContentTitle("[f]society VPN — Подключение...")
-                .setContentText("Выбираем лучший сервер")
+                .setContentTitle(getString(R.string.notification_title_connecting))
+                .setContentText(getString(R.string.notification_text_connecting))
                 .setProgress(0, 0, true)
         } else {
             builder
-                .setContentTitle("[f]society VPN — Отключён")
-                .setContentText("Подключиться к лучшему серверу")
+                .setContentTitle(getString(R.string.notification_title_disconnected))
+                .setContentText(getString(R.string.notification_text_disconnected))
                 .setContentIntent(connectPi)
-                .addAction(0, "ПОДКЛЮЧИТЬСЯ", connectPi)
+                .addAction(0, getString(R.string.notification_connect), connectPi)
         }
 
         return builder.build()
