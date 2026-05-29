@@ -37,71 +37,74 @@ fun formatNumericCode(raw: String): String {
 
 @Composable
 fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
-    val isLoading = remember { mutableStateOf(true) }
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
+    val progress = remember { mutableStateOf(0) }
 
     BackHandler {
         val wv = webViewRef.value
         if (wv != null && wv.canGoBack()) wv.goBack() else onBack()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Surface)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.privacy_screen_back),
-                    color = Accent,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { onBack() }
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
-            }
-
-            Box(modifier = Modifier.fillMaxSize()) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    isLoading.value = true
-                                }
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    isLoading.value = false
-                                }
-                            }
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            setBackgroundColor(android.graphics.Color.WHITE)
-                            loadUrl(url)
-                            webViewRef.value = this
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-                if (isLoading.value) {
-                    CircularProgressIndicator(
-                        color = Accent,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-            }
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Surface)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.privacy_screen_back),
+                color = Accent,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onBack() }
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = title,
+                color = TextPrimary,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            )
         }
+        if (progress.value < 100) {
+            LinearProgressIndicator(
+                progress = { progress.value / 100f },
+                modifier = Modifier.fillMaxWidth(),
+                color = Accent,
+                trackColor = Border
+            )
+        }
+        AndroidView(
+            factory = { ctx ->
+                val progressCapture = progress
+                val webViewCapture = webViewRef
+                WebView(ctx).apply {
+                    webChromeClient = object : android.webkit.WebChromeClient() {
+                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                            progressCapture.value = newProgress
+                        }
+                    }
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView?,
+                            request: android.webkit.WebResourceRequest?
+                        ) = false
+                    }
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    loadUrl(url)
+                    webViewCapture.value = this
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
@@ -127,13 +130,14 @@ private fun PrivacyCheckboxRow(
         )
         Spacer(modifier = Modifier.width(4.dp))
         Column(modifier = Modifier.padding(top = 12.dp)) {
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.privacy_accept_prefix),
                     color = TextMuted,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                     text = stringResource(R.string.privacy_policy_link),
                     color = Accent,
@@ -143,13 +147,14 @@ private fun PrivacyCheckboxRow(
                     modifier = Modifier.clickable { onOpenPrivacy() }
                 )
             }
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.privacy_and_prefix),
                     color = TextMuted,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                     text = stringResource(R.string.terms_link),
                     color = Accent,
@@ -172,9 +177,6 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var isAnonymousMode by remember { mutableStateOf(false) }
     var numericCode by remember { mutableStateOf("") }
     var numericFieldValue by remember { mutableStateOf(TextFieldValue("")) }
-    var privacyAccepted by remember { mutableStateOf(false) }
-    var showPolicyUrl by remember { mutableStateOf<String?>(null) }
-    var showPolicyTitle by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     val strErrorCodeLength   = stringResource(R.string.login_error_code_length)
@@ -182,17 +184,6 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     val strErrorNetwork      = stringResource(R.string.login_error_network)
     val strErrorCodeNotFound = stringResource(R.string.login_error_code_not_found)
     val strErrorCredentials  = stringResource(R.string.login_error_credentials)
-    val strPrivacyTitle      = stringResource(R.string.privacy_screen_title)
-    val strTermsTitle        = stringResource(R.string.terms_screen_title)
-
-    if (showPolicyUrl != null) {
-        PolicyViewerScreen(
-            url = showPolicyUrl!!,
-            title = showPolicyTitle,
-            onBack = { showPolicyUrl = null }
-        )
-        return
-    }
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).padding(24.dp),
@@ -289,13 +280,6 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 Text(stringResource(R.string.login_code_hint),
                     color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                Spacer(modifier = Modifier.height(12.dp))
-                PrivacyCheckboxRow(
-                    accepted = privacyAccepted,
-                    onAcceptedChange = { privacyAccepted = it },
-                    onOpenPrivacy = { showPolicyTitle = strPrivacyTitle; showPolicyUrl = "https://fsociety-vpn.org/privacy" },
-                    onOpenTerms   = { showPolicyTitle = strTermsTitle;   showPolicyUrl = "https://fsociety-vpn.org/terms" }
-                )
             }
 
             if (errorMsg.isNotEmpty()) {
@@ -329,7 +313,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !isLoading && (!isAnonymousMode || privacyAccepted),
+                enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
@@ -353,7 +337,6 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 onClick = {
                     isAnonymousMode = !isAnonymousMode
                     errorMsg = ""
-                    privacyAccepted = false
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextMuted),
@@ -413,6 +396,7 @@ fun RegisterScreen(onBack: () -> Unit) {
         )
         return
     }
+
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
@@ -500,8 +484,8 @@ fun RegisterScreen(onBack: () -> Unit) {
             PrivacyCheckboxRow(
                 accepted = privacyAccepted,
                 onAcceptedChange = { privacyAccepted = it },
-                onOpenPrivacy = { showPolicyTitle = strPrivacyTitle; showPolicyUrl = "https://fsociety-vpn.org/privacy" },
-                onOpenTerms   = { showPolicyTitle = strTermsTitle;   showPolicyUrl = "https://fsociety-vpn.org/terms" }
+                onOpenPrivacy = { showPolicyTitle = strPrivacyTitle; showPolicyUrl = "file:///android_asset/privacy.html" },
+                onOpenTerms   = { showPolicyTitle = strTermsTitle;   showPolicyUrl = "file:///android_asset/terms.html" }
             )
 
             Spacer(modifier = Modifier.height(12.dp))

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d0d; color: #e0e0e0; font-family: monospace; font-size: 13px; line-height: 1.85; padding: 24px 20px 48px; }
+    h1 { font-size: 24px; font-weight: bold; color: #ffffff; margin-bottom: 6px; }
+    h2 { font-size: 14px; font-weight: bold; color: #ffffff; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tag { font-size: 10px; color: #39d98a; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 10px; }
+    .meta { font-size: 11px; color: #555; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #1e1e1e; }
+    p { color: #888; margin-bottom: 12px; }
+    ul { list-style: none; margin: 10px 0 14px; }
+    li { color: #888; padding-left: 18px; position: relative; margin-bottom: 6px; }
+    li::before { content: '→'; color: #39d98a; position: absolute; left: 0; }
+    .highlight { background: #141414; border-left: 2px solid #39d98a; padding: 12px 16px; margin: 14px 0; color: #d0d0d0; font-size: 12px; }
+    .section { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid #1a1a1a; }
+    .section:last-child { border-bottom: none; }
+    .num { font-size: 10px; color: #39d98a; letter-spacing: 0.1em; margin-bottom: 4px; }
+    strong { color: #e0e0e0; }
+  </style>
+</head>
+<body>
+
+<div class="tag">// Юридические документы</div>
+<h1>Политика конфиденциальности.</h1>
+<p class="meta">Последнее обновление: 25 апреля 2026 · Версия 1.1</p>
+
+<div class="section">
+  <div class="num">// 01</div>
+  <h2>Общие положения</h2>
+  <p>Настоящая Политика конфиденциальности описывает, какие данные собирает и хранит VPN-сервис fsociety VPN, а также как эти данные используются и защищаются.</p>
+  <p>Используя Сервис, вы соглашаетесь с условиями настоящей Политики.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 02</div>
+  <h2>Политика нулевых логов</h2>
+  <p>Мы не храним и не собираем:</p>
+  <ul>
+    <li>Историю интернет-активности пользователя</li>
+    <li>IP-адреса пользователей при VPN-подключении</li>
+    <li>Время и продолжительность VPN-сессий</li>
+    <li>Данные DNS-запросов</li>
+    <li>Информацию об объёме и содержании трафика</li>
+    <li>Приватные ключи шифрования</li>
+    <li>Метаданные подключений</li>
+  </ul>
+  <div class="highlight">Мы технически не способны предоставить данные о вашей активности третьим лицам — потому что мы их не собираем.</div>
+</div>
+
+<div class="section">
+  <div class="num">// 03</div>
+  <h2>Email-аккаунты</h2>
+  <p>Для работы email-аккаунта мы храним только:</p>
+  <ul>
+    <li>Email-адрес</li>
+    <li>Хэш пароля (не сам пароль)</li>
+    <li>Статус подписки</li>
+    <li>Публичный WireGuard-ключ</li>
+  </ul>
+  <p>Приватный ключ генерируется на лету на вашем устройстве и <strong>никогда не передаётся</strong> на наши серверы.</p>
+  <p>Все данные хранятся в Швейцарии.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 04</div>
+  <h2>Анонимные аккаунты</h2>
+  <p>Для анонимных аккаунтов (вход по 16-значному коду) мы не храним ни email, ни пароль. Хранится только:</p>
+  <ul>
+    <li>Хэш кода доступа</li>
+    <li>Статус подписки</li>
+    <li>Публичный VPN-ключ</li>
+  </ul>
+  <div class="highlight">Это максимально возможный уровень приватности в рамках функционирующего сервиса. Мы не можем идентифицировать вас как личность.</div>
+  <p>При создании анонимного аккаунта IP-адрес фиксируется исключительно для ограничения частоты создания аккаунтов (rate limiting) и не связывается с вашей VPN-активностью.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 05</div>
+  <h2>Данные для оплаты</h2>
+  <p>Оплата производится через Telegram Stars. Мы не получаем и не храним данные банковских карт. Платёжная информация обрабатывается Telegram в соответствии с их политикой конфиденциальности.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 06</div>
+  <h2>Данные поддержки</h2>
+  <p>При обращении в поддержку мы храним переписку тикетов для решения вашего вопроса. После закрытия тикета и удаления аккаунта все данные удаляются.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 07</div>
+  <h2>Передача данных третьим лицам</h2>
+  <p>Мы не продаём, не передаём и не раскрываем ваши персональные данные третьим лицам.</p>
+  <p>Поскольку мы не храним логи активности — мы не можем выдать их ни по запросу властей, ни по иным основаниям.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 08</div>
+  <h2>Удаление данных</h2>
+  <p>Вы можете удалить аккаунт в любое время через настройки. При удалении все связанные данные немедленно удаляются с наших серверов.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 09</div>
+  <h2>Контакты</h2>
+  <p>По вопросам, связанным с настоящей Политикой, обращайтесь через форму поддержки в приложении или через Telegram. Мы отвечаем в течение 24 часов.</p>
+</div>
+
+</body>
+</html>
