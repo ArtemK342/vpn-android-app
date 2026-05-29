@@ -1,11 +1,19 @@
 package ru.fsociety.vpn
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +42,24 @@ import ru.fsociety.vpn.ui.theme.*
 fun formatNumericCode(raw: String): String {
     val digits = raw.filter { it.isDigit() }.take(16)
     return digits.chunked(4).joinToString(" ")
+}
+
+private data class AnonResult(val code: String, val accessToken: String, val refreshToken: String)
+
+private fun shareToApp(context: Context, text: String, pkg: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+        setPackage(pkg)
+    }
+    if (intent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(intent)
+    } else {
+        context.startActivity(Intent.createChooser(
+            Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) },
+            null
+        ))
+    }
 }
 
 @Composable
@@ -55,28 +82,20 @@ fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
         ) {
             Text(
                 text = stringResource(R.string.privacy_screen_back),
-                color = Accent,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
+                color = Accent, fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clickable { onBack() }
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
-                text = title,
-                color = TextPrimary,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
+                text = title, color = TextPrimary, fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp
             )
         }
         if (progress.value < 100) {
             LinearProgressIndicator(
                 progress = { progress.value / 100f },
-                modifier = Modifier.fillMaxWidth(),
-                color = Accent,
-                trackColor = Border
+                modifier = Modifier.fillMaxWidth(), color = Accent, trackColor = Border
             )
         }
         AndroidView(
@@ -91,8 +110,7 @@ fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
                     }
                     webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: android.webkit.WebResourceRequest?
+                            view: WebView?, request: android.webkit.WebResourceRequest?
                         ) = false
                     }
                     settings.javaScriptEnabled = true
@@ -115,58 +133,250 @@ private fun PrivacyCheckboxRow(
     onOpenPrivacy: () -> Unit,
     onOpenTerms: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Checkbox(
-            checked = accepted,
-            onCheckedChange = onAcceptedChange,
+            checked = accepted, onCheckedChange = onAcceptedChange,
             colors = CheckboxDefaults.colors(
-                checkedColor = Accent,
-                uncheckedColor = TextMuted,
-                checkmarkColor = BgDark
+                checkedColor = Accent, uncheckedColor = TextMuted, checkmarkColor = BgDark
             )
         )
         Spacer(modifier = Modifier.width(4.dp))
         Column(modifier = Modifier.padding(top = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.privacy_accept_prefix),
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
+                Text(stringResource(R.string.privacy_accept_prefix), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = stringResource(R.string.privacy_policy_link),
-                    color = Accent,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    textDecoration = TextDecoration.Underline,
+                    stringResource(R.string.privacy_policy_link), color = Accent, fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace, textDecoration = TextDecoration.Underline,
                     modifier = Modifier.clickable { onOpenPrivacy() }
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.privacy_and_prefix),
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
+                Text(stringResource(R.string.privacy_and_prefix), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = stringResource(R.string.terms_link),
-                    color = Accent,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    textDecoration = TextDecoration.Underline,
+                    stringResource(R.string.terms_link), color = Accent, fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace, textDecoration = TextDecoration.Underline,
                     modifier = Modifier.clickable { onOpenTerms() }
                 )
             }
         }
     }
 }
+
+// ─── Экран: код создан ────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AnonCodeResultScreen(result: AnonResult, onLogin: (String, String) -> Unit) {
+    val context = LocalContext.current
+    val formatted = result.code.chunked(4).joinToString(" ")
+    val shareText = stringResource(R.string.anon_share_text, formatted)
+    var copied by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun copyCode() {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("fsociety code", formatted))
+        copied = true
+        scope.launch { delay(2000); copied = false }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(BgDark).padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+        ) {
+            Row {
+                Text("[f]", color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("society", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(stringResource(R.string.anon_code_subtitle), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp)
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Text(stringResource(R.string.anon_code_label), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 0.2.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Код — нажать/долго нажать = скопировать
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, if (copied) Accent else Border)
+                    .background(Surface)
+                    .combinedClickable(onClick = { copyCode() }, onLongClick = { copyCode() })
+                    .padding(vertical = 24.dp, horizontal = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = formatted,
+                        color = TextPrimary,
+                        fontSize = 26.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 3.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (copied) stringResource(R.string.anon_code_copied) else stringResource(R.string.anon_code_tap_to_copy),
+                        color = if (copied) Accent else TextMuted,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(stringResource(R.string.anon_code_warning), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Поделиться
+            Text(stringResource(R.string.anon_share_label), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 0.2.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ShareButton(modifier = Modifier.weight(1f), label = "Telegram", color = Color(0xFF2CA5E0)) {
+                    shareToApp(context, shareText, "org.telegram.messenger")
+                }
+                ShareButton(modifier = Modifier.weight(1f), label = "WhatsApp", color = Color(0xFF25D366)) {
+                    shareToApp(context, shareText, "com.whatsapp")
+                }
+                ShareButton(modifier = Modifier.weight(1f), label = "VK", color = Color(0xFF0077FF)) {
+                    shareToApp(context, shareText, "com.vkontakte.android")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Button(
+                onClick = { onLogin(result.accessToken, result.refreshToken) },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+            ) {
+                Text(stringResource(R.string.anon_code_login_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShareButton(modifier: Modifier, label: String, color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .border(1.dp, color.copy(alpha = 0.5f))
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = color, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+    }
+}
+
+// ─── Экран: регистрация анонимного аккаунта ───────────────────────────────────
+
+@Composable
+private fun AnonRegisterScreen(
+    onBack: () -> Unit,
+    onSuccess: (AnonResult) -> Unit,
+    onOpenPolicy: (url: String, title: String) -> Unit
+) {
+    var privacyAccepted by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val strPrivacyTitle = stringResource(R.string.privacy_screen_title)
+    val strTermsTitle   = stringResource(R.string.terms_screen_title)
+    val strErrorNetwork = stringResource(R.string.login_error_network)
+    val strErrorServer  = stringResource(R.string.anon_register_error)
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(top = 80.dp, bottom = 24.dp)
+        ) {
+            Row {
+                Text("[f]", color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("society", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(stringResource(R.string.anon_register_subtitle), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp)
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Text(stringResource(R.string.anon_register_desc), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.fillMaxWidth())
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            PrivacyCheckboxRow(
+                accepted = privacyAccepted,
+                onAcceptedChange = { privacyAccepted = it },
+                onOpenPrivacy = { onOpenPolicy("file:///android_asset/privacy.html", strPrivacyTitle) },
+                onOpenTerms   = { onOpenPolicy("file:///android_asset/terms.html",   strTermsTitle) }
+            )
+
+            if (errorMsg.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(errorMsg, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        isLoading = true; errorMsg = ""
+                        try {
+                            val resp = ApiClient.service.generateNumericAccount()
+                            onSuccess(AnonResult(resp.code, resp.access_token, resp.refresh_token))
+                        } catch (e: java.net.SocketTimeoutException) {
+                            errorMsg = strErrorNetwork
+                        } catch (e: Exception) {
+                            errorMsg = strErrorServer
+                        } finally {
+                            isLoading = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = !isLoading && privacyAccepted,
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+            ) {
+                if (isLoading) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                else Text(stringResource(R.string.anon_register_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = stringResource(R.string.register_back),
+                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable { onBack() }
+            )
+        }
+    }
+}
+
+// ─── Экран входа ──────────────────────────────────────────────────────────────
 
 @Composable
 fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
@@ -177,6 +387,10 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var isAnonymousMode by remember { mutableStateOf(false) }
     var numericCode by remember { mutableStateOf("") }
     var numericFieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    var showAnonRegister by remember { mutableStateOf(false) }
+    var anonResult by remember { mutableStateOf<AnonResult?>(null) }
+    var showPolicyUrl by remember { mutableStateOf<String?>(null) }
+    var showPolicyTitle by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     val strErrorCodeLength   = stringResource(R.string.login_error_code_length)
@@ -184,6 +398,28 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     val strErrorNetwork      = stringResource(R.string.login_error_network)
     val strErrorCodeNotFound = stringResource(R.string.login_error_code_not_found)
     val strErrorCredentials  = stringResource(R.string.login_error_credentials)
+
+    // Оверлей политики конфиденциальности
+    if (showPolicyUrl != null) {
+        PolicyViewerScreen(url = showPolicyUrl!!, title = showPolicyTitle, onBack = { showPolicyUrl = null })
+        return
+    }
+
+    // Экран с кодом
+    if (anonResult != null) {
+        AnonCodeResultScreen(result = anonResult!!, onLogin = onLogin)
+        return
+    }
+
+    // Экран регистрации анонимного аккаунта
+    if (showAnonRegister) {
+        AnonRegisterScreen(
+            onBack = { showAnonRegister = false },
+            onSuccess = { result -> anonResult = result },
+            onOpenPolicy = { url, title -> showPolicyUrl = url; showPolicyTitle = title }
+        )
+        return
+    }
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).padding(24.dp),
@@ -198,18 +434,13 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 .padding(top = 48.dp)
         ) {
             Row {
-                Text("[f]", color = Accent, fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                Text("society", color = TextPrimary, fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("[f]", color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("society", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Text(
                 stringResource(if (isAnonymousMode) R.string.login_subtitle_anon else R.string.login_subtitle_email),
-                color = TextMuted, fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp
+                color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp
             )
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -224,8 +455,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Accent, unfocusedBorderColor = Border,
                         focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                        cursorColor = Accent)
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
@@ -238,13 +468,14 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Accent, unfocusedBorderColor = Border,
                         focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                        cursorColor = Accent)
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(stringResource(R.string.login_forgot_password), color = TextMuted, fontSize = 11.sp,
+                Text(
+                    stringResource(R.string.login_forgot_password), color = TextMuted, fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace, textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.fillMaxWidth().clickable { })
+                    modifier = Modifier.fillMaxWidth().clickable { }
+                )
             } else {
                 OutlinedTextField(
                     value = numericFieldValue,
@@ -252,34 +483,26 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                         val digits = newVal.text.filter { it.isDigit() }.take(16)
                         val formatted = digits.chunked(4).joinToString(" ")
                         numericCode = digits
-                        numericFieldValue = TextFieldValue(
-                            text = formatted,
-                            selection = TextRange(formatted.length)
-                        )
+                        numericFieldValue = TextFieldValue(text = formatted, selection = TextRange(formatted.length))
                     },
                     label = { Text(stringResource(R.string.login_field_code), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
-                    placeholder = { Text("XXXX XXXX XXXX XXXX",
-                        fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()) },
+                    placeholder = { Text("XXXX XXXX XXXX XXXX", fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true, enabled = !isLoading,
                     textStyle = androidx.compose.ui.text.TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center,
-                        color = TextPrimary,
-                        letterSpacing = 2.sp
+                        fontFamily = FontFamily.Monospace, fontSize = 18.sp,
+                        textAlign = TextAlign.Center, color = TextPrimary, letterSpacing = 2.sp
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Accent, unfocusedBorderColor = Border,
-                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                        cursorColor = Accent)
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted, cursorColor = Accent)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(stringResource(R.string.login_code_hint),
-                    color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(
+                    stringResource(R.string.login_code_hint), color = TextMuted, fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
             }
 
             if (errorMsg.isNotEmpty()) {
@@ -321,27 +544,24 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 else Text(stringResource(R.string.login_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
-            if (!isAnonymousMode) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = stringResource(R.string.login_btn_register),
-                    color = Accent,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { onRegister() }
-                )
-            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Ссылка «Зарегистрироваться» — в обоих режимах, но ведёт в разные места
+            Text(
+                text = stringResource(R.string.login_btn_register),
+                color = Accent, fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable {
+                    if (isAnonymousMode) showAnonRegister = true else onRegister()
+                }
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
             HorizontalDivider(color = Border, thickness = 1.dp)
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = {
-                    isAnonymousMode = !isAnonymousMode
-                    errorMsg = ""
-                },
+                onClick = { isAnonymousMode = !isAnonymousMode; errorMsg = "" },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextMuted),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
@@ -355,6 +575,8 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
         }
     }
 }
+
+// ─── Экран регистрации email-аккаунта ─────────────────────────────────────────
 
 @Composable
 fun RegisterScreen(onBack: () -> Unit) {
@@ -378,14 +600,9 @@ fun RegisterScreen(onBack: () -> Unit) {
     val strTermsTitle    = stringResource(R.string.terms_screen_title)
 
     if (showPolicyUrl != null) {
-        PolicyViewerScreen(
-            url = showPolicyUrl!!,
-            title = showPolicyTitle,
-            onBack = { showPolicyUrl = null }
-        )
+        PolicyViewerScreen(url = showPolicyUrl!!, title = showPolicyTitle, onBack = { showPolicyUrl = null })
         return
     }
-
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
@@ -400,16 +617,11 @@ fun RegisterScreen(onBack: () -> Unit) {
                 .padding(top = 80.dp, bottom = 24.dp)
         ) {
             Row {
-                Text("[f]", color = Accent, fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                Text("society", color = TextPrimary, fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("[f]", color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("society", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            Text(stringResource(R.string.register_subtitle), color = TextMuted, fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp)
+            Text(stringResource(R.string.register_subtitle), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 0.15.sp)
 
             Spacer(modifier = Modifier.height(40.dp))
 
@@ -422,12 +634,9 @@ fun RegisterScreen(onBack: () -> Unit) {
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Accent, unfocusedBorderColor = Border,
                     focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent)
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
             OutlinedTextField(
                 value = password, onValueChange = { password = it },
                 label = { Text(stringResource(R.string.login_field_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
@@ -438,12 +647,9 @@ fun RegisterScreen(onBack: () -> Unit) {
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Accent, unfocusedBorderColor = Border,
                     focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent)
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
             OutlinedTextField(
                 value = password2, onValueChange = { password2 = it },
                 label = { Text(stringResource(R.string.register_field_password_repeat), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
@@ -454,15 +660,13 @@ fun RegisterScreen(onBack: () -> Unit) {
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Accent, unfocusedBorderColor = Border,
                     focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    cursorColor = Accent)
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
             )
 
             if (errorMsg.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(errorMsg, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
-
             if (successMsg.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(successMsg, color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
@@ -481,15 +685,9 @@ fun RegisterScreen(onBack: () -> Unit) {
 
             Button(
                 onClick = {
-                    if (email.isEmpty() || password.isEmpty() || password2.isEmpty()) {
-                        errorMsg = strErrorEmpty; return@Button
-                    }
-                    if (password != password2) {
-                        errorMsg = strErrorMismatch; return@Button
-                    }
-                    if (password.length < 8) {
-                        errorMsg = strErrorLength; return@Button
-                    }
+                    if (email.isEmpty() || password.isEmpty() || password2.isEmpty()) { errorMsg = strErrorEmpty; return@Button }
+                    if (password != password2) { errorMsg = strErrorMismatch; return@Button }
+                    if (password.length < 8) { errorMsg = strErrorLength; return@Button }
                     scope.launch {
                         isLoading = true; errorMsg = ""
                         try {
@@ -507,12 +705,8 @@ fun RegisterScreen(onBack: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(stringResource(R.string.login_btn_register), fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
+                if (isLoading) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                else Text(stringResource(R.string.login_btn_register), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

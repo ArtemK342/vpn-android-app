@@ -135,6 +135,13 @@ data class AppConfigResponse(
     val update_url: String
 )
 
+data class GenerateNumericResponse(
+    val code: String,
+    val access_token: String,
+    val refresh_token: String,
+    val token_type: String
+)
+
 // ── Интерфейс API ──
 
 interface ApiService {
@@ -265,6 +272,9 @@ interface ApiService {
 
     @GET("app-config")
     suspend fun getAppConfig(): AppConfigResponse
+
+    @POST("generate-numeric-account")
+    suspend fun generateNumericAccount(): GenerateNumericResponse
 
 }
 

@@ -225,11 +225,25 @@
     <string name="update_required_button">Обновить</string>
 
     <!-- Privacy Policy / Terms -->
-    <string name="privacy_accept_prefix">Я принимаю </string>
+    <string name="privacy_accept_prefix">Я принимаю</string>
     <string name="privacy_policy_link">Политику конфиденциальности</string>
-    <string name="privacy_and_prefix">и </string>
+    <string name="privacy_and_prefix">и</string>
     <string name="terms_link">Пользовательское соглашение</string>
     <string name="privacy_screen_title">ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ</string>
     <string name="terms_screen_title">ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ</string>
     <string name="privacy_screen_back">← НАЗАД</string>
+
+    <!-- Anonymous registration -->
+    <string name="anon_register_subtitle">// РЕГИСТРАЦИЯ</string>
+    <string name="anon_register_desc">Создайте анонимный аккаунт без email и пароля. Вместо них — уникальный 16-значный код.</string>
+    <string name="anon_register_btn">СОЗДАТЬ АККАУНТ →</string>
+    <string name="anon_register_error">Ошибка создания аккаунта. Попробуйте позже.</string>
+    <string name="anon_code_subtitle">// АНОНИМНЫЙ АККАУНТ</string>
+    <string name="anon_code_label">// КОД ДОСТУПА</string>
+    <string name="anon_code_copied">Скопировано!</string>
+    <string name="anon_code_tap_to_copy">нажмите, чтобы скопировать</string>
+    <string name="anon_code_warning">Сохрани код — это единственный способ войти</string>
+    <string name="anon_share_label">// ПОДЕЛИТЬСЯ</string>
+    <string name="anon_share_text">fsociety VPN — анонимный код: %s\nСохрани его — это единственный способ войти.</string>
+    <string name="anon_code_login_btn">ВОЙТИ →</string>
 </resources>

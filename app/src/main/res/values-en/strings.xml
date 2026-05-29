@@ -224,11 +224,25 @@
     <string name="update_required_message">This version of the app is outdated. Please install the latest version to continue.</string>
     <string name="update_required_button">Update</string>
     <!-- Privacy Policy / Terms -->
-    <string name="privacy_accept_prefix">I accept the </string>
+    <string name="privacy_accept_prefix">I accept the</string>
     <string name="privacy_policy_link">Privacy Policy</string>
-    <string name="privacy_and_prefix">and </string>
+    <string name="privacy_and_prefix">and</string>
     <string name="terms_link">User Agreement</string>
     <string name="privacy_screen_title">PRIVACY POLICY</string>
     <string name="terms_screen_title">USER AGREEMENT</string>
     <string name="privacy_screen_back">← BACK</string>
+
+    <!-- Anonymous registration -->
+    <string name="anon_register_subtitle">// REGISTRATION</string>
+    <string name="anon_register_desc">Create an anonymous account without email or password. Instead — a unique 16-digit code.</string>
+    <string name="anon_register_btn">CREATE ACCOUNT →</string>
+    <string name="anon_register_error">Account creation failed. Please try again later.</string>
+    <string name="anon_code_subtitle">// ANONYMOUS ACCOUNT</string>
+    <string name="anon_code_label">// ACCESS CODE</string>
+    <string name="anon_code_copied">Copied!</string>
+    <string name="anon_code_tap_to_copy">tap to copy</string>
+    <string name="anon_code_warning">Save the code — it\'s the only way to sign in</string>
+    <string name="anon_share_label">// SHARE</string>
+    <string name="anon_share_text">fsociety VPN — anonymous code: %s\nSave it — it\'s the only way to sign in.</string>
+    <string name="anon_code_login_btn">SIGN IN →</string>
 </resources>
