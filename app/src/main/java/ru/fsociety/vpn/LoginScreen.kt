@@ -1,5 +1,7 @@
 package ru.fsociety.vpn
 
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,11 +26,96 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import ru.fsociety.vpn.ui.theme.*
 
 fun formatNumericCode(raw: String): String {
     val digits = raw.filter { it.isDigit() }.take(16)
     return digits.chunked(4).joinToString(" ")
+}
+
+@Composable
+fun PrivacyPolicyScreen(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BgDark)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Surface)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.privacy_screen_back),
+                    color = Accent,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { onBack() }
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = stringResource(R.string.privacy_screen_title),
+                    color = TextPrimary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+            }
+            AndroidView(
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        webViewClient = WebViewClient()
+                        settings.javaScriptEnabled = true
+                        loadUrl("https://fsociety-vpn.org/privacy")
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrivacyCheckboxRow(
+    accepted: Boolean,
+    onAcceptedChange: (Boolean) -> Unit,
+    onOpenPrivacy: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = accepted,
+            onCheckedChange = onAcceptedChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = Accent,
+                uncheckedColor = TextMuted,
+                checkmarkColor = BgDark
+            )
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = stringResource(R.string.privacy_accept_prefix),
+            color = TextMuted,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace
+        )
+        Text(
+            text = stringResource(R.string.privacy_policy_link),
+            color = Accent,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier.clickable { onOpenPrivacy() }
+        )
+    }
 }
 
 @Composable
@@ -40,6 +127,8 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var isAnonymousMode by remember { mutableStateOf(false) }
     var numericCode by remember { mutableStateOf("") }
     var numericFieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    var privacyAccepted by remember { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val strErrorCodeLength  = stringResource(R.string.login_error_code_length)
@@ -47,6 +136,11 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     val strErrorNetwork     = stringResource(R.string.login_error_network)
     val strErrorCodeNotFound = stringResource(R.string.login_error_code_not_found)
     val strErrorCredentials = stringResource(R.string.login_error_credentials)
+
+    if (showPrivacy) {
+        PrivacyPolicyScreen(onBack = { showPrivacy = false })
+        return
+    }
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).padding(24.dp),
@@ -143,6 +237,12 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 Text(stringResource(R.string.login_code_hint),
                     color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(12.dp))
+                PrivacyCheckboxRow(
+                    accepted = privacyAccepted,
+                    onAcceptedChange = { privacyAccepted = it },
+                    onOpenPrivacy = { showPrivacy = true }
+                )
             }
 
             if (errorMsg.isNotEmpty()) {
@@ -176,7 +276,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !isLoading,
+                enabled = !isLoading && (!isAnonymousMode || privacyAccepted),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
@@ -197,7 +297,11 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { isAnonymousMode = !isAnonymousMode; errorMsg = "" },
+                onClick = {
+                    isAnonymousMode = !isAnonymousMode
+                    errorMsg = ""
+                    privacyAccepted = false
+                },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextMuted),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
@@ -235,6 +339,8 @@ fun RegisterScreen(onBack: () -> Unit) {
     var errorMsg by remember { mutableStateOf("") }
     var successMsg by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var privacyAccepted by remember { mutableStateOf(false) }
+    var showPrivacy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val strErrorEmpty    = stringResource(R.string.login_error_empty)
@@ -242,6 +348,11 @@ fun RegisterScreen(onBack: () -> Unit) {
     val strErrorLength   = stringResource(R.string.register_error_password_length)
     val strErrorServer   = stringResource(R.string.register_error_server)
     val strSuccess       = stringResource(R.string.register_success, email)
+
+    if (showPrivacy) {
+        PrivacyPolicyScreen(onBack = { showPrivacy = false })
+        return
+    }
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
@@ -324,7 +435,15 @@ fun RegisterScreen(onBack: () -> Unit) {
                 Text(successMsg, color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            PrivacyCheckboxRow(
+                accepted = privacyAccepted,
+                onAcceptedChange = { privacyAccepted = it },
+                onOpenPrivacy = { showPrivacy = true }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             Button(
                 onClick = {
@@ -350,7 +469,7 @@ fun RegisterScreen(onBack: () -> Unit) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !isLoading,
+                enabled = !isLoading && privacyAccepted,
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {

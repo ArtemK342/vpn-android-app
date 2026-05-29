@@ -209,4 +209,23 @@
     <string name="notification_text_disconnected">Connect to best server</string>
     <string name="notification_disconnect">DISCONNECT</string>
     <string name="notification_connect">CONNECT</string>
+    <!-- Auto-reconnect -->
+    <string name="autoreconnect_title">Auto-reconnect</string>
+    <string name="autoreconnect_description">If the VPN connection drops unexpectedly, the app will automatically try to reconnect (up to 3 attempts).</string>
+    <string name="autoreconnect_enabled_sub">Enabled</string>
+    <string name="autoreconnect_disabled_sub">Disabled</string>
+    <string name="autoreconnect_switch_enabled">Enabled</string>
+    <string name="autoreconnect_switch_disabled">Disabled</string>
+    <string name="autoreconnect_note">// With auto-reconnect on, Kill Switch\n// blocks traffic between attempts.</string>
+    <string name="reconnecting">Reconnecting</string>
+    <string name="reconnect_failed">Failed to reconnect</string>
+    <!-- Force update dialog -->
+    <string name="update_required_title">Update Required</string>
+    <string name="update_required_message">This version of the app is outdated. Please install the latest version to continue.</string>
+    <string name="update_required_button">Update</string>
+    <!-- Privacy Policy -->
+    <string name="privacy_accept_prefix">I accept the </string>
+    <string name="privacy_policy_link">Privacy Policy</string>
+    <string name="privacy_screen_title">PRIVACY POLICY</string>
+    <string name="privacy_screen_back">← BACK</string>
 </resources>
