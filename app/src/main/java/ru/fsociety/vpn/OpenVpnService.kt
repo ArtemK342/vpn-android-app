@@ -20,6 +20,7 @@ class OpenVpnService : VpnService() {
     private var openVpn: OpenVpnWithCloak? = null
     private var connectedServerName: String = ""
     private val state = MutableStateFlow(ProtocolState.UNKNOWN)
+    @Volatile private var stopping = false
 
     override fun attachBaseContext(newBase: Context) {
         val prefs = newBase.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
@@ -62,6 +63,7 @@ class OpenVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
+                stopping = false
                 val configJson = intent.getStringExtra(EXTRA_CONFIG) ?: return START_NOT_STICKY
                 connectedServerName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: ""
 
@@ -102,10 +104,12 @@ class OpenVpnService : VpnService() {
                         )
                         delay(1000)
                     }
+                    if (!stopping) VpnEvents.vpnDropped.tryEmit(Unit)
                     stopSelf()
                 }
             }
             ACTION_STOP -> {
+                stopping = true
                 scope.launch {
                     try { openVpn?.stopVpn() } catch (_: Exception) {}
                     openVpn = null

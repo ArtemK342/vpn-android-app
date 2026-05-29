@@ -51,6 +51,7 @@ fun SettingsScreen(
     isLoading: Boolean, onLogout: () -> Unit,
     backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit,
     killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit,
+    autoReconnect: Boolean, onAutoReconnectChange: (Boolean) -> Unit,
     language: String, onLanguageChange: (String) -> Unit
 ) {
     var currentScreen by remember { mutableStateOf("main") }
@@ -64,9 +65,11 @@ fun SettingsScreen(
         "support" -> TicketsTab(token = token, onBack = { currentScreen = "main" })
         "app_settings" -> AppSettingsTab(
             killSwitch = killSwitch, onKillSwitchChange = onKillSwitchChange,
+            autoReconnect = autoReconnect, onAutoReconnectChange = onAutoReconnectChange,
             backgroundMode = backgroundMode, onBackgroundModeChange = onBackgroundModeChange,
             language = language,
             onBack = { currentScreen = "main" },
+            onAutoReconnect = { currentScreen = "autoreconnect" },
             onKillSwitch = { currentScreen = "killswitch" },
             onBackground = { currentScreen = "background" },
             onLanguage = { currentScreen = "language" }
@@ -79,6 +82,11 @@ fun SettingsScreen(
         "killswitch" -> KillSwitchTab(
             killSwitch = killSwitch,
             onKillSwitchChange = onKillSwitchChange,
+            onBack = { currentScreen = "app_settings" }
+        )
+        "autoreconnect" -> AutoReconnectTab(
+            autoReconnect = autoReconnect,
+            onAutoReconnectChange = onAutoReconnectChange,
             onBack = { currentScreen = "app_settings" }
         )
         "language" -> LanguageTab(
@@ -630,12 +638,14 @@ fun ComingSoonTab(title: String, onBack: () -> Unit) {
 @Composable
 fun AppSettingsTab(
     killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit,
+    autoReconnect: Boolean, onAutoReconnectChange: (Boolean) -> Unit,
     backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit,
     language: String,
     onBack: () -> Unit,
     onKillSwitch: () -> Unit,
     onBackground: () -> Unit,
-    onLanguage: () -> Unit
+    onLanguage: () -> Unit,
+    onAutoReconnect: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
@@ -646,6 +656,12 @@ fun AppSettingsTab(
             Text(stringResource(R.string.app_settings_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.Refresh, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.autoreconnect_title),
+            subtitle = stringResource(if (autoReconnect) R.string.autoreconnect_enabled_sub else R.string.autoreconnect_disabled_sub),
+            onClick = onAutoReconnect
+        )
         SettingsMenuItem(
             icon = { Icon(Icons.Filled.PowerSettingsNew, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
             title = "Kill Switch",
@@ -801,6 +817,48 @@ fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean)
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(stringResource(R.string.background_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
+fun AutoReconnectTab(autoReconnect: Boolean, onAutoReconnectChange: (Boolean) -> Unit, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(stringResource(R.string.autoreconnect_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(stringResource(R.string.autoreconnect_description), color = TextMuted, fontSize = 13.sp)
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().background(Bg2)
+                    .clickable { onAutoReconnectChange(!autoReconnect) }
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.autoreconnect_title), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        stringResource(if (autoReconnect) R.string.autoreconnect_switch_enabled else R.string.autoreconnect_switch_disabled),
+                        color = if (autoReconnect) Accent else TextMuted, fontSize = 12.sp
+                    )
+                }
+                Switch(
+                    checked = autoReconnect, onCheckedChange = onAutoReconnectChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = BgDark, checkedTrackColor = Accent,
+                        uncheckedThumbColor = TextMuted, uncheckedTrackColor = Bg2
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(stringResource(R.string.autoreconnect_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }

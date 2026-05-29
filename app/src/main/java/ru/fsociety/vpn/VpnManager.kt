@@ -54,11 +54,12 @@ object VpnManager {
             } ?: configString
             val config = Config.parse(BufferedReader(StringReader(effectiveConfig)))
             val tunnel = WgTunnel("fsociety") { state ->
-                // Туннель упал не через наш disconnect() — kill switch
-                if (state == Tunnel.State.DOWN && killSwitchEnabled && currentTunnel != null) {
+                // currentTunnel is nulled before setState(DOWN) in disconnect(),
+                // so a non-null check here means it was an unexpected drop.
+                if (state == Tunnel.State.DOWN && currentTunnel != null) {
                     currentTunnel = null
                     connectedServerName = ""
-                    tunnelDropped.tryEmit(Unit)
+                    VpnEvents.vpnDropped.tryEmit(Unit)
                 }
             }
             currentTunnel = tunnel

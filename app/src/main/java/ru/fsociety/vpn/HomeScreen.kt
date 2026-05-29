@@ -67,6 +67,7 @@ fun HomeScreen(
     connectedServer: ServerResponse?,
     isRefreshingPings: Boolean,
     usage: UsageResponse? = null,
+    autoReconnect: Boolean = true,
     onRefreshPings: () -> Unit,
     onConnected: (ServerResponse) -> Unit,
     onDisconnected: () -> Unit
@@ -269,6 +270,31 @@ fun HomeScreen(
         } catch (e: Exception) {
             statusMsg = context.getString(R.string.home_error_generic, e.message ?: "")
             isConnecting = false
+        }
+    }
+
+    // Auto-reconnect: when VPN drops unexpectedly, retry up to 3 times
+    val strReconnecting = stringResource(R.string.reconnecting)
+    val strReconnectFailed = stringResource(R.string.reconnect_failed)
+    LaunchedEffect(Unit) {
+        VpnEvents.vpnDropped.collect {
+            val serverToReconnect = connectedServer ?: run { onDisconnected(); return@collect }
+            if (!autoReconnect) { onDisconnected(); return@collect }
+            onDisconnected()
+            var reconnected = false
+            for (attempt in 1..3) {
+                statusMsg = "$strReconnecting ($attempt/3)…"
+                delay(attempt * 2000L) // 2s, 4s, 6s
+                try {
+                    connectToServer(serverToReconnect)
+                    reconnected = true
+                    break
+                } catch (_: Exception) { }
+            }
+            if (!reconnected) {
+                statusMsg = strReconnectFailed
+                isConnecting = false
+            }
         }
     }
 

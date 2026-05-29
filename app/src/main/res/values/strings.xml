@@ -209,6 +209,16 @@
     <string name="notification_text_disconnected">Подключиться к лучшему серверу</string>
     <string name="notification_disconnect">ОТКЛЮЧИТЬСЯ</string>
     <string name="notification_connect">ПОДКЛЮЧИТЬСЯ</string>
+    <!-- Auto-reconnect -->
+    <string name="autoreconnect_title">Авто-переподключение</string>
+    <string name="autoreconnect_description">При разрыве VPN-соединения приложение автоматически попытается переподключиться (до 3 попыток).</string>
+    <string name="autoreconnect_enabled_sub">Включено</string>
+    <string name="autoreconnect_disabled_sub">Выключено</string>
+    <string name="autoreconnect_switch_enabled">Включено</string>
+    <string name="autoreconnect_switch_disabled">Выключено</string>
+    <string name="autoreconnect_note">// При включённом авто-переподключении Kill Switch\n// блокирует трафик между попытками.</string>
+    <string name="reconnecting">Переподключение</string>
+    <string name="reconnect_failed">Не удалось переподключиться</string>
     <!-- Force update dialog -->
     <string name="update_required_title">Требуется обновление</string>
     <string name="update_required_message">Эта версия приложения устарела. Пожалуйста, установите последнюю версию, чтобы продолжить.</string>

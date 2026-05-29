@@ -95,6 +95,11 @@ object VpnEvents {
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
+    // Emitted when VPN drops unexpectedly (not by user action)
+    val vpnDropped = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     var isConnecting: Boolean = false
 }
 
@@ -330,6 +335,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
     var backgroundMode by remember { mutableStateOf(prefs.getBoolean("background_mode", false)) }
     var killSwitch by remember { mutableStateOf(prefs.getBoolean("kill_switch", false)) }
+    var autoReconnect by remember { mutableStateOf(prefs.getBoolean("auto_reconnect", true)) }
     var language by remember { mutableStateOf(prefs.getString("language", "ru") ?: "ru") }
     var splitSettings by remember { mutableStateOf(SplitTunnelingManager.load(prefs)) }
 
@@ -489,13 +495,12 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     connectedServer = connectedServer,
                     isRefreshingPings = isRefreshingPings,
                     usage = usage,
+                    autoReconnect = autoReconnect,
                     onRefreshPings = refreshPings,
                     onConnected = { server ->
                         isConnected = true
                         connectedServer = server
                         VpnManager.connectedServerName = server.name
-                        // VpnForegroundService только для WireGuard/AmneziaWG.
-                        // Для sing-box протоколов (VLESS/Hysteria2) уведомление управляется XrayVpnService.
                         if (!server.usesSingbox && !server.usesOpenVpn) {
                             VpnForegroundService.start(context)
                         }
@@ -527,6 +532,11 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     onKillSwitchChange = { enabled ->
                         killSwitch = enabled
                         prefs.edit().putBoolean("kill_switch", enabled).apply()
+                    },
+                    autoReconnect = autoReconnect,
+                    onAutoReconnectChange = { enabled ->
+                        autoReconnect = enabled
+                        prefs.edit().putBoolean("auto_reconnect", enabled).apply()
                     },
                     language = language,
                     onLanguageChange = { lang ->

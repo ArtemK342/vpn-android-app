@@ -55,9 +55,12 @@ class XrayVpnService : VpnService() {
         }
     }
 
+    @Volatile private var intentionalStop = false
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
+                intentionalStop = false
                 val config     = intent.getStringExtra(EXTRA_CONFIG)     ?: return START_NOT_STICKY
                 val serverName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: ""
 
@@ -68,12 +71,8 @@ class XrayVpnService : VpnService() {
 
                 scope.launch {
                     val ok = SingboxManager.connect(applicationContext, this@XrayVpnService, config, serverName)
-                    if (!ok) {
-                        Log.e(TAG, "SingboxManager.connect failed — stopping service")
-                        stopSelf()
-                        return@launch
-                    }
-                    // Обновляем уведомление с трафиком каждую секунду
+                    if (!ok) { stopSelf(); return@launch }
+
                     val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                     while (SingboxManager.isConnected()) {
                         val (rx, tx) = SingboxManager.getTrafficStats()
@@ -83,9 +82,13 @@ class XrayVpnService : VpnService() {
                         )
                         delay(1000)
                     }
+                    // Loop exited because sing-box dropped — notify for auto-reconnect
+                    if (!intentionalStop) VpnEvents.vpnDropped.tryEmit(Unit)
+                    stopSelf()
                 }
             }
             ACTION_STOP -> {
+                intentionalStop = true
                 scope.launch {
                     SingboxManager.disconnect()
                     pfd?.close(); pfd = null
