@@ -3,6 +3,7 @@ package ru.fsociety.vpn
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.launch
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -35,12 +36,16 @@ fun formatNumericCode(raw: String): String {
 }
 
 @Composable
-fun PrivacyPolicyScreen(onBack: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDark)
-    ) {
+fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
+    val isLoading = remember { mutableStateOf(true) }
+    val webViewRef = remember { mutableStateOf<WebView?>(null) }
+
+    BackHandler {
+        val wv = webViewRef.value
+        if (wv != null && wv.canGoBack()) wv.goBack() else onBack()
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
@@ -59,7 +64,7 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
-                    text = stringResource(R.string.privacy_screen_title),
+                    text = title,
                     color = TextPrimary,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
@@ -67,16 +72,35 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
                     letterSpacing = 0.5.sp
                 )
             }
-            AndroidView(
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        webViewClient = WebViewClient()
-                        settings.javaScriptEnabled = true
-                        loadUrl("https://fsociety-vpn.org/privacy")
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                AndroidView(
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    isLoading.value = true
+                                }
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    isLoading.value = false
+                                }
+                            }
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            setBackgroundColor(android.graphics.Color.WHITE)
+                            loadUrl(url)
+                            webViewRef.value = this
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (isLoading.value) {
+                    CircularProgressIndicator(
+                        color = Accent,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
         }
     }
 }
@@ -85,11 +109,12 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
 private fun PrivacyCheckboxRow(
     accepted: Boolean,
     onAcceptedChange: (Boolean) -> Unit,
-    onOpenPrivacy: () -> Unit
+    onOpenPrivacy: () -> Unit,
+    onOpenTerms: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
         Checkbox(
             checked = accepted,
@@ -101,20 +126,40 @@ private fun PrivacyCheckboxRow(
             )
         )
         Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = stringResource(R.string.privacy_accept_prefix),
-            color = TextMuted,
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace
-        )
-        Text(
-            text = stringResource(R.string.privacy_policy_link),
-            color = Accent,
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace,
-            textDecoration = TextDecoration.Underline,
-            modifier = Modifier.clickable { onOpenPrivacy() }
-        )
+        Column(modifier = Modifier.padding(top = 12.dp)) {
+            Row {
+                Text(
+                    text = stringResource(R.string.privacy_accept_prefix),
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = stringResource(R.string.privacy_policy_link),
+                    color = Accent,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable { onOpenPrivacy() }
+                )
+            }
+            Row {
+                Text(
+                    text = stringResource(R.string.privacy_and_prefix),
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = stringResource(R.string.terms_link),
+                    color = Accent,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable { onOpenTerms() }
+                )
+            }
+        }
     }
 }
 
@@ -128,17 +173,24 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var numericCode by remember { mutableStateOf("") }
     var numericFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var privacyAccepted by remember { mutableStateOf(false) }
-    var showPrivacy by remember { mutableStateOf(false) }
+    var showPolicyUrl by remember { mutableStateOf<String?>(null) }
+    var showPolicyTitle by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
-    val strErrorCodeLength  = stringResource(R.string.login_error_code_length)
-    val strErrorEmpty       = stringResource(R.string.login_error_empty)
-    val strErrorNetwork     = stringResource(R.string.login_error_network)
+    val strErrorCodeLength   = stringResource(R.string.login_error_code_length)
+    val strErrorEmpty        = stringResource(R.string.login_error_empty)
+    val strErrorNetwork      = stringResource(R.string.login_error_network)
     val strErrorCodeNotFound = stringResource(R.string.login_error_code_not_found)
-    val strErrorCredentials = stringResource(R.string.login_error_credentials)
+    val strErrorCredentials  = stringResource(R.string.login_error_credentials)
+    val strPrivacyTitle      = stringResource(R.string.privacy_screen_title)
+    val strTermsTitle        = stringResource(R.string.terms_screen_title)
 
-    if (showPrivacy) {
-        PrivacyPolicyScreen(onBack = { showPrivacy = false })
+    if (showPolicyUrl != null) {
+        PolicyViewerScreen(
+            url = showPolicyUrl!!,
+            title = showPolicyTitle,
+            onBack = { showPolicyUrl = null }
+        )
         return
     }
 
@@ -241,7 +293,8 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 PrivacyCheckboxRow(
                     accepted = privacyAccepted,
                     onAcceptedChange = { privacyAccepted = it },
-                    onOpenPrivacy = { showPrivacy = true }
+                    onOpenPrivacy = { showPolicyTitle = strPrivacyTitle; showPolicyUrl = "https://fsociety-vpn.org/privacy" },
+                    onOpenTerms   = { showPolicyTitle = strTermsTitle;   showPolicyUrl = "https://fsociety-vpn.org/terms" }
                 )
             }
 
@@ -340,7 +393,8 @@ fun RegisterScreen(onBack: () -> Unit) {
     var successMsg by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var privacyAccepted by remember { mutableStateOf(false) }
-    var showPrivacy by remember { mutableStateOf(false) }
+    var showPolicyUrl by remember { mutableStateOf<String?>(null) }
+    var showPolicyTitle by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     val strErrorEmpty    = stringResource(R.string.login_error_empty)
@@ -348,9 +402,15 @@ fun RegisterScreen(onBack: () -> Unit) {
     val strErrorLength   = stringResource(R.string.register_error_password_length)
     val strErrorServer   = stringResource(R.string.register_error_server)
     val strSuccess       = stringResource(R.string.register_success, email)
+    val strPrivacyTitle  = stringResource(R.string.privacy_screen_title)
+    val strTermsTitle    = stringResource(R.string.terms_screen_title)
 
-    if (showPrivacy) {
-        PrivacyPolicyScreen(onBack = { showPrivacy = false })
+    if (showPolicyUrl != null) {
+        PolicyViewerScreen(
+            url = showPolicyUrl!!,
+            title = showPolicyTitle,
+            onBack = { showPolicyUrl = null }
+        )
         return
     }
 
@@ -440,7 +500,8 @@ fun RegisterScreen(onBack: () -> Unit) {
             PrivacyCheckboxRow(
                 accepted = privacyAccepted,
                 onAcceptedChange = { privacyAccepted = it },
-                onOpenPrivacy = { showPrivacy = true }
+                onOpenPrivacy = { showPolicyTitle = strPrivacyTitle; showPolicyUrl = "https://fsociety-vpn.org/privacy" },
+                onOpenTerms   = { showPolicyTitle = strTermsTitle;   showPolicyUrl = "https://fsociety-vpn.org/terms" }
             )
 
             Spacer(modifier = Modifier.height(12.dp))

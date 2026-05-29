@@ -224,9 +224,12 @@
     <string name="update_required_message">Эта версия приложения устарела. Пожалуйста, установите последнюю версию, чтобы продолжить.</string>
     <string name="update_required_button">Обновить</string>
 
-    <!-- Privacy Policy -->
+    <!-- Privacy Policy / Terms -->
     <string name="privacy_accept_prefix">Я принимаю </string>
     <string name="privacy_policy_link">Политику конфиденциальности</string>
+    <string name="privacy_and_prefix">и </string>
+    <string name="terms_link">Пользовательское соглашение</string>
     <string name="privacy_screen_title">ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ</string>
+    <string name="terms_screen_title">ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ</string>
     <string name="privacy_screen_back">← НАЗАД</string>
 </resources>

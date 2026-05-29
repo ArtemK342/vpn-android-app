@@ -223,9 +223,12 @@
     <string name="update_required_title">Update Required</string>
     <string name="update_required_message">This version of the app is outdated. Please install the latest version to continue.</string>
     <string name="update_required_button">Update</string>
-    <!-- Privacy Policy -->
+    <!-- Privacy Policy / Terms -->
     <string name="privacy_accept_prefix">I accept the </string>
     <string name="privacy_policy_link">Privacy Policy</string>
+    <string name="privacy_and_prefix">and </string>
+    <string name="terms_link">User Agreement</string>
     <string name="privacy_screen_title">PRIVACY POLICY</string>
+    <string name="terms_screen_title">USER AGREEMENT</string>
     <string name="privacy_screen_back">← BACK</string>
 </resources>
