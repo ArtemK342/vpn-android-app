@@ -18,3 +18,10 @@ local.properties
 *.apk
 # Backups created by fix_16kb_alignment.py
 *.bak4k
+
+# Local AAR and unused modules (not referenced in build)
+/libs/
+/libv2ray/
+
+# Build utility scripts
+/scripts/
