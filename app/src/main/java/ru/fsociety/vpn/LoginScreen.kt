@@ -46,20 +46,11 @@ fun formatNumericCode(raw: String): String {
 
 private data class AnonResult(val code: String, val accessToken: String, val refreshToken: String)
 
-private fun shareToApp(context: Context, text: String, pkg: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-        setPackage(pkg)
-    }
-    if (intent.resolveActivity(context.packageManager) != null) {
-        context.startActivity(intent)
-    } else {
-        context.startActivity(Intent.createChooser(
-            Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) },
-            null
-        ))
-    }
+private fun shareText(context: Context, text: String) {
+    context.startActivity(Intent.createChooser(
+        Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) },
+        null
+    ))
 }
 
 @Composable
@@ -238,22 +229,15 @@ private fun AnonCodeResultScreen(result: AnonResult, onLogin: (String, String) -
             Spacer(modifier = Modifier.height(28.dp))
 
             // Поделиться
-            Text(stringResource(R.string.anon_share_label), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 0.2.sp)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Border)
+                    .clickable { shareText(context, shareText) }
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
             ) {
-                ShareButton(modifier = Modifier.weight(1f), label = "Telegram", color = Color(0xFF2CA5E0)) {
-                    shareToApp(context, shareText, "org.telegram.messenger")
-                }
-                ShareButton(modifier = Modifier.weight(1f), label = "WhatsApp", color = Color(0xFF25D366)) {
-                    shareToApp(context, shareText, "com.whatsapp")
-                }
-                ShareButton(modifier = Modifier.weight(1f), label = "VK", color = Color(0xFF0077FF)) {
-                    shareToApp(context, shareText, "com.vkontakte.android")
-                }
+                Text(stringResource(R.string.anon_share_label), color = Accent, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, letterSpacing = 0.2.sp)
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -267,19 +251,6 @@ private fun AnonCodeResultScreen(result: AnonResult, onLogin: (String, String) -
                 Text(stringResource(R.string.anon_code_login_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
-    }
-}
-
-@Composable
-private fun ShareButton(modifier: Modifier, label: String, color: Color, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .border(1.dp, color.copy(alpha = 0.5f))
-            .clickable { onClick() }
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, color = color, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
     }
 }
 
