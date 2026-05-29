@@ -223,9 +223,19 @@ fun App(context: android.content.Context) {
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
     var showRegister by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var forceUpdateUrl by remember { mutableStateOf<String?>(null) }
 
-    // On startup: if no access token but refresh token exists, try to refresh silently
+    // On startup: check minimum required version + silent token refresh
     LaunchedEffect(Unit) {
+        // Force update check
+        try {
+            val cfg = ApiClient.service.getAppConfig()
+            if (BuildConfig.VERSION_CODE < cfg.android_min_version) {
+                forceUpdateUrl = cfg.update_url
+            }
+        } catch (_: Exception) { }
+
+        // Silent token refresh
         if (token.isEmpty()) {
             val savedRefresh = prefs.getString("refresh_token", null)
             if (!savedRefresh.isNullOrEmpty()) {
@@ -243,6 +253,32 @@ fun App(context: android.content.Context) {
                 }
             }
         }
+    }
+
+    // Force update dialog — non-dismissible, blocks all UI
+    forceUpdateUrl?.let { url ->
+        AlertDialog(
+            onDismissRequest = { /* non-dismissible */ },
+            title = { Text(stringResource(R.string.update_required_title), color = TextPrimary) },
+            text  = { Text(stringResource(R.string.update_required_message), color = TextMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val intent = android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(url)
+                    )
+                    context.startActivity(intent)
+                }) {
+                    Text(stringResource(R.string.update_required_button), color = Accent)
+                }
+            },
+            containerColor = Bg2,
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        )
+        return  // block everything below while update required
     }
 
     when {

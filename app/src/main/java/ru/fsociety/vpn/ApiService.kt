@@ -130,6 +130,11 @@ data class UsageResponse(
     val resets_at: String?
 )
 
+data class AppConfigResponse(
+    val android_min_version: Int,
+    val update_url: String
+)
+
 // ── Интерфейс API ──
 
 interface ApiService {
@@ -257,6 +262,9 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Query("server_id") serverId: String
     ): retrofit2.Response<okhttp3.ResponseBody>
+
+    @GET("app-config")
+    suspend fun getAppConfig(): AppConfigResponse
 
 }
 

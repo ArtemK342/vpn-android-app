@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FsocietyNet</string>
 
@@ -209,4 +209,8 @@
     <string name="notification_text_disconnected">Подключиться к лучшему серверу</string>
     <string name="notification_disconnect">ОТКЛЮЧИТЬСЯ</string>
     <string name="notification_connect">ПОДКЛЮЧИТЬСЯ</string>
+    <!-- Force update dialog -->
+    <string name="update_required_title">Требуется обновление</string>
+    <string name="update_required_message">Эта версия приложения устарела. Пожалуйста, установите последнюю версию, чтобы продолжить.</string>
+    <string name="update_required_button">Обновить</string>
 </resources>
