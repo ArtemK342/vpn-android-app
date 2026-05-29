@@ -237,6 +237,7 @@
     <string name="anon_register_desc">Create an anonymous account without email or password. Instead — a unique 16-digit code.</string>
     <string name="anon_register_btn">CREATE ACCOUNT →</string>
     <string name="anon_register_error">Account creation failed. Please try again later.</string>
+    <string name="anon_register_error_rate_limit">You have already created an anonymous account today. Try again tomorrow.</string>
     <string name="anon_code_subtitle">// ANONYMOUS ACCOUNT</string>
     <string name="anon_code_label">// ACCESS CODE</string>
     <string name="anon_code_copied">Copied!</string>

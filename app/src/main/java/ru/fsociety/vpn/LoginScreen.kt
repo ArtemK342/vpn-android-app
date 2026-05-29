@@ -266,10 +266,11 @@ private fun AnonRegisterScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val strPrivacyTitle = stringResource(R.string.privacy_screen_title)
-    val strTermsTitle   = stringResource(R.string.terms_screen_title)
-    val strErrorNetwork = stringResource(R.string.login_error_network)
-    val strErrorServer  = stringResource(R.string.anon_register_error)
+    val strPrivacyTitle   = stringResource(R.string.privacy_screen_title)
+    val strTermsTitle     = stringResource(R.string.terms_screen_title)
+    val strErrorNetwork   = stringResource(R.string.login_error_network)
+    val strErrorServer    = stringResource(R.string.anon_register_error)
+    val strErrorRateLimit = stringResource(R.string.anon_register_error_rate_limit)
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
@@ -319,6 +320,8 @@ private fun AnonRegisterScreen(
                             onSuccess(AnonResult(resp.code, resp.access_token, resp.refresh_token))
                         } catch (e: java.net.SocketTimeoutException) {
                             errorMsg = strErrorNetwork
+                        } catch (e: retrofit2.HttpException) {
+                            errorMsg = if (e.code() == 429) strErrorRateLimit else strErrorServer
                         } catch (e: Exception) {
                             errorMsg = strErrorServer
                         } finally {
@@ -362,6 +365,10 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var anonResult by remember { mutableStateOf<AnonResult?>(null) }
     var showPolicyUrl by remember { mutableStateOf<String?>(null) }
     var showPolicyTitle by remember { mutableStateOf("") }
+    var showLangMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fsociety", Context.MODE_PRIVATE) }
+    var language by remember { mutableStateOf(prefs.getString("language", "ru") ?: "ru") }
     val scope = rememberCoroutineScope()
 
     val strErrorCodeLength   = stringResource(R.string.login_error_code_length)
@@ -393,7 +400,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(BgDark).padding(24.dp),
+        modifier = Modifier.fillMaxSize().background(BgDark),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -401,8 +408,8 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp)
-                .padding(top = 48.dp)
+                .padding(horizontal = 24.dp)
+                .padding(top = 72.dp, bottom = 24.dp)
         ) {
             Row {
                 Text("[f]", color = Accent, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
@@ -542,6 +549,53 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     stringResource(if (isAnonymousMode) R.string.login_btn_email else R.string.login_btn_anon),
                     fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp
                 )
+            }
+        }
+
+        // ── Language picker (top-right) ──
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 12.dp, end = 16.dp)
+        ) {
+            Text(
+                text = language.uppercase(),
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .border(1.dp, Border)
+                    .clickable { showLangMenu = true }
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+            DropdownMenu(
+                expanded = showLangMenu,
+                onDismissRequest = { showLangMenu = false },
+                modifier = Modifier.background(Surface)
+            ) {
+                listOf("ru" to "RU", "en" to "EN").forEach { (code, label) ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                label,
+                                color = if (language == code) Accent else TextPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        },
+                        onClick = {
+                            showLangMenu = false
+                            if (language != code) {
+                                language = code
+                                prefs.edit().putString("language", code).apply()
+                                (context as? android.app.Activity)?.recreate()
+                            }
+                        }
+                    )
+                }
             }
         }
     }

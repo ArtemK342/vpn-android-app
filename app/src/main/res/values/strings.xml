@@ -238,6 +238,7 @@
     <string name="anon_register_desc">Создайте анонимный аккаунт без email и пароля. Вместо них — уникальный 16-значный код.</string>
     <string name="anon_register_btn">СОЗДАТЬ АККАУНТ →</string>
     <string name="anon_register_error">Ошибка создания аккаунта. Попробуйте позже.</string>
+    <string name="anon_register_error_rate_limit">Вы уже создали анонимный аккаунт сегодня. Повторите завтра.</string>
     <string name="anon_code_subtitle">// АНОНИМНЫЙ АККАУНТ</string>
     <string name="anon_code_label">// КОД ДОСТУПА</string>
     <string name="anon_code_copied">Скопировано!</string>
