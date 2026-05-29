@@ -16,3 +16,5 @@ local.properties
 /app/release/
 /app/build/
 *.apk
+# Backups created by fix_16kb_alignment.py
+*.bak4k

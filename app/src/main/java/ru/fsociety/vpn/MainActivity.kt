@@ -105,9 +105,9 @@ class VpnDisconnectReceiver : BroadcastReceiver() {
             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     when {
-                        OpenVpnService.isRunning -> OpenVpnService.stop(context)
+                        OpenVpnService.isRunning  -> OpenVpnService.stop(context)
                         SingboxManager.isConnected() -> XrayVpnService.stop(context)
-                        else -> VpnManager.disconnect()
+                        else                      -> VpnManager.disconnect()
                     }
                     VpnEvents.disconnectRequested.tryEmit(Unit)
                 } finally {

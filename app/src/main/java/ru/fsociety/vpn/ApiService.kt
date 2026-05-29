@@ -4,6 +4,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.DELETE
+import retrofit2.http.Streaming
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
@@ -77,7 +78,6 @@ data class TrojanConfigResponse(
     val server_type: String
 )
 
-// OpenVPN+Cloak config: ovpn = full .ovpn text, cloak = cloak client JSON (raw)
 data class OpenVpnCloakConfigResponse(
     val ovpn_config: String,
     val cloak_config: String,
@@ -251,6 +251,13 @@ interface ApiService {
         @Query("server_id") serverId: String
     ): OpenVpnCloakConfigResponse
 
+    @Streaming
+    @GET("vpn/openvpn-cloak-bundle")
+    suspend fun getOpenVpnCloakBundle(
+        @Header("Authorization") token: String,
+        @Query("server_id") serverId: String
+    ): retrofit2.Response<okhttp3.ResponseBody>
+
 }
 
 
@@ -261,18 +268,30 @@ interface ApiService {
 object ApiClient {
     private const val BASE_URL = "https://fsociety-vpn.org/api/"
 
+    private fun buildOkHttp(readTimeoutSec: Long) = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(readTimeoutSec, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(readTimeoutSec + 10, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(false)
+        .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+        .connectionPool(okhttp3.ConnectionPool(0, 1, java.util.concurrent.TimeUnit.SECONDS))
+        .build()
+
     val service: ApiService by lazy {
-        val okHttp = okhttp3.OkHttpClient.Builder()
-            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
-            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
-            .connectionPool(okhttp3.ConnectionPool(0, 1, java.util.concurrent.TimeUnit.SECONDS))
-            .build()
         Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(okHttp)
+            .client(buildOkHttp(20))
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ApiService::class.java)
+    }
+
+    // Direct endpoint (no Cloudflare) for the bundle — bypasses DLP entirely.
+    val bundleService: ApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.fsociety-vpn.org/api/")
+            .client(buildOkHttp(15))
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)

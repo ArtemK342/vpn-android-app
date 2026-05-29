@@ -201,18 +201,36 @@ fun HomeScreen(
                     isConnecting = false
                 }
             } else if (server.server_type == "openvpn_cloak") {
-                val response = ApiClient.service.getOpenVpnCloakConfig("Bearer $token", server.id)
-                // bundle into single JSON for OpenVpnWithCloak.parseConfig
+                var bodyBytes: ByteArray? = null
+                var lastEx: Exception? = null
+                for (attempt in 1..3) {
+                    try {
+                        if (attempt > 1) kotlinx.coroutines.delay(1500)
+                        val raw = ApiClient.bundleService.getOpenVpnCloakBundle("Bearer $token", server.id)
+                        bodyBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            raw.body()?.use { it.bytes() }
+                        }
+                        if (bodyBytes != null) break
+                    } catch (e: Exception) {
+                        lastEx = e
+                    }
+                }
+                if (bodyBytes == null) throw lastEx ?: Exception("Empty response from openvpn-cloak-bundle")
+                val parsed = org.json.JSONObject(String(bodyBytes, Charsets.UTF_8))
+                val ovpnConfig  = parsed.getString("ovpn_config").reversed()
+                val cloakConfig = parsed.getString("cloak_config")
+                val host        = parsed.getString("host")
                 val bundle = org.json.JSONObject().apply {
-                    put("hostName", response.host)
-                    put("openvpn_config_data", org.json.JSONObject().put("config", response.ovpn_config))
-                    put("cloak_config", response.cloak_config)
+                    put("hostName", host)
+                    put("openvpn_config_data", org.json.JSONObject().put("config", ovpnConfig))
+                    put("cloak_config", cloakConfig)
                 }.toString()
                 val intent = VpnService.prepare(context)
                 if (intent != null) {
                     pendingConfig = bundle
                     pendingServer = server
                     pendingServerType = "openvpn_cloak"
+                    statusMsg = strConnecting
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = strConnecting
@@ -244,6 +262,9 @@ fun HomeScreen(
             }
         } catch (e: java.net.SocketTimeoutException) {
             statusMsg = strTimeout
+            isConnecting = false
+        } catch (e: retrofit2.HttpException) {
+            statusMsg = context.getString(R.string.home_error_generic, "HTTP ${e.code()}: ${e.message()}")
             isConnecting = false
         } catch (e: Exception) {
             statusMsg = context.getString(R.string.home_error_generic, e.message ?: "")
@@ -495,7 +516,9 @@ fun HomeScreen(
                     if (isConnected) {
                         isConnecting = true
                         statusMsg = strDisconnecting
-                        if (SingboxManager.isConnected()) {
+                        if (OpenVpnService.isRunning) {
+                            OpenVpnService.stop(context)
+                        } else if (SingboxManager.isConnected()) {
                             XrayVpnService.stop(context)
                         } else {
                             VpnManager.disconnect()

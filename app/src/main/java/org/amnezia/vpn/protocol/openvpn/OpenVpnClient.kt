@@ -306,6 +306,12 @@ class OpenVpnClient(
     // The remote and ipv6 are the remote host this socket will connect to
     override fun socket_protect(socket: Int, remote: String, ipv6: Boolean): Boolean {
         Log.d(TAG, "socket_protect: $socket, $remote, $ipv6")
+        // Cloak transport returns fd=0 before its async Go-side dialer has actually connected.
+        // VpnService.protect(0) is a SIGKILL on some Samsung firmware — skip it.
+        if (socket <= 0) {
+            Log.w(TAG, "socket_protect: invalid socket $socket, skipping (Cloak race condition)")
+            return true
+        }
         return protect(socket)
     }
 

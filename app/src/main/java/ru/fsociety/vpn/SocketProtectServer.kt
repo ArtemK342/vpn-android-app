@@ -1,7 +1,6 @@
 package ru.fsociety.vpn
 
 import android.net.LocalServerSocket
-import android.util.Log
 import java.io.File
 import java.io.FileDescriptor
 import java.util.concurrent.CountDownLatch
@@ -9,7 +8,6 @@ import java.util.concurrent.TimeUnit
 
 object SocketProtectServer {
 
-    private const val TAG = "SocketProtect"
     @Volatile private var running = false
     private var thread: Thread? = null
 
@@ -24,8 +22,7 @@ object SocketProtectServer {
         thread = Thread {
             try {
                 val server = LocalServerSocket(socketName)
-                latch.countDown() // сервер готов
-                Log.d(TAG, "Listening on $socketName")
+                latch.countDown()
 
                 while (running && !Thread.currentThread().isInterrupted) {
                     try {
@@ -33,10 +30,7 @@ object SocketProtectServer {
                         val fds: Array<FileDescriptor>? = client.ancillaryFileDescriptors
                         fds?.forEach { fd ->
                             val fdInt = getFdInt(fd)
-                            if (fdInt > 0) {
-                                val ok = service.protect(fdInt)
-                                Log.d(TAG, "protect(fd=$fdInt)=$ok")
-                            }
+                            if (fdInt > 0) service.protect(fdInt)
                         }
                         client.close()
                     } catch (_: Exception) { }
@@ -44,7 +38,6 @@ object SocketProtectServer {
                 server.close()
             } catch (e: Exception) {
                 latch.countDown()
-                Log.e(TAG, "Error: ${e.message}")
             }
         }
         thread!!.isDaemon = true

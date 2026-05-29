@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,7 +35,6 @@ class OpenVpnService : VpnService() {
         const val ACTION_STOP = "ru.fsociety.vpn.OPENVPN_STOP"
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_SERVER_NAME = "server_name"
-        private const val TAG = "OpenVpnService"
 
         @Volatile
         var isRunning: Boolean = false
@@ -75,33 +73,32 @@ class OpenVpnService : VpnService() {
                 scope.launch {
                     try {
                         val ovpn = OpenVpnWithCloak()
-                        ovpn.initialize(applicationContext, state) { err ->
-                            Log.e(TAG, "OpenVpn error: $err")
-                        }
+                        ovpn.initialize(applicationContext, state) { }
                         val builder = Builder()
+                        val parsedConfig = JSONObject(configJson)
                         ovpn.startVpn(
-                            config = JSONObject(configJson),
+                            config = parsedConfig,
                             vpnBuilder = builder,
                             protect = { sock -> protect(sock) }
                         )
                         openVpn = ovpn
                         isRunning = true
                         VpnManager.connectedServerName = connectedServerName
-
-                        // Notify HomeScreen that we connected
-                        // (we don't have ServerResponse here, so emit by name match)
                     } catch (e: Exception) {
-                        Log.e(TAG, "OpenVpn start failed: ${e.message}", e)
                         stopSelf()
                         return@launch
                     }
 
                     val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                    val uid = android.os.Process.myUid()
+                    val rxBase = android.net.TrafficStats.getUidRxBytes(uid).coerceAtLeast(0)
+                    val txBase = android.net.TrafficStats.getUidTxBytes(uid).coerceAtLeast(0)
                     while (state.value != ProtocolState.DISCONNECTED) {
-                        val stats = openVpn?.statistics
+                        val rx = (android.net.TrafficStats.getUidRxBytes(uid) - rxBase).coerceAtLeast(0)
+                        val tx = (android.net.TrafficStats.getUidTxBytes(uid) - txBase).coerceAtLeast(0)
                         nm.notify(
                             VpnNotificationHelper.NOTIFICATION_ID + 2,
-                            buildNotification(connectedServerName, stats?.rxBytes ?: 0L, stats?.txBytes ?: 0L)
+                            buildNotification(connectedServerName, rx, tx)
                         )
                         delay(1000)
                     }
