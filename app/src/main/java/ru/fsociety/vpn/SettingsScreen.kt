@@ -226,94 +226,96 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text(stringResource(R.string.account_change_password), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = oldPassword, onValueChange = { oldPassword = it; pwError = ""; pwSuccess = "" },
-                    label = { Text(stringResource(R.string.account_field_old_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    enabled = !isSaving,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
-                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = newPassword, onValueChange = { newPassword = it; pwError = ""; pwSuccess = "" },
-                    label = { Text(stringResource(R.string.account_field_new_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    enabled = !isSaving,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
-                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = newPassword2, onValueChange = { newPassword2 = it; pwError = ""; pwSuccess = "" },
-                    label = { Text(stringResource(R.string.account_field_repeat_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    enabled = !isSaving,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
-                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
-                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
-                )
-                if (pwError.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(pwError, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                }
-                if (pwSuccess.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(pwSuccess, color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        if (oldPassword.isBlank() || newPassword.isBlank() || newPassword2.isBlank()) {
-                            pwError = strErrorEmpty; return@Button
-                        }
-                        if (newPassword != newPassword2) {
-                            pwError = strErrorMismatch; return@Button
-                        }
-                        if (newPassword.length < 8) {
-                            pwError = strErrorLength; return@Button
-                        }
-                        scope.launch {
-                            isSaving = true; pwError = ""
-                            try {
-                                val resp = ApiClient.service.changePassword(
-                                    "Bearer $token",
-                                    ChangePasswordRequest(oldPassword, newPassword)
-                                )
-                                if (resp.isSuccessful) {
-                                    pwSuccess = strPasswordChanged
-                                    oldPassword = ""; newPassword = ""; newPassword2 = ""
-                                } else {
-                                    pwError = strErrorWrongPw
-                                }
-                            } catch (_: Exception) {
-                                pwError = strErrorNetwork
-                            } finally {
-                                isSaving = false
+                val isAnonymous = user?.email.isNullOrBlank()
+                if (!isAnonymous) {
+                    Text(stringResource(R.string.account_change_password), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = oldPassword, onValueChange = { oldPassword = it; pwError = ""; pwSuccess = "" },
+                        label = { Text(stringResource(R.string.account_field_old_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        enabled = !isSaving,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                            focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                            focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newPassword, onValueChange = { newPassword = it; pwError = ""; pwSuccess = "" },
+                        label = { Text(stringResource(R.string.account_field_new_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        enabled = !isSaving,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                            focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                            focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newPassword2, onValueChange = { newPassword2 = it; pwError = ""; pwSuccess = "" },
+                        label = { Text(stringResource(R.string.account_field_repeat_password), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        enabled = !isSaving,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                            focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                            focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                    )
+                    if (pwError.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(pwError, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    }
+                    if (pwSuccess.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(pwSuccess, color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            if (oldPassword.isBlank() || newPassword.isBlank() || newPassword2.isBlank()) {
+                                pwError = strErrorEmpty; return@Button
                             }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    enabled = !isSaving,
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
-                ) {
-                    if (isSaving) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Text(stringResource(R.string.account_btn_change_password), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            if (newPassword != newPassword2) {
+                                pwError = strErrorMismatch; return@Button
+                            }
+                            if (newPassword.length < 8) {
+                                pwError = strErrorLength; return@Button
+                            }
+                            scope.launch {
+                                isSaving = true; pwError = ""
+                                try {
+                                    val resp = ApiClient.service.changePassword(
+                                        "Bearer $token",
+                                        ChangePasswordRequest(oldPassword, newPassword)
+                                    )
+                                    if (resp.isSuccessful) {
+                                        pwSuccess = strPasswordChanged
+                                        oldPassword = ""; newPassword = ""; newPassword2 = ""
+                                    } else {
+                                        pwError = strErrorWrongPw
+                                    }
+                                } catch (_: Exception) {
+                                    pwError = strErrorNetwork
+                                } finally {
+                                    isSaving = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        enabled = !isSaving,
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                    ) {
+                        if (isSaving) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Text(stringResource(R.string.account_btn_change_password), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))

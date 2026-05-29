@@ -39,6 +39,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import ru.fsociety.vpn.ui.theme.*
 
+private fun policyAssetUrl(name: String, lang: String): String {
+    val suffix = if (lang == "en") "_en" else ""
+    return "file:///android_asset/${name}${suffix}.html"
+}
+
 fun formatNumericCode(raw: String): String {
     val digits = raw.filter { it.isDigit() }.take(16)
     return digits.chunked(4).joinToString(" ")
@@ -266,6 +271,8 @@ private fun AnonRegisterScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val lang = remember { context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru" }
     val strPrivacyTitle   = stringResource(R.string.privacy_screen_title)
     val strTermsTitle     = stringResource(R.string.terms_screen_title)
     val strErrorNetwork   = stringResource(R.string.login_error_network)
@@ -300,8 +307,8 @@ private fun AnonRegisterScreen(
             PrivacyCheckboxRow(
                 accepted = privacyAccepted,
                 onAcceptedChange = { privacyAccepted = it },
-                onOpenPrivacy = { onOpenPolicy("file:///android_asset/privacy.html", strPrivacyTitle) },
-                onOpenTerms   = { onOpenPolicy("file:///android_asset/terms.html",   strTermsTitle) }
+                onOpenPrivacy = { onOpenPolicy(policyAssetUrl("privacy", lang), strPrivacyTitle) },
+                onOpenTerms   = { onOpenPolicy(policyAssetUrl("terms",   lang), strTermsTitle) }
             )
 
             if (errorMsg.isNotEmpty()) {
@@ -616,6 +623,8 @@ fun RegisterScreen(onBack: () -> Unit) {
     var showPolicyTitle by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
+    val context2 = LocalContext.current
+    val lang2 = remember { context2.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru" }
     val strErrorEmpty    = stringResource(R.string.login_error_empty)
     val strErrorMismatch = stringResource(R.string.register_error_passwords_mismatch)
     val strErrorLength   = stringResource(R.string.register_error_password_length)
@@ -702,8 +711,8 @@ fun RegisterScreen(onBack: () -> Unit) {
             PrivacyCheckboxRow(
                 accepted = privacyAccepted,
                 onAcceptedChange = { privacyAccepted = it },
-                onOpenPrivacy = { showPolicyTitle = strPrivacyTitle; showPolicyUrl = "file:///android_asset/privacy.html" },
-                onOpenTerms   = { showPolicyTitle = strTermsTitle;   showPolicyUrl = "file:///android_asset/terms.html" }
+                onOpenPrivacy = { showPolicyTitle = strPrivacyTitle; showPolicyUrl = policyAssetUrl("privacy", lang2) },
+                onOpenTerms   = { showPolicyTitle = strTermsTitle;   showPolicyUrl = policyAssetUrl("terms",   lang2) }
             )
 
             Spacer(modifier = Modifier.height(12.dp))

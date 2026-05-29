@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d0d; color: #e0e0e0; font-family: monospace; font-size: 13px; line-height: 1.85; padding: 24px 20px 48px; }
+    h1 { font-size: 24px; font-weight: bold; color: #ffffff; margin-bottom: 6px; }
+    h2 { font-size: 14px; font-weight: bold; color: #ffffff; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tag { font-size: 10px; color: #39d98a; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 10px; }
+    .meta { font-size: 11px; color: #555; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #1e1e1e; }
+    p { color: #888; margin-bottom: 12px; }
+    ul { list-style: none; margin: 10px 0 14px; }
+    li { color: #888; padding-left: 18px; position: relative; margin-bottom: 6px; }
+    li::before { content: '→'; color: #39d98a; position: absolute; left: 0; }
+    .highlight { background: #141414; border-left: 2px solid #39d98a; padding: 12px 16px; margin: 14px 0; color: #d0d0d0; font-size: 12px; }
+    .section { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid #1a1a1a; }
+    .section:last-child { border-bottom: none; }
+    .num { font-size: 10px; color: #39d98a; letter-spacing: 0.1em; margin-bottom: 4px; }
+    strong { color: #e0e0e0; }
+  </style>
+</head>
+<body>
+
+<div class="tag">// Legal documents</div>
+<h1>User Agreement.</h1>
+<p class="meta">Last updated: April 25, 2026 · Version 1.1</p>
+
+<div class="section">
+  <div class="num">// 01</div>
+  <h2>General</h2>
+  <p>This User Agreement governs the use of the fsociety VPN service (hereinafter "Service").</p>
+  <p>By using the Service — creating an account, paying for a subscription, or connecting to servers — you confirm that you have fully read and accepted these terms.</p>
+  <p>If you do not agree with these terms, you must stop using the Service.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 02</div>
+  <h2>Service Description</h2>
+  <p>fsociety VPN is a commercial VPN service using the AmneziaWG protocol. The Service encrypts internet traffic and masks the user's real IP address, replacing it with the address of our servers.</p>
+  <div class="highlight">The Service is intended solely for protecting user privacy and security on the internet.</div>
+  <p>We maintain infrastructure in multiple jurisdictions. The list of available servers and countries may change — we strive to expand it.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 03</div>
+  <h2>Zero-Log Policy</h2>
+  <p>We do not store or collect:</p>
+  <ul>
+    <li>User internet activity history</li>
+    <li>User IP addresses upon connection</li>
+    <li>VPN session time and duration</li>
+    <li>DNS query data</li>
+    <li>Traffic information and volume</li>
+    <li>Private encryption keys</li>
+    <li>Connection metadata</li>
+  </ul>
+  <div class="highlight">We are technically unable to provide data about your activity to third parties — because we do not collect it.</div>
+  <p>For email accounts we store only: email address, password hash, subscription status, and public WireGuard key. The private key is generated on the fly and never stored on our servers. Data is stored in Switzerland.</p>
+  <p>For anonymous accounts (login via 16-digit code) we store no email or password — only the code hash, subscription status, and public VPN key.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 04</div>
+  <h2>Acceptable Use</h2>
+  <p>By using the Service, you agree not to violate applicable law. It is prohibited to use the Service for:</p>
+  <ul>
+    <li>Distributing malware</li>
+    <li>Attacking computer systems and networks</li>
+    <li>Distributing illegal content</li>
+    <li>Spam and mass mailings</li>
+    <li>Reselling Service access to third parties</li>
+  </ul>
+  <p>The user bears full responsibility for the legality of Service use.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 05</div>
+  <h2>Payment and Refunds</h2>
+  <p>Subscription payment is made through Telegram Stars. Terms and costs are shown in the app at the time of payment.</p>
+  <p>Refunds after subscription activation are not provided, except for:</p>
+  <ul>
+    <li>Technical inability to provide access due to Service fault</li>
+    <li>Documented failures confirmed by Administration</li>
+  </ul>
+  <p>To request a refund, contact support within 48 hours of payment.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 06</div>
+  <h2>Limitation of Liability</h2>
+  <p>The Service is provided "AS IS". Administration does not guarantee:</p>
+  <ul>
+    <li>Uninterrupted Service operation 24/7</li>
+    <li>Compatibility with all devices and networks</li>
+    <li>Bypassing all blocking systems</li>
+  </ul>
+  <p>Administration is not liable for damages arising from use or inability to use the Service.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 07</div>
+  <h2>Termination of Access</h2>
+  <p>Administration may suspend access for violation of Agreement terms, abuse, or legal requirements.</p>
+  <p>Users may delete their account at any time through settings. Upon deletion, all associated data is removed from our servers.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 08</div>
+  <h2>Anonymous Accounts</h2>
+  <p>The Service provides the ability to create an anonymous account without providing an email address or personal data. Instead of a login and password, a unique 16-digit numeric code is used.</p>
+  <div class="highlight">The code is the only means of access — recovery of a lost code is impossible. Store it in a safe place.</div>
+  <p>Terms of use for anonymous accounts:</p>
+  <ul>
+    <li>Monthly traffic limit — <strong>1 GB</strong> (email accounts without subscription — 3 GB)</li>
+    <li>Account deleted after <strong>14 days</strong> of inactivity without subscription</li>
+    <li>With active subscription — after <strong>60 days</strong> of inactivity</li>
+    <li>No more than 2 simultaneous active VPN connections allowed</li>
+    <li>Creation limit — 1 account per day from one IP</li>
+  </ul>
+</div>
+
+<div class="section">
+  <div class="num">// 09</div>
+  <h2>Changes to Terms</h2>
+  <p>Administration may amend this Agreement. Users are notified at least 14 days in advance via email or in-app notification.</p>
+  <p>Continued use of the Service after changes take effect constitutes acceptance of the updated terms.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 10</div>
+  <h2>Contact</h2>
+  <p>For questions related to this Agreement, contact us via the in-app support form or Telegram. We respond within 24 hours.</p>
+</div>
+
+</body>
+</html>

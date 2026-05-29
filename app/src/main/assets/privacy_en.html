@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d0d; color: #e0e0e0; font-family: monospace; font-size: 13px; line-height: 1.85; padding: 24px 20px 48px; }
+    h1 { font-size: 24px; font-weight: bold; color: #ffffff; margin-bottom: 6px; }
+    h2 { font-size: 14px; font-weight: bold; color: #ffffff; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tag { font-size: 10px; color: #39d98a; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 10px; }
+    .meta { font-size: 11px; color: #555; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid #1e1e1e; }
+    p { color: #888; margin-bottom: 12px; }
+    ul { list-style: none; margin: 10px 0 14px; }
+    li { color: #888; padding-left: 18px; position: relative; margin-bottom: 6px; }
+    li::before { content: '→'; color: #39d98a; position: absolute; left: 0; }
+    .highlight { background: #141414; border-left: 2px solid #39d98a; padding: 12px 16px; margin: 14px 0; color: #d0d0d0; font-size: 12px; }
+    .section { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid #1a1a1a; }
+    .section:last-child { border-bottom: none; }
+    .num { font-size: 10px; color: #39d98a; letter-spacing: 0.1em; margin-bottom: 4px; }
+    strong { color: #e0e0e0; }
+  </style>
+</head>
+<body>
+
+<div class="tag">// Legal documents</div>
+<h1>Privacy Policy.</h1>
+<p class="meta">Last updated: April 25, 2026 · Version 1.1</p>
+
+<div class="section">
+  <div class="num">// 01</div>
+  <h2>General</h2>
+  <p>This Privacy Policy describes what data fsociety VPN collects and stores, and how that data is used and protected.</p>
+  <p>By using the Service, you agree to the terms of this Policy.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 02</div>
+  <h2>Zero-Log Policy</h2>
+  <p>We do not store or collect:</p>
+  <ul>
+    <li>Your internet activity history</li>
+    <li>User IP addresses during VPN sessions</li>
+    <li>Session time and duration</li>
+    <li>DNS query data</li>
+    <li>Traffic volume or content</li>
+    <li>Private encryption keys</li>
+    <li>Connection metadata</li>
+  </ul>
+  <div class="highlight">We are technically unable to provide data about your activity to third parties — because we do not collect it.</div>
+</div>
+
+<div class="section">
+  <div class="num">// 03</div>
+  <h2>Email Accounts</h2>
+  <p>For email accounts we store only:</p>
+  <ul>
+    <li>Email address</li>
+    <li>Password hash (not the password itself)</li>
+    <li>Subscription status</li>
+    <li>Public WireGuard key</li>
+  </ul>
+  <p>The private key is generated on the fly on your device and <strong>is never transmitted</strong> to our servers.</p>
+  <p>All data is stored in Switzerland.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 04</div>
+  <h2>Anonymous Accounts</h2>
+  <p>For anonymous accounts (login via 16-digit code) we store no email or password. Only stored:</p>
+  <ul>
+    <li>Access code hash</li>
+    <li>Subscription status</li>
+    <li>Public VPN key</li>
+  </ul>
+  <div class="highlight">This is the maximum possible level of privacy within a functioning service. We cannot identify you as a person.</div>
+  <p>When creating an anonymous account, the IP address is recorded solely for rate limiting purposes and is not linked to your VPN activity.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 05</div>
+  <h2>Payment Data</h2>
+  <p>Payments are processed through Telegram Stars. We do not receive or store bank card data. Payment information is processed by Telegram in accordance with their privacy policy.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 06</div>
+  <h2>Support Data</h2>
+  <p>When you contact support, we store ticket correspondence to resolve your issue. After closing the ticket and deleting the account, all data is deleted.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 07</div>
+  <h2>Third-Party Disclosure</h2>
+  <p>We do not sell, transfer, or disclose your personal data to third parties.</p>
+  <p>Since we do not store activity logs — we cannot provide them to authorities or on any other grounds.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 08</div>
+  <h2>Data Deletion</h2>
+  <p>You can delete your account at any time through settings. Upon deletion, all associated data is immediately removed from our servers.</p>
+</div>
+
+<div class="section">
+  <div class="num">// 09</div>
+  <h2>Contact</h2>
+  <p>For questions related to this Policy, contact us via the in-app support form or Telegram. We respond within 24 hours.</p>
+</div>
+
+</body>
+</html>
