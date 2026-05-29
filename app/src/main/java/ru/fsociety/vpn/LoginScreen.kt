@@ -45,7 +45,7 @@ fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
         if (wv != null && wv.canGoBack()) wv.goBack() else onBack()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+    Column(modifier = Modifier.fillMaxSize().background(BgDark).statusBarsPadding()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -321,13 +321,17 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 else Text(stringResource(R.string.login_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = stringResource(R.string.login_telegram_support),
-                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                textDecoration = TextDecoration.Underline, modifier = Modifier.clickable { }
-            )
+            if (!isAnonymousMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.login_btn_register),
+                    color = Accent,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { onRegister() }
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
             HorizontalDivider(color = Border, thickness = 1.dp)
@@ -347,21 +351,6 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     stringResource(if (isAnonymousMode) R.string.login_btn_email else R.string.login_btn_anon),
                     fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 11.sp
                 )
-            }
-
-            if (!isAnonymousMode) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(stringResource(R.string.login_no_account), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = onRegister,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextPrimary),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Border)
-                ) {
-                    Text(stringResource(R.string.login_btn_register), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
             }
         }
     }
