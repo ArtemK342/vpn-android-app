@@ -226,7 +226,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                val isAnonymous = user?.email.isNullOrBlank()
+                val isAnonymous = user?.account_type == "numeric"
                 if (!isAnonymous) {
                     Text(stringResource(R.string.account_change_password), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(12.dp))

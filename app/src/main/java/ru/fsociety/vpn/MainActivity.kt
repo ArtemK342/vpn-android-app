@@ -352,17 +352,21 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     }
 
     val refreshPings: () -> Unit = {
-        if (!isRefreshingPings && servers.isNotEmpty() && !isConnected) {
+        if (!isRefreshingPings && !isConnected) {
             isRefreshingPings = true
             scope.launch {
-                val jobs = servers.map { server ->
-                    scope.launch {
-                        val ping = measurePing(server.id, servers)
-                        serverPings = serverPings + (server.id to ping)
+                try {
+                    try { servers = ApiClient.service.getServers("Bearer $token") } catch (_: Exception) {}
+                    val jobs = servers.map { server ->
+                        scope.launch {
+                            val ping = measurePing(server.id, servers)
+                            serverPings = serverPings + (server.id to ping)
+                        }
                     }
+                    jobs.forEach { it.join() }
+                } finally {
+                    isRefreshingPings = false
                 }
-                jobs.forEach { it.join() }
-                isRefreshingPings = false
             }
         }
     }

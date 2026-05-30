@@ -40,7 +40,8 @@ data class UserResponse(
     val id: String,
     val email: String,
     val is_active: Boolean,
-    val role: String = "user"
+    val role: String = "user",
+    val account_type: String = "email"
 )
 
 data class ServerResponse(
@@ -294,6 +295,13 @@ object ApiClient {
         .retryOnConnectionFailure(false)
         .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
         .connectionPool(okhttp3.ConnectionPool(0, 1, java.util.concurrent.TimeUnit.SECONDS))
+        .addInterceptor { chain ->
+            chain.proceed(
+                chain.request().newBuilder()
+                    .addHeader("X-App-Version", BuildConfig.VERSION_CODE.toString())
+                    .build()
+            )
+        }
         .build()
 
     val service: ApiService by lazy {

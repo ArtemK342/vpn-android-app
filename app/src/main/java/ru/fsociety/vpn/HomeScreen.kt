@@ -410,10 +410,21 @@ fun HomeScreen(
 
         HorizontalDivider(color = Border, thickness = 1.dp)
 
+        val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
         PullToRefreshBox(
             isRefreshing = isRefreshingPings && !isLoadingServers,
             onRefresh = onRefreshPings,
-            modifier = Modifier.weight(1f).fillMaxWidth()
+            state = pullState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            indicator = {
+                androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                    state = pullState,
+                    isRefreshing = isRefreshingPings && !isLoadingServers,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    color = Accent,
+                    containerColor = Bg2
+                )
+            }
         ) {
             if (isLoadingServers) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
