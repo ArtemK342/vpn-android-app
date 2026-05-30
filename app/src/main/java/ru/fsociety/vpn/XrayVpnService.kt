@@ -61,8 +61,11 @@ class XrayVpnService : VpnService() {
         when (intent?.action) {
             ACTION_START -> {
                 intentionalStop = false
-                val config     = intent.getStringExtra(EXTRA_CONFIG)     ?: return START_NOT_STICKY
+                val rawConfig  = intent.getStringExtra(EXTRA_CONFIG)     ?: return START_NOT_STICKY
                 val serverName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: ""
+                // Apply per-device protocol tuning (Hysteria2 BBR/Brutal). No-op
+                // for VLESS/Trojan configs (no hysteria2 outbound).
+                val config = ProtocolSettings.patchHysteriaConfig(applicationContext, rawConfig)
 
                 startForeground(
                     VpnNotificationHelper.NOTIFICATION_ID + 1,

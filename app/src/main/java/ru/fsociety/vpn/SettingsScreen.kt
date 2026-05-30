@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.*
@@ -95,6 +96,11 @@ fun SettingsScreen(
             onLanguageChange = onLanguageChange,
             onBack = { currentScreen = "app_settings" }
         )
+        "protocols" -> ProtocolSettingsTab(
+            onBack = { currentScreen = "main" },
+            onHysteria = { currentScreen = "protocol_hysteria2" }
+        )
+        "protocol_hysteria2" -> Hysteria2SettingsTab(onBack = { currentScreen = "protocols" })
         "update" -> UpdateTab(onBack = { currentScreen = "main" })
         "subscription" -> ComingSoonTab(title = stringResource(R.string.settings_subscription), onBack = { currentScreen = "main" })
         "payments" -> ComingSoonTab(title = stringResource(R.string.settings_payments), onBack = { currentScreen = "main" })
@@ -122,6 +128,12 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_app),
                 subtitle = stringResource(R.string.settings_app_sub),
                 onClick = { currentScreen = "app_settings" }
+            )
+            SettingsMenuItem(
+                icon = { Icon(Icons.Filled.Tune, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+                title = "Настройки протоколов",
+                subtitle = "Контроль скорости Hysteria2",
+                onClick = { currentScreen = "protocols" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
@@ -982,6 +994,156 @@ fun UpdateTab(onBack: () -> Unit) {
                     Text(stringResource(R.string.update_up_to_date), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ProtocolSettingsTab(onBack: () -> Unit, onHysteria: () -> Unit) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Настройки протоколов", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        ProtocolRow("AmneziaWG", "Нет настроек", enabled = false) {}
+        ProtocolRow("Hysteria2", "Контроль скорости (BBR / Brutal)", enabled = true, onClick = onHysteria)
+        ProtocolRow("Trojan", "Нет настроек", enabled = false) {}
+        ProtocolRow("VLESS + Reality", "Нет настроек", enabled = false) {}
+    }
+}
+
+@Composable
+fun ProtocolRow(name: String, subtitle: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name, color = if (enabled) TextPrimary else TextMuted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = TextMuted, fontSize = 12.sp)
+        }
+        if (enabled) {
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+        }
+    }
+    HorizontalDivider(color = Border)
+}
+
+@Composable
+fun Hysteria2SettingsTab(onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+
+    fun fmt(v: Float): String = if (v % 1f == 0f) v.toInt().toString() else v.toString()
+
+    var mode by remember { mutableStateOf(ProtocolSettings.getHysteriaMode(context)) }
+    var down by remember { mutableStateOf(fmt(ProtocolSettings.getHysteriaDownMBs(context))) }
+    var up by remember { mutableStateOf(fmt(ProtocolSettings.getHysteriaUpMBs(context))) }
+
+    Column(modifier = Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
+        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text("Hysteria2", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+
+        Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Контроль скорости (congestion control). BBR подстраивается под канал сам, но разгоняется медленно (30-60с). Brutal выдаёт скорость сразу, но нужно указать реальную скорость вашего интернета — иначе будут потери.",
+                color = TextMuted, fontSize = 13.sp
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            CcModeOption(
+                title = "BBR",
+                subtitle = "Адаптивно, безопасно. Медленный старт.",
+                selected = mode == ProtocolSettings.MODE_BBR
+            ) {
+                mode = ProtocolSettings.MODE_BBR
+                ProtocolSettings.setHysteriaMode(context, ProtocolSettings.MODE_BBR)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            CcModeOption(
+                title = "Brutal",
+                subtitle = "Мгновенная скорость. Укажите свою скорость ниже.",
+                selected = mode == ProtocolSettings.MODE_BRUTAL
+            ) {
+                mode = ProtocolSettings.MODE_BRUTAL
+                ProtocolSettings.setHysteriaMode(context, ProtocolSettings.MODE_BRUTAL)
+            }
+
+            if (mode == ProtocolSettings.MODE_BRUTAL) {
+                Spacer(modifier = Modifier.height(20.dp))
+                OutlinedTextField(
+                    value = down,
+                    onValueChange = { v ->
+                        down = v.replace(',', '.')
+                        down.toFloatOrNull()?.let { if (it > 0f) ProtocolSettings.setHysteriaDownMBs(context, it) }
+                    },
+                    label = { Text("Загрузка (МБ/с)", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = up,
+                    onValueChange = { v ->
+                        up = v.replace(',', '.')
+                        up.toFloatOrNull()?.let { if (it > 0f) ProtocolSettings.setHysteriaUpMBs(context, it) }
+                    },
+                    label = { Text("Отдача (МБ/с)", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                        focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Измерьте скорость без VPN (Speedtest) и поставьте ~80-90% от неё. 1 МБ/с = 8 Mbps. Слишком высокое значение → потери и рывки.",
+                    color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Изменения применяются при следующем подключении к Hysteria2 (переподключитесь).",
+                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+            )
+        }
+    }
+}
+
+@Composable
+fun CcModeOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .border(1.dp, if (selected) Accent else Border)
+            .background(if (selected) Bg2 else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, color = if (selected) Accent else TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = TextMuted, fontSize = 12.sp)
+        }
+        if (selected) {
+            Text("✓", color = Accent, fontSize = 16.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }
