@@ -427,7 +427,11 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     }
 
     LaunchedEffect(Unit) {
-        if (backgroundMode) VpnForegroundService.start(context)
+        // Don't resurrect the background notification on relaunch if a sing-box /
+        // OpenVPN tunnel is already running its own foreground notification.
+        if (backgroundMode && !SingboxManager.isConnected() && !OpenVpnService.isRunning) {
+            VpnForegroundService.start(context)
+        }
     }
 
     // Авто-подключение когда приложение открылось из уведомления без VPN-разрешения
@@ -506,13 +510,22 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         connectedServer = server
                         VpnManager.connectedServerName = server.name
                         if (!server.usesSingbox && !server.usesOpenVpn) {
+                            // WireGuard: notification is owned by VpnForegroundService.
                             VpnForegroundService.start(context)
+                        } else {
+                            // sing-box / OpenVPN run their own foreground notification with
+                            // live traffic. Stop VpnForegroundService so background mode does
+                            // not keep a second (empty) notification competing with it.
+                            VpnForegroundService.stop(context)
                         }
                     },
                     onDisconnected = {
                         isConnected = false
                         connectedServer = null
-                        if (!backgroundMode) VpnForegroundService.stop(context)
+                        // After a protocol tunnel ends, resume the idle persistent
+                        // notification if background mode is on; otherwise remove it.
+                        if (backgroundMode) VpnForegroundService.start(context)
+                        else VpnForegroundService.stop(context)
                     }
                 )
                 1 -> RulesScreen(
@@ -529,7 +542,8 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     onBackgroundModeChange = { enabled ->
                         backgroundMode = enabled
                         prefs.edit().putBoolean("background_mode", enabled).apply()
-                        if (enabled) VpnForegroundService.start(context)
+                        if (enabled && !SingboxManager.isConnected() && !OpenVpnService.isRunning)
+                            VpnForegroundService.start(context)
                         else if (!isConnected) VpnForegroundService.stop(context)
                     },
                     killSwitch = killSwitch,

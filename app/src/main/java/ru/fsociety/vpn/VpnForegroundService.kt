@@ -12,6 +12,7 @@ import kotlinx.coroutines.*
 class VpnForegroundService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    @Volatile private var loopStarted = false
 
     override fun attachBaseContext(newBase: Context) {
         val prefs = newBase.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
@@ -24,11 +25,17 @@ class VpnForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(VpnNotificationHelper.NOTIFICATION_ID, buildNotification())
-        scope.launch {
-            while (true) {
-                val nm = getSystemService(android.app.NotificationManager::class.java)
-                nm.notify(VpnNotificationHelper.NOTIFICATION_ID, buildNotification())
-                delay(3000)
+        // Guard against multiple update loops: this service can be (re)started
+        // repeatedly (app launch, background-mode toggle, disconnect), and each
+        // onStartCommand must not spawn an additional 3s loop.
+        if (!loopStarted) {
+            loopStarted = true
+            scope.launch {
+                while (true) {
+                    val nm = getSystemService(android.app.NotificationManager::class.java)
+                    nm.notify(VpnNotificationHelper.NOTIFICATION_ID, buildNotification())
+                    delay(3000)
+                }
             }
         }
         return START_STICKY
