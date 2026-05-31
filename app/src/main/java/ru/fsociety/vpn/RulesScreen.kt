@@ -70,7 +70,7 @@ fun RulesScreen(
 @Composable
 fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
+        Column(modifier = Modifier.statusBarsPadding().padding(24.dp)) {
             Text(stringResource(R.string.rules_section), color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(4.dp))
             Text(stringResource(R.string.rules_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -162,7 +162,7 @@ fun AppsRulesScreen(
     else allApps.filter { it.label.contains(searchQuery, ignoreCase = true) }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -291,7 +291,7 @@ fun SitesRulesScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))

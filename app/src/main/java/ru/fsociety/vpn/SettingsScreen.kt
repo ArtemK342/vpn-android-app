@@ -106,7 +106,7 @@ fun SettingsScreen(
         "subscription" -> ComingSoonTab(title = stringResource(R.string.settings_subscription), onBack = { currentScreen = "main" })
         "payments" -> ComingSoonTab(title = stringResource(R.string.settings_payments), onBack = { currentScreen = "main" })
         else -> Column(modifier = Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
-            Column(modifier = Modifier.padding(24.dp).padding(top = 48.dp)) {
+            Column(modifier = Modifier.statusBarsPadding().padding(24.dp)) {
                 Text(stringResource(R.string.settings_section), color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(stringResource(R.string.settings_title), color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -208,7 +208,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
     val strErrorNetwork  = stringResource(R.string.account_error_network)
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
             Text(stringResource(R.string.account_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -449,7 +449,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
     selectedTicket?.let { detail ->
         Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 52.dp, bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 24.dp).padding(top = 28.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
@@ -539,7 +539,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(horizontal = 24.dp).padding(top = 52.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(horizontal = 24.dp).padding(top = 28.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
             Text(stringResource(R.string.support_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -626,7 +626,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
 fun ComingSoonTab(title: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -660,7 +660,7 @@ fun AppSettingsTab(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -704,7 +704,7 @@ fun AppSettingsTab(
 fun LanguageTab(language: String, onLanguageChange: (String) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -732,7 +732,7 @@ fun LanguageTab(language: String, onLanguageChange: (String) -> Unit, onBack: ()
 fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -775,7 +775,7 @@ fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean)
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -842,7 +842,7 @@ fun BackgroundModeTab(backgroundMode: Boolean, onBackgroundModeChange: (Boolean)
 fun AutoReconnectTab(autoReconnect: Boolean, onAutoReconnectChange: (Boolean) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -903,7 +903,7 @@ fun UpdateTab(onBack: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -1004,7 +1004,7 @@ fun UpdateTab(onBack: () -> Unit) {
 fun ProtocolSettingsTab(onBack: () -> Unit, onHysteria: () -> Unit) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
@@ -1050,7 +1050,7 @@ fun Hysteria2SettingsTab(onBack: () -> Unit) {
     var up by remember { mutableStateOf(fmt(ProtocolSettings.getHysteriaUpMBs(context))) }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
-        Row(modifier = Modifier.padding(24.dp).padding(top = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))

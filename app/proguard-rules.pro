@@ -16,6 +16,38 @@
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep line numbers in stack traces (deobfuscated via the uploaded mapping.txt).
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# ── App classes: API models are (de)serialized by Gson by field name, so keep
+#    them intact to avoid silent JSON breakage. (Safety over app-code obfuscation.)
+-keep class ru.fsociety.vpn.** { *; }
+
+# ── Gson ──
+-keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses, Exceptions
+-keep class com.google.gson.** { *; }
+-keepclassmembers,allowobfuscation class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
+# ── Retrofit / OkHttp / Okio ──
+-keep class retrofit2.** { *; }
+-keepclasseswithmembers class * { @retrofit2.http.* <methods>; }
+-dontwarn retrofit2.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn javax.annotation.**
+
+# ── sing-box / libbox (gomobile JNI) ──
+-keep class io.nekohasekai.** { *; }
+-keep class go.** { *; }
+-dontwarn io.nekohasekai.**
+-dontwarn go.**
+
+# ── AmneziaWG / WireGuard ──
+-keep class org.amnezia.** { *; }
+-keep class com.zaneschepke.** { *; }
+-dontwarn org.amnezia.**
+
+-dontwarn kotlinx.coroutines.**
