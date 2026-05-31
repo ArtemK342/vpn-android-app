@@ -74,7 +74,8 @@ fun SettingsScreen(
             onAutoReconnect = { currentScreen = "autoreconnect" },
             onKillSwitch = { currentScreen = "killswitch" },
             onBackground = { currentScreen = "background" },
-            onLanguage = { currentScreen = "language" }
+            onLanguage = { currentScreen = "language" },
+            onProtocols = { currentScreen = "protocols" }
         )
         "background" -> BackgroundModeTab(
             backgroundMode = backgroundMode,
@@ -97,7 +98,7 @@ fun SettingsScreen(
             onBack = { currentScreen = "app_settings" }
         )
         "protocols" -> ProtocolSettingsTab(
-            onBack = { currentScreen = "main" },
+            onBack = { currentScreen = "app_settings" },
             onHysteria = { currentScreen = "protocol_hysteria2" }
         )
         "protocol_hysteria2" -> Hysteria2SettingsTab(onBack = { currentScreen = "protocols" })
@@ -128,12 +129,6 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_app),
                 subtitle = stringResource(R.string.settings_app_sub),
                 onClick = { currentScreen = "app_settings" }
-            )
-            SettingsMenuItem(
-                icon = { Icon(Icons.Filled.Tune, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = stringResource(R.string.proto_settings_title),
-                subtitle = stringResource(R.string.proto_settings_sub),
-                onClick = { currentScreen = "protocols" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
@@ -660,7 +655,8 @@ fun AppSettingsTab(
     onKillSwitch: () -> Unit,
     onBackground: () -> Unit,
     onLanguage: () -> Unit,
-    onAutoReconnect: () -> Unit = {}
+    onAutoReconnect: () -> Unit = {},
+    onProtocols: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
@@ -694,6 +690,12 @@ fun AppSettingsTab(
             title = stringResource(R.string.background_title).removeSuffix("."),
             subtitle = stringResource(if (backgroundMode) R.string.background_enabled_sub else R.string.background_disabled_sub),
             onClick = onBackground
+        )
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.Tune, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.proto_settings_title),
+            subtitle = stringResource(R.string.proto_settings_sub),
+            onClick = onProtocols
         )
     }
 }

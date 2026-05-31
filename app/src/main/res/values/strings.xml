@@ -105,8 +105,8 @@
     <string name="settings_loading">Загрузка…</string>
     <string name="settings_support">Поддержка</string>
     <string name="settings_support_sub">Сообщить о проблеме или задать вопрос</string>
-    <string name="settings_app">Настройки</string>
-    <string name="settings_app_sub">Kill Switch, фоновый режим</string>
+    <string name="settings_app">Расширенные настройки</string>
+    <string name="settings_app_sub">Kill Switch, фон, протоколы</string>
     <string name="settings_subscription">Подписка</string>
     <string name="settings_in_dev">В разработке</string>
     <string name="settings_payments">История платежей</string>
@@ -158,7 +158,7 @@
     <string name="coming_soon_msg">Раздел будет доступен\nв следующих версиях</string>
 
     <!-- App Settings -->
-    <string name="app_settings_title">Настройки.</string>
+    <string name="app_settings_title">Расширенные настройки</string>
     <string name="killswitch_enabled_sub">Включён — интернет блокируется при обрыве VPN</string>
     <string name="killswitch_disabled_sub">Выключен</string>
     <string name="lang_label">Язык</string>

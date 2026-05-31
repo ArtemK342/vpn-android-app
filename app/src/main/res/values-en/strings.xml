@@ -105,8 +105,8 @@
     <string name="settings_loading">Loading…</string>
     <string name="settings_support">Support</string>
     <string name="settings_support_sub">Report a problem or ask a question</string>
-    <string name="settings_app">Settings</string>
-    <string name="settings_app_sub">Kill Switch, background mode</string>
+    <string name="settings_app">Advanced settings</string>
+    <string name="settings_app_sub">Kill Switch, background, protocols</string>
     <string name="settings_subscription">Subscription</string>
     <string name="settings_in_dev">In development</string>
     <string name="settings_payments">Payment history</string>
@@ -158,7 +158,7 @@
     <string name="coming_soon_msg">This section will be available\nin future versions</string>
 
     <!-- App Settings -->
-    <string name="app_settings_title">Settings.</string>
+    <string name="app_settings_title">Advanced settings</string>
     <string name="killswitch_enabled_sub">Enabled — internet is blocked when VPN drops</string>
     <string name="killswitch_disabled_sub">Disabled</string>
     <string name="lang_label">Language</string>
