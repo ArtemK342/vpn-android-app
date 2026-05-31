@@ -392,7 +392,8 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     }
                 }
             } catch (e: Exception) {
-                if ((e as? retrofit2.HttpException)?.code() == 401) {
+                val code = (e as? retrofit2.HttpException)?.code()
+                if (code == 401) {
                     val savedRefresh = prefs.getString("refresh_token", null)
                     if (!savedRefresh.isNullOrEmpty()) {
                         try {
@@ -402,7 +403,13 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         } catch (_: Exception) {}
                     }
                     onLogout()
+                } else if (code == 403) {
+                    // Аккаунт заблокирован / доступ запрещён — выходим в логин,
+                    // а не зависаем с пустыми почтой/ролью.
+                    onLogout()
                 }
+                // Прочее (таймаут / 5xx / сеть) — НЕ разлогиниваем и НЕ обнуляем
+                // уже загруженные данные; перезагрузятся при следующем открытии/refresh.
             } finally { isLoadingServers = false }
         }
         scope.launch {
@@ -411,7 +418,8 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                 subscription = ApiClient.service.getSubscription("Bearer $token")
                 try { usage = ApiClient.service.getUsage("Bearer $token") } catch (_: Exception) {}
             } catch (e: Exception) {
-                if ((e as? retrofit2.HttpException)?.code() == 401) {
+                val code = (e as? retrofit2.HttpException)?.code()
+                if (code == 401) {
                     val savedRefresh = prefs.getString("refresh_token", null)
                     if (!savedRefresh.isNullOrEmpty()) {
                         try {
@@ -421,7 +429,13 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         } catch (_: Exception) {}
                     }
                     onLogout()
+                } else if (code == 403) {
+                    // Аккаунт заблокирован / доступ запрещён — выходим в логин,
+                    // а не зависаем с пустыми почтой/ролью.
+                    onLogout()
                 }
+                // Прочее (таймаут / 5xx / сеть) — НЕ разлогиниваем и НЕ обнуляем
+                // уже загруженные данные; перезагрузятся при следующем открытии/refresh.
             } finally { isLoadingSettings = false }
         }
     }

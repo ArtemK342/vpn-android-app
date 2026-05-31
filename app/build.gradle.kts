@@ -17,8 +17,8 @@ android {
         applicationId = "ru.fsociety.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.0.3.1"
+        versionCode = 6
+        versionName = "0.0.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -35,6 +35,10 @@ android {
     productFlavors {
         create("direct") {
             dimension = "distribution"
+            // GitHub-сборка = отдельный пакет, чтобы НЕ конфликтовать по подписи с
+            // Play-версией (Play App Signing пере-подписывает своим ключом). Так
+            // GitHub- и Play-приложение могут сосуществовать на одном устройстве.
+            applicationIdSuffix = ".direct"
         }
         create("playstore") {
             dimension = "distribution"
