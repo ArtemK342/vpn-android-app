@@ -131,8 +131,8 @@ fun SettingsScreen(
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.Tune, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
-                title = "Настройки протоколов",
-                subtitle = "Контроль скорости Hysteria2",
+                title = stringResource(R.string.proto_settings_title),
+                subtitle = stringResource(R.string.proto_settings_sub),
                 onClick = { currentScreen = "protocols" }
             )
             SettingsMenuItem(
@@ -1006,13 +1006,14 @@ fun ProtocolSettingsTab(onBack: () -> Unit, onHysteria: () -> Unit) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
-            Text("Настройки протоколов", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.proto_settings_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
-        ProtocolRow("AmneziaWG", "Нет настроек", enabled = false) {}
-        ProtocolRow("Hysteria2", "Контроль скорости (BBR / Brutal)", enabled = true, onClick = onHysteria)
-        ProtocolRow("Trojan", "Нет настроек", enabled = false) {}
-        ProtocolRow("VLESS + Reality", "Нет настроек", enabled = false) {}
+        val noSettings = stringResource(R.string.proto_no_settings)
+        ProtocolRow("AmneziaWG", noSettings, enabled = false) {}
+        ProtocolRow("Hysteria2", stringResource(R.string.proto_settings_sub), enabled = true, onClick = onHysteria)
+        ProtocolRow("Trojan", noSettings, enabled = false) {}
+        ProtocolRow("VLESS + Reality", noSettings, enabled = false) {}
     }
 }
 
@@ -1058,14 +1059,14 @@ fun Hysteria2SettingsTab(onBack: () -> Unit) {
         Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Контроль скорости (congestion control). BBR подстраивается под канал сам, но разгоняется медленно (30-60с). Brutal выдаёт скорость сразу, но нужно указать реальную скорость вашего интернета — иначе будут потери.",
+                stringResource(R.string.proto_cc_desc),
                 color = TextMuted, fontSize = 13.sp
             )
             Spacer(modifier = Modifier.height(20.dp))
 
             CcModeOption(
-                title = "BBR",
-                subtitle = "Адаптивно, безопасно. Медленный старт.",
+                title = stringResource(R.string.proto_cc_bbr),
+                subtitle = stringResource(R.string.proto_cc_bbr_sub),
                 selected = mode == ProtocolSettings.MODE_BBR
             ) {
                 mode = ProtocolSettings.MODE_BBR
@@ -1073,8 +1074,8 @@ fun Hysteria2SettingsTab(onBack: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(8.dp))
             CcModeOption(
-                title = "Brutal",
-                subtitle = "Мгновенная скорость. Укажите свою скорость ниже.",
+                title = stringResource(R.string.proto_cc_brutal),
+                subtitle = stringResource(R.string.proto_cc_brutal_sub),
                 selected = mode == ProtocolSettings.MODE_BRUTAL
             ) {
                 mode = ProtocolSettings.MODE_BRUTAL
@@ -1089,7 +1090,7 @@ fun Hysteria2SettingsTab(onBack: () -> Unit) {
                         down = v.replace(',', '.')
                         down.toFloatOrNull()?.let { if (it > 0f) ProtocolSettings.setHysteriaDownMBs(context, it) }
                     },
-                    label = { Text("Загрузка (МБ/с)", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.proto_speed_down), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -1104,7 +1105,7 @@ fun Hysteria2SettingsTab(onBack: () -> Unit) {
                         up = v.replace(',', '.')
                         up.toFloatOrNull()?.let { if (it > 0f) ProtocolSettings.setHysteriaUpMBs(context, it) }
                     },
-                    label = { Text("Отдача (МБ/с)", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                    label = { Text(stringResource(R.string.proto_speed_up), fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -1114,14 +1115,14 @@ fun Hysteria2SettingsTab(onBack: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "Измерьте скорость без VPN (Speedtest) и поставьте ~80-90% от неё. 1 МБ/с = 8 Mbps. Слишком высокое значение → потери и рывки.",
+                    stringResource(R.string.proto_speed_hint),
                     color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                "Изменения применяются при следующем подключении к Hysteria2 (переподключитесь).",
+                stringResource(R.string.proto_apply_note),
                 color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace
             )
         }

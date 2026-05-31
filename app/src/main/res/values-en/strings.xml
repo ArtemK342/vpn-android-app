@@ -246,4 +246,19 @@
     <string name="anon_share_label">// SHARE</string>
     <string name="anon_share_text">fsociety VPN — anonymous code: %s\nSave it — it\'s the only way to sign in.</string>
     <string name="anon_code_login_btn">SIGN IN →</string>
+    <!-- v0.0.3.2: limits / protocol settings -->
+    <string name="home_limit_reached">Traffic limit reached. Subscribe to continue.</string>
+    <string name="home_free_speed">Free plan · up to ~7 MB/s</string>
+    <string name="proto_settings_title">Protocol settings</string>
+    <string name="proto_settings_sub">Hysteria2 speed control</string>
+    <string name="proto_no_settings">No settings</string>
+    <string name="proto_cc_desc">Congestion control. BBR adapts to your link but ramps up slowly (30-60s). Brutal gives full speed instantly, but you must enter your real internet speed — otherwise packet loss.</string>
+    <string name="proto_cc_bbr">BBR</string>
+    <string name="proto_cc_bbr_sub">Adaptive, safe. Slow start.</string>
+    <string name="proto_cc_brutal">Brutal</string>
+    <string name="proto_cc_brutal_sub">Instant speed. Enter your speed below.</string>
+    <string name="proto_speed_down">Download (MB/s)</string>
+    <string name="proto_speed_up">Upload (MB/s)</string>
+    <string name="proto_speed_hint">Measure your speed without VPN and set it slightly lower. 1 MB/s = 8 Mbps. Too high → packet loss and stalls.</string>
+    <string name="proto_apply_note">Changes apply on the next Hysteria2 connection (reconnect).</string>
 </resources>

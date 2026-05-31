@@ -265,7 +265,9 @@ fun HomeScreen(
             statusMsg = strTimeout
             isConnecting = false
         } catch (e: retrofit2.HttpException) {
-            statusMsg = context.getString(R.string.home_error_generic, "HTTP ${e.code()}: ${e.message()}")
+            // 403 on a config request = free monthly limit exhausted.
+            statusMsg = if (e.code() == 403) context.getString(R.string.home_limit_reached)
+                        else context.getString(R.string.home_error_generic, "HTTP ${e.code()}: ${e.message()}")
             isConnecting = false
         } catch (e: Exception) {
             statusMsg = context.getString(R.string.home_error_generic, e.message ?: "")
@@ -378,6 +380,9 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(bannerColor)
                         )
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(stringResource(R.string.home_free_speed), color = TextMuted,
+                        fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                 }
             }
         }

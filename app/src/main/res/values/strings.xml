@@ -247,4 +247,19 @@
     <string name="anon_share_label">// ПОДЕЛИТЬСЯ</string>
     <string name="anon_share_text">fsociety VPN — анонимный код: %s\nСохрани его — это единственный способ войти.</string>
     <string name="anon_code_login_btn">ВОЙТИ →</string>
+    <!-- v0.0.3.2: limits / protocol settings -->
+    <string name="home_limit_reached">Лимит трафика исчерпан. Оформите подписку.</string>
+    <string name="home_free_speed">Бесплатный тариф · до ~7 МБ/с</string>
+    <string name="proto_settings_title">Настройки протоколов</string>
+    <string name="proto_settings_sub">Контроль скорости Hysteria2</string>
+    <string name="proto_no_settings">Нет настроек</string>
+    <string name="proto_cc_desc">Контроль скорости (congestion control). BBR подстраивается под канал сам, но разгоняется медленно (30-60с). Brutal выдаёт скорость сразу, но нужно указать реальную скорость вашего интернета — иначе будут потери.</string>
+    <string name="proto_cc_bbr">BBR</string>
+    <string name="proto_cc_bbr_sub">Адаптивно, безопасно. Медленный старт.</string>
+    <string name="proto_cc_brutal">Brutal</string>
+    <string name="proto_cc_brutal_sub">Мгновенная скорость. Укажите свою скорость ниже.</string>
+    <string name="proto_speed_down">Загрузка (МБ/с)</string>
+    <string name="proto_speed_up">Отдача (МБ/с)</string>
+    <string name="proto_speed_hint">Измерьте скорость без VPN (Speedtest) и поставьте чуть ниже реальной. 1 МБ/с = 8 Мбит/с. Слишком высокое значение → потери и рывки.</string>
+    <string name="proto_apply_note">Изменения применятся при следующем подключении к Hysteria2 (переподключитесь).</string>
 </resources>
