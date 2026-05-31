@@ -379,7 +379,9 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                 // Синхронизируем состояние VPN при открытии приложения —
                 // на случай если подключение произошло из уведомления в фоне
                 if (VpnManager.isConnected() && VpnManager.connectedServerName.isNotEmpty()) {
-                    val connected = result.firstOrNull { it.name == VpnManager.connectedServerName }
+                    val connected = result.firstOrNull {
+                        it.name == VpnManager.connectedServerName || it.name_en == VpnManager.connectedServerName
+                    }
                     if (connected != null) {
                         isConnected = true
                         connectedServer = connected
@@ -522,7 +524,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     onConnected = { server ->
                         isConnected = true
                         connectedServer = server
-                        VpnManager.connectedServerName = server.name
+                        VpnManager.connectedServerName = server.displayName(language)
                         if (!server.usesSingbox && !server.usesOpenVpn) {
                             // WireGuard: notification is owned by VpnForegroundService.
                             VpnForegroundService.start(context)

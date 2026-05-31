@@ -47,6 +47,7 @@ data class UserResponse(
 data class ServerResponse(
     val id: String,
     val name: String,
+    val name_en: String? = null,
     val country: String,
     val is_active: Boolean,
     val endpoint: String? = null,
@@ -62,6 +63,9 @@ data class ServerResponse(
     // VLESS, Hysteria2 and Trojan all use sing-box under the hood
     val usesSingbox: Boolean get() = server_type in setOf("vless", "hysteria", "trojan")
     val usesOpenVpn: Boolean get() = server_type == "openvpn_cloak"
+    // English name when the app language is English (falls back to the default name).
+    fun displayName(lang: String): String =
+        if (lang == "en" && !name_en.isNullOrBlank()) name_en else name
 }
 
 data class VlessConfigResponse(

@@ -83,6 +83,8 @@ fun HomeScreen(
     var pendingServerType by remember { mutableStateOf("wireguard") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lang = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
+        .getString("language", "ru") ?: "ru"
 
     val strConnecting   = stringResource(R.string.home_connecting)
     val strGettingConfig = stringResource(R.string.home_getting_config)
@@ -104,11 +106,11 @@ fun HomeScreen(
             scope.launch {
                 statusMsg = strConnecting
                 if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan") {
-                    XrayVpnService.start(context, config, server.name)
+                    XrayVpnService.start(context, config, server.displayName(lang))
                     onConnected(server)
                     statusMsg = ""
                 } else if (serverType == "openvpn_cloak") {
-                    OpenVpnService.start(context, config, server.name)
+                    OpenVpnService.start(context, config, server.displayName(lang))
                     onConnected(server)
                     statusMsg = ""
                 } else {
@@ -166,7 +168,7 @@ fun HomeScreen(
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = strConnecting
-                    XrayVpnService.start(context, response.config, server.name)
+                    XrayVpnService.start(context, response.config, server.displayName(lang))
                     onConnected(server)
                     statusMsg = ""
                     isConnecting = false
@@ -181,7 +183,7 @@ fun HomeScreen(
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = strConnecting
-                    XrayVpnService.start(context, response.config, server.name)
+                    XrayVpnService.start(context, response.config, server.displayName(lang))
                     onConnected(server)
                     statusMsg = ""
                     isConnecting = false
@@ -196,7 +198,7 @@ fun HomeScreen(
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = strConnecting
-                    XrayVpnService.start(context, response.config, server.name)
+                    XrayVpnService.start(context, response.config, server.displayName(lang))
                     onConnected(server)
                     statusMsg = ""
                     isConnecting = false
@@ -235,7 +237,7 @@ fun HomeScreen(
                     vpnPermissionLauncher.launch(intent)
                 } else {
                     statusMsg = strConnecting
-                    OpenVpnService.start(context, bundle, server.name)
+                    OpenVpnService.start(context, bundle, server.displayName(lang))
                     onConnected(server)
                     statusMsg = ""
                     isConnecting = false
@@ -349,8 +351,8 @@ fun HomeScreen(
                 } else if (isConnected && connectedServer != null) {
                     val connectedPing = serverPings[connectedServer.id]
                     val pingText = when {
-                        connectedPing == null || connectedPing >= 999 -> "● ${connectedServer.name}"
-                        else -> "● ${connectedServer.name} · ${connectedPing}$strMs"
+                        connectedPing == null || connectedPing >= 999 -> "● ${connectedServer.displayName(lang)}"
+                        else -> "● ${connectedServer.displayName(lang)} · ${connectedPing}$strMs"
                     }
                     Text(pingText, color = Accent, fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace)
@@ -406,7 +408,7 @@ fun HomeScreen(
                 modifier = Modifier.clickable { serverListTab = 1 })
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = if (isConnected) "● ${connectedServer?.name ?: ""}"
+                text = if (isConnected) "● ${connectedServer?.displayName(lang) ?: ""}"
                        else stringResource(R.string.home_disconnected),
                 color = if (isConnected) Accent else TextMuted,
                 fontSize = 10.sp, fontFamily = FontFamily.Monospace
@@ -493,7 +495,7 @@ fun HomeScreen(
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(server.name,
+                                Text(server.displayName(lang),
                                     color = if (server.isUnavailable) TextMuted else TextPrimary,
                                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 Text(
