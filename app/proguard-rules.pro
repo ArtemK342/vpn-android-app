@@ -51,3 +51,16 @@
 -dontwarn org.amnezia.**
 
 -dontwarn kotlinx.coroutines.**
+
+# ── Gson generic types / adapters (prevent null fields under R8) ──
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep,allowobfuscation class * implements com.google.gson.TypeAdapterFactory
+-keep,allowobfuscation class * implements com.google.gson.JsonSerializer
+-keep,allowobfuscation class * implements com.google.gson.JsonDeserializer
+-keepclassmembers enum * { *; }
+
+# ── Retrofit suspend functions / Kotlin metadata ──
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation

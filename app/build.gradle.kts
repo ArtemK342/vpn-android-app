@@ -17,7 +17,7 @@ android {
         applicationId = "ru.fsociety.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
+        versionCode = 7
         versionName = "0.0.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -56,11 +56,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Bundle native debug symbols (libbox / wireguard .so) into the AAB
-            // so Play Console can symbolicate native crashes/ANRs.
-            ndk {
-                debugSymbolLevel = "FULL"
-            }
         }
     }
 
