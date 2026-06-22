@@ -64,3 +64,11 @@
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+
+# ── OpenVPN3 / ics-openvpn (SWIG JNI bridge — called from native C++, invisible to R8) ──
+-keep class net.openvpn.ovpn3.** { *; }
+-keepclassmembers class net.openvpn.ovpn3.** { *; }
+-dontwarn net.openvpn.ovpn3.**
+-keep class net.openvpn.unified.** { *; }
+-keepclassmembers class net.openvpn.unified.** { *; }
+-dontwarn net.openvpn.unified.**

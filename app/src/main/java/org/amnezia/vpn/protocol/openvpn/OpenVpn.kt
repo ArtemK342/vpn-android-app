@@ -76,8 +76,8 @@ open class OpenVpn : Protocol() {
 
                 scope.launch {
                     val status = client.connect()
+                    state.value = DISCONNECTED
                     if (status.error) {
-                        state.value = DISCONNECTED
                         onError("OpenVpn connect() error: ${status.status}: ${status.message}")
                     }
                 }

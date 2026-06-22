@@ -466,12 +466,20 @@ fun HomeScreen(
                                                 scope.launch {
                                                     isConnecting = true
                                                     statusMsg = strDisconnecting
-                                                    if (SingboxManager.isConnected()) {
+                                                    if (OpenVpnService.isRunning) {
+                                                        OpenVpnService.stop(context)
+                                                        var waited = 0
+                                                        while (OpenVpnService.isRunning && waited < 5000) {
+                                                            delay(200); waited += 200
+                                                        }
+                                                        onDisconnected()
+                                                    } else if (SingboxManager.isConnected()) {
                                                         XrayVpnService.stop(context)
+                                                        onDisconnected()
                                                     } else {
                                                         VpnManager.disconnect()
+                                                        onDisconnected()
                                                     }
-                                                    onDisconnected()
                                                     connectToServer(server)
                                                 }
                                             }
@@ -562,14 +570,24 @@ fun HomeScreen(
                         statusMsg = strDisconnecting
                         if (OpenVpnService.isRunning) {
                             OpenVpnService.stop(context)
+                            var waited = 0
+                            while (OpenVpnService.isRunning && waited < 8000) {
+                                delay(100); waited += 100
+                            }
+                            onDisconnected()
+                            statusMsg = ""
+                            isConnecting = false
                         } else if (SingboxManager.isConnected()) {
                             XrayVpnService.stop(context)
+                            onDisconnected()
+                            statusMsg = ""
+                            isConnecting = false
                         } else {
                             VpnManager.disconnect()
+                            onDisconnected()
+                            statusMsg = ""
+                            isConnecting = false
                         }
-                        onDisconnected()
-                        statusMsg = ""
-                        isConnecting = false
                     } else {
                         val server = selectedServer ?: return@launch
                         connectToServer(server)
