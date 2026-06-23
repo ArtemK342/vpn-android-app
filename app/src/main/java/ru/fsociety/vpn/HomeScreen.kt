@@ -115,8 +115,10 @@ fun HomeScreen(
                     statusMsg = ""
                 } else {
                     val success = VpnManager.connect(context, config)
-                    if (success) { onConnected(server); statusMsg = "" }
-                    else statusMsg = strErrorConnect
+                    if (success) {
+                        onConnected(server); statusMsg = ""
+                        scope.launch { watchdogReconnect(server) }
+                    } else statusMsg = strErrorConnect
                 }
                 isConnecting = false
             }
@@ -151,6 +153,18 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         VpnEvents.connectSucceeded.collect { server ->
             onConnected(server)
+        }
+    }
+
+    suspend fun watchdogReconnect(server: ServerResponse) {
+        delay(20_000)
+        if (!VpnManager.isConnected()) return
+        val (rx, tx) = VpnManager.getTrafficStats()
+        if (tx > 0L && rx == 0L) {
+            VpnManager.disconnect()
+            onDisconnected()
+            delay(500)
+            connectToServer(server)
         }
     }
 
@@ -254,8 +268,10 @@ fun HomeScreen(
                     } else {
                         statusMsg = strConnecting
                         val success = VpnManager.connect(context, response.config)
-                        if (success) { onConnected(server); statusMsg = "" }
-                        else statusMsg = strErrorConnect
+                        if (success) {
+                            onConnected(server); statusMsg = ""
+                            scope.launch { watchdogReconnect(server) }
+                        } else statusMsg = strErrorConnect
                         isConnecting = false
                     }
                 } else {
@@ -462,7 +478,7 @@ fun HomeScreen(
                                             selectedServer = server
                                             if (!isConnected) {
                                                 scope.launch { connectToServer(server) }
-                                            } else if (!isThisConnected) {
+                                            } else {
                                                 scope.launch {
                                                     isConnecting = true
                                                     statusMsg = strDisconnecting
