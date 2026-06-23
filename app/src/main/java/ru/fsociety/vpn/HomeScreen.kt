@@ -161,6 +161,7 @@ fun HomeScreen(
         if (!VpnManager.isConnected()) return
         val (rx, tx) = VpnManager.getTrafficStats()
         if (tx > 0L && rx == 0L) {
+            ConfigCache.clear(context, server.id)
             VpnManager.disconnect()
             onDisconnected()
             delay(500)
@@ -257,26 +258,36 @@ fun HomeScreen(
                     isConnecting = false
                 }
             } else {
-                val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
-                if (response.config != null) {
+                val cachedConfig = ConfigCache.get(context, server.id)
+                val wgConfig: String? = if (cachedConfig != null) {
+                    cachedConfig
+                } else {
+                    val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
+                    if (response.config != null) {
+                        ConfigCache.save(context, server.id, response.config)
+                        response.config
+                    } else {
+                        statusMsg = response.message ?: context.getString(R.string.home_error_connect)
+                        isConnecting = false
+                        null
+                    }
+                }
+                if (wgConfig != null) {
                     val intent = VpnService.prepare(context)
                     if (intent != null) {
-                        pendingConfig = response.config
+                        pendingConfig = wgConfig
                         pendingServer = server
                         pendingServerType = "wireguard"
                         vpnPermissionLauncher.launch(intent)
                     } else {
                         statusMsg = strConnecting
-                        val success = VpnManager.connect(context, response.config)
+                        val success = VpnManager.connect(context, wgConfig)
                         if (success) {
                             onConnected(server); statusMsg = ""
                             scope.launch { watchdogReconnect(server) }
                         } else statusMsg = strErrorConnect
                         isConnecting = false
                     }
-                } else {
-                    statusMsg = response.message ?: context.getString(R.string.home_error_connect)
-                    isConnecting = false
                 }
             }
         } catch (e: java.net.SocketTimeoutException) {
@@ -482,6 +493,7 @@ fun HomeScreen(
                                                 scope.launch {
                                                     isConnecting = true
                                                     statusMsg = strDisconnecting
+                                                    ConfigCache.clear(context, server.id)
                                                     if (OpenVpnService.isRunning) {
                                                         OpenVpnService.stop(context)
                                                         var waited = 0
