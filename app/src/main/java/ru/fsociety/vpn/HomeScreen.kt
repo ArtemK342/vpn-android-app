@@ -94,80 +94,9 @@ fun HomeScreen(
     val strTimeout      = stringResource(R.string.home_error_timeout)
     val strMs           = stringResource(R.string.unit_ms)
 
-    val vpnPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val config = pendingConfig ?: return@rememberLauncherForActivityResult
-            val server = pendingServer ?: return@rememberLauncherForActivityResult
-            val serverType = pendingServerType
-            pendingConfig = null
-            pendingServer = null
-            scope.launch {
-                statusMsg = strConnecting
-                if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan") {
-                    XrayVpnService.start(context, config, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
-                } else if (serverType == "openvpn_cloak") {
-                    OpenVpnService.start(context, config, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
-                } else {
-                    val success = VpnManager.connect(context, config)
-                    if (success) {
-                        onConnected(server); statusMsg = ""
-                        scope.launch { watchdogReconnect(server) }
-                    } else statusMsg = strErrorConnect
-                }
-                isConnecting = false
-            }
-        } else {
-            statusMsg = strVpnDenied
-            isConnecting = false
-        }
-    }
-
-    LaunchedEffect(servers, serverPings) {
-        if (selectedServer == null && servers.isNotEmpty() && !isConnected) {
-            selectedServer = servers
-                .filter { it.connectable && it.allow_auto_connect }
-                .minByOrNull { serverPings[it.id] ?: 999 }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(60_000)
-            onRefreshPings()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        VpnEvents.disconnectRequested.collect {
-            onDisconnected()
-            statusMsg = ""
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        VpnEvents.connectSucceeded.collect { server ->
-            onConnected(server)
-        }
-    }
-
-    suspend fun watchdogReconnect(server: ServerResponse) {
-        delay(20_000)
-        if (!VpnManager.isConnected()) return
-        val (rx, tx) = VpnManager.getTrafficStats()
-        if (tx > 0L && rx == 0L) {
-            ConfigCache.clear(context, server.id)
-            VpnManager.disconnect()
-            onDisconnected()
-            delay(500)
-            connectToServer(server)
-        }
-    }
+    // Break circular deps: connectToServer ↔ watchdogReconnect ↔ vpnPermissionLauncher
+    var launchVpnIntent: ((android.content.Intent) -> Unit)? = null
+    var watchdogReconnectRef: (suspend (ServerResponse) -> Unit)? = null
 
     suspend fun connectToServer(server: ServerResponse) {
         isConnecting = true
@@ -180,7 +109,7 @@ fun HomeScreen(
                     pendingConfig = response.config
                     pendingServer = server
                     pendingServerType = "vless"
-                    vpnPermissionLauncher.launch(intent)
+                    launchVpnIntent?.invoke(intent)
                 } else {
                     statusMsg = strConnecting
                     XrayVpnService.start(context, response.config, server.displayName(lang))
@@ -195,7 +124,7 @@ fun HomeScreen(
                     pendingConfig = response.config
                     pendingServer = server
                     pendingServerType = "hysteria"
-                    vpnPermissionLauncher.launch(intent)
+                    launchVpnIntent?.invoke(intent)
                 } else {
                     statusMsg = strConnecting
                     XrayVpnService.start(context, response.config, server.displayName(lang))
@@ -210,7 +139,7 @@ fun HomeScreen(
                     pendingConfig = response.config
                     pendingServer = server
                     pendingServerType = "trojan"
-                    vpnPermissionLauncher.launch(intent)
+                    launchVpnIntent?.invoke(intent)
                 } else {
                     statusMsg = strConnecting
                     XrayVpnService.start(context, response.config, server.displayName(lang))
@@ -249,7 +178,7 @@ fun HomeScreen(
                     pendingServer = server
                     pendingServerType = "openvpn_cloak"
                     statusMsg = strConnecting
-                    vpnPermissionLauncher.launch(intent)
+                    launchVpnIntent?.invoke(intent)
                 } else {
                     statusMsg = strConnecting
                     OpenVpnService.start(context, bundle, server.displayName(lang))
@@ -278,13 +207,13 @@ fun HomeScreen(
                         pendingConfig = wgConfig
                         pendingServer = server
                         pendingServerType = "wireguard"
-                        vpnPermissionLauncher.launch(intent)
+                        launchVpnIntent?.invoke(intent)
                     } else {
                         statusMsg = strConnecting
                         val success = VpnManager.connect(context, wgConfig)
                         if (success) {
                             onConnected(server); statusMsg = ""
-                            scope.launch { watchdogReconnect(server) }
+                            scope.launch { watchdogReconnectRef?.invoke(server) }
                         } else statusMsg = strErrorConnect
                         isConnecting = false
                     }
@@ -294,13 +223,89 @@ fun HomeScreen(
             statusMsg = strTimeout
             isConnecting = false
         } catch (e: retrofit2.HttpException) {
-            // 403 on a config request = free monthly limit exhausted.
             statusMsg = if (e.code() == 403) context.getString(R.string.home_limit_reached)
                         else context.getString(R.string.home_error_generic, "HTTP ${e.code()}: ${e.message()}")
             isConnecting = false
         } catch (e: Exception) {
             statusMsg = context.getString(R.string.home_error_generic, e.message ?: "")
             isConnecting = false
+        }
+    }
+
+    suspend fun watchdogReconnect(server: ServerResponse) {
+        delay(20_000)
+        if (!VpnManager.isConnected()) return
+        val (rx, tx) = VpnManager.getTrafficStats()
+        if (tx > 0L && rx == 0L) {
+            ConfigCache.clear(context, server.id)
+            VpnManager.disconnect()
+            onDisconnected()
+            delay(500)
+            connectToServer(server)
+        }
+    }
+    watchdogReconnectRef = ::watchdogReconnect
+
+    val vpnPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val config = pendingConfig ?: return@rememberLauncherForActivityResult
+            val server = pendingServer ?: return@rememberLauncherForActivityResult
+            val serverType = pendingServerType
+            pendingConfig = null
+            pendingServer = null
+            scope.launch {
+                statusMsg = strConnecting
+                if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan") {
+                    XrayVpnService.start(context, config, server.displayName(lang))
+                    onConnected(server)
+                    statusMsg = ""
+                } else if (serverType == "openvpn_cloak") {
+                    OpenVpnService.start(context, config, server.displayName(lang))
+                    onConnected(server)
+                    statusMsg = ""
+                } else {
+                    val success = VpnManager.connect(context, config)
+                    if (success) {
+                        onConnected(server); statusMsg = ""
+                        scope.launch { watchdogReconnect(server) }
+                    } else statusMsg = strErrorConnect
+                }
+                isConnecting = false
+            }
+        } else {
+            statusMsg = strVpnDenied
+            isConnecting = false
+        }
+    }
+    launchVpnIntent = { vpnPermissionLauncher.launch(it) }
+
+    LaunchedEffect(servers, serverPings) {
+        if (selectedServer == null && servers.isNotEmpty() && !isConnected) {
+            selectedServer = servers
+                .filter { it.connectable && it.allow_auto_connect }
+                .minByOrNull { serverPings[it.id] ?: 999 }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            onRefreshPings()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        VpnEvents.disconnectRequested.collect {
+            onDisconnected()
+            statusMsg = ""
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        VpnEvents.connectSucceeded.collect { server ->
+            onConnected(server)
         }
     }
 
