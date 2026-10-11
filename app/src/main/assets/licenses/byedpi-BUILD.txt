@@ -1,0 +1,1 @@
+byedpi (https://github.com/hufrea/byedpi) commit ba53229, built with NDK 30 clang --target=aarch64-linux-android26 -O2 -fPIE -pie -s
