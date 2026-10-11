@@ -21,6 +21,7 @@
     <string name="home_error_connect">Connection error</string>
     <string name="home_vpn_denied">VPN permission denied</string>
     <string name="home_error_timeout">Timeout, please try again</string>
+    <string name="home_error_server_unreachable">Server is not passing traffic — try another protocol or server</string>
     <string name="home_error_generic">Error: %s</string>
     <string name="home_tab_all">ALL</string>
     <string name="home_tab_favorites">FAVORITES</string>

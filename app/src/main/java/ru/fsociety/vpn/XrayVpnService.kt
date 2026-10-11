@@ -73,8 +73,9 @@ class XrayVpnService : VpnService() {
                 )
 
                 scope.launch {
-                    val ok = SingboxManager.connect(applicationContext, this@XrayVpnService, config, serverName)
-                    if (!ok) { stopSelf(); return@launch }
+                    val ok = SingboxManager.connectVerified(applicationContext, this@XrayVpnService, config, serverName)
+                    SingboxManager.startResult.value = ok
+                    if (!ok) { pfd?.close(); pfd = null; stopSelf(); return@launch }
 
                     val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                     while (SingboxManager.isConnected()) {

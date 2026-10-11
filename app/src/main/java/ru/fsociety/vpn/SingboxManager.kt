@@ -20,10 +20,31 @@ import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
+import kotlinx.coroutines.flow.MutableStateFlow
+import okhttp3.Credentials
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ServerSocket
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 object SingboxManager {
 
     private const val TAG = "SingboxManager"
+
+    // 204 через прокси = трафик реально проходит через сервер
+    private val PROBE_URLS = listOf(
+        "http://cp.cloudflare.com/generate_204",
+        "http://connectivitycheck.gstatic.com/generate_204"
+    )
+
+    /** Результат последнего запуска из XrayVpnService: null — ещё идёт, true/false — итог. */
+    val startResult = MutableStateFlow<Boolean?>(null)
 
     private var commandServer: CommandServer? = null
     private var setupDone = false
@@ -77,6 +98,80 @@ object SingboxManager {
             Log.e(TAG, "connect failed: ${e.message}", e)
             false
         }
+    }
+
+    /**
+     * Запуск с проверкой: сначала sing-box стартует БЕЗ TUN, только с локальным
+     * mixed-прокси (127.0.0.1, случайный порт и пароль), и через него делается
+     * HTTP-запрос через сервер. TUN поднимается только если запрос прошёл —
+     * иначе UI показывал «подключено», а трафик не шёл (напр. сломанный Reality).
+     */
+    fun connectVerified(
+        context: Context,
+        service: XrayVpnService,
+        configJson: String,
+        serverName: String
+    ): Boolean {
+        val port = try {
+            ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        } catch (_: Exception) { 0 }
+        val user = UUID.randomUUID().toString()
+        val pass = UUID.randomUUID().toString()
+        val probeConfig = if (port > 0) buildProbeConfig(configJson, port, user, pass) else null
+        if (probeConfig != null) {
+            if (!connect(context, service, probeConfig, serverName)) return false
+            val works = probeThroughProxy(port, user, pass)
+            disconnect()
+            if (!works) {
+                Log.e(TAG, "probe failed: server does not pass traffic")
+                return false
+            }
+        }
+        return connect(context, service, configJson, serverName)
+    }
+
+    /** Тот же конфиг, но вместо TUN — локальный mixed-прокси с авторизацией. */
+    private fun buildProbeConfig(configJson: String, port: Int, user: String, pass: String): String? =
+        try {
+            val root = JSONObject(configJson)
+            val inbound = JSONObject()
+                .put("type", "mixed")
+                .put("tag", "probe-in")
+                .put("listen", "127.0.0.1")
+                .put("listen_port", port)
+                .put("users", JSONArray().put(JSONObject().put("username", user).put("password", pass)))
+            root.put("inbounds", JSONArray().put(inbound))
+            root.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "buildProbeConfig: ${e.message}")
+            null
+        }
+
+    private fun probeThroughProxy(port: Int, user: String, pass: String): Boolean {
+        val auth = Credentials.basic(user, pass)
+        val client = OkHttpClient.Builder()
+            .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", port)))
+            .proxyAuthenticator { _, response ->
+                if (response.request.header("Proxy-Authorization") != null) null
+                else response.request.newBuilder().header("Proxy-Authorization", auth).build()
+            }
+            .connectTimeout(7, TimeUnit.SECONDS)
+            .readTimeout(7, TimeUnit.SECONDS)
+            .callTimeout(10, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+        for (url in PROBE_URLS) {
+            try {
+                val request = Request.Builder().url(url).header("Proxy-Authorization", auth).build()
+                // Только 204 от generate_204: ошибка выхода у прокси (напр. 502) — не успех
+                val code = client.newCall(request).execute().use { it.code }
+                if (code == 204) return true
+                Log.w(TAG, "probe $url: HTTP $code")
+            } catch (e: Exception) {
+                Log.w(TAG, "probe $url failed: ${e.message}")
+            }
+        }
+        return false
     }
 
     fun disconnect() {

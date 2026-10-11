@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.fsociety.vpn.ui.theme.*
 
@@ -93,11 +94,31 @@ fun HomeScreen(
     val strErrorConnect = stringResource(R.string.home_error_connect)
     val strVpnDenied    = stringResource(R.string.home_vpn_denied)
     val strTimeout      = stringResource(R.string.home_error_timeout)
+    val strServerUnreachable = stringResource(R.string.home_error_server_unreachable)
     val strMs           = stringResource(R.string.unit_ms)
 
     // Break circular deps: connectToServer ↔ watchdogReconnect ↔ vpnPermissionLauncher
     var launchVpnIntent: ((android.content.Intent) -> Unit)? = null
     var watchdogReconnectRef: (suspend (ServerResponse) -> Unit)? = null
+
+    // sing-box (VLESS/Hysteria2/Trojan): «подключено» только после того, как
+    // XrayVpnService проверил, что трафик реально идёт через сервер.
+    suspend fun startSingbox(config: String, server: ServerResponse) {
+        statusMsg = strConnecting
+        SingboxManager.startResult.value = null
+        XrayVpnService.start(context, config, server.displayName(lang))
+        val ok = kotlinx.coroutines.withTimeoutOrNull(45_000) {
+            SingboxManager.startResult.first { it != null }
+        }
+        if (ok == true) {
+            onConnected(server)
+            statusMsg = ""
+        } else {
+            if (ok == null) XrayVpnService.stop(context)
+            statusMsg = strServerUnreachable
+        }
+        isConnecting = false
+    }
 
     suspend fun connectToServer(server: ServerResponse) {
         isConnecting = true
@@ -112,11 +133,7 @@ fun HomeScreen(
                     pendingServerType = "vless"
                     launchVpnIntent?.invoke(intent)
                 } else {
-                    statusMsg = strConnecting
-                    XrayVpnService.start(context, response.config, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
-                    isConnecting = false
+                    startSingbox(response.config, server)
                 }
             } else if (server.server_type == "hysteria") {
                 val response = ApiClient.service.getHysteriaConfig("Bearer $token", server.id)
@@ -127,11 +144,7 @@ fun HomeScreen(
                     pendingServerType = "hysteria"
                     launchVpnIntent?.invoke(intent)
                 } else {
-                    statusMsg = strConnecting
-                    XrayVpnService.start(context, response.config, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
-                    isConnecting = false
+                    startSingbox(response.config, server)
                 }
             } else if (server.server_type == "trojan") {
                 val response = ApiClient.service.getTrojanConfig("Bearer $token", server.id)
@@ -142,11 +155,7 @@ fun HomeScreen(
                     pendingServerType = "trojan"
                     launchVpnIntent?.invoke(intent)
                 } else {
-                    statusMsg = strConnecting
-                    XrayVpnService.start(context, response.config, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
-                    isConnecting = false
+                    startSingbox(response.config, server)
                 }
             } else if (server.server_type == "openvpn_cloak") {
                 var bodyBytes: ByteArray? = null
@@ -259,9 +268,7 @@ fun HomeScreen(
             scope.launch {
                 statusMsg = strConnecting
                 if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan") {
-                    XrayVpnService.start(context, config, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
+                    startSingbox(config, server)
                 } else if (serverType == "openvpn_cloak") {
                     OpenVpnService.start(context, config, server.displayName(lang))
                     onConnected(server)
