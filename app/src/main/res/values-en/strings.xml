@@ -123,6 +123,7 @@
     <string name="settings_title">Settings.</string>
     <string name="settings_account">Account</string>
     <string name="settings_loading">Loading…</string>
+    <string name="settings_account_load_failed">Failed to load — tap to retry</string>
     <string name="settings_support">Support</string>
     <string name="settings_support_sub">Report a problem or ask a question</string>
     <string name="settings_app">Advanced settings</string>

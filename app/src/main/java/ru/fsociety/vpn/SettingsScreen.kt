@@ -54,7 +54,8 @@ fun SettingsScreen(
     backgroundMode: Boolean, onBackgroundModeChange: (Boolean) -> Unit,
     killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit,
     autoReconnect: Boolean, onAutoReconnectChange: (Boolean) -> Unit,
-    language: String, onLanguageChange: (String) -> Unit
+    language: String, onLanguageChange: (String) -> Unit,
+    onReloadAccount: () -> Unit = {}  // аккаунт не загрузился — повторить по нажатию
 ) {
     var currentScreen by remember { mutableStateOf("main") }
 
@@ -115,8 +116,10 @@ fun SettingsScreen(
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
                 title = stringResource(R.string.settings_account),
-                subtitle = user?.email ?: stringResource(R.string.settings_loading),
-                onClick = { currentScreen = "account" }
+                // «Загрузка…» только пока грузится; если не загрузилось — честно сказать и дать повторить
+                subtitle = user?.email ?: stringResource(
+                    if (isLoading) R.string.settings_loading else R.string.settings_account_load_failed),
+                onClick = { if (user == null && !isLoading) onReloadAccount(); currentScreen = "account" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.SupportAgent, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },

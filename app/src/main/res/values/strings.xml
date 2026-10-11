@@ -123,6 +123,7 @@
     <string name="settings_title">Настройки.</string>
     <string name="settings_account">Аккаунт</string>
     <string name="settings_loading">Загрузка…</string>
+    <string name="settings_account_load_failed">Не удалось загрузить — нажмите, чтобы повторить</string>
     <string name="settings_support">Поддержка</string>
     <string name="settings_support_sub">Сообщить о проблеме или задать вопрос</string>
     <string name="settings_app">Расширенные настройки</string>

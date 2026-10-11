@@ -232,19 +232,55 @@ class VpnConnectReceiver : BroadcastReceiver() {
             toast(context, ctx.getString(R.string.notif_no_server))
             return
         }
-        // Конфиг всегда с сервера (не из кэша): так действуют лимиты и блокировки из админки
-        val response = ApiClient.service.getVpnConfig("Bearer $token", best.id)
+        // Как в приложении: сначала «Настройки → Доступ» (кэш обходит API), сеть недоступна — не мешаем
+        val lang = prefs.getString("language", "ru") ?: "ru"
+        val access = try {
+            ApiClient.service.checkAccess("Bearer $token", best.server_type)
+        } catch (e: java.io.IOException) {
+            AppErrors.log("notification access pre-check (fail-open)", e)
+            null
+        }
+        if (access != null && !access.allowed) {
+            toast(context, access.text(lang) ?: ctx.getString(R.string.home_error_connect))
+            return
+        }
+        // Сохранённый конфиг, как в приложении. Раньше здесь каждый раз выдавался новый ключ:
+        // на сервере это 3–6 SSH-команд (секунды), а при лимите подключений он ещё и снимал
+        // ключ, которым пользуется приложение.
+        val cached = ConfigCache.get(context, best.id)
+        val config = cached ?: fetchWgConfig(context, ctx, token, best) ?: return
+        if (!VpnManager.connect(context, config)) {
+            toast(context, ctx.getString(R.string.home_error_connect))
+            return
+        }
+        VpnManager.connectedServerName = best.name
+        VpnEvents.connectSucceeded.tryEmit(best)
+        VpnEvents.isConnecting = false  // проверка ниже идёт уже на подключённом туннеле
+        if (cached != null) {
+            // Ключ мог быть снят (лимит, «Разорвать подключения»): трафик уходит, ответа нет →
+            // берём свежий конфиг (тот же критерий, что у watchdog в приложении)
+            kotlinx.coroutines.delay(8_000)
+            val (rx, tx) = VpnManager.getTrafficStats()
+            if (VpnManager.isConnected() && tx > 0L && rx == 0L) {
+                AppErrors.log("notification connect", IllegalStateException("stale cached config"))
+                ConfigCache.clear(context, best.id)
+                VpnManager.disconnect()
+                val fresh = fetchWgConfig(context, ctx, token, best) ?: return
+                if (!VpnManager.connect(context, fresh)) toast(context, ctx.getString(R.string.home_error_connect))
+            }
+        }
+    }
+
+    /** Новый WG-конфиг с сервера (и в кэш); null + тост, если сервер отказал. */
+    private suspend fun fetchWgConfig(context: Context, ctx: Context, token: String, server: ServerResponse): String? {
+        val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
         val config = response.config
         if (config == null) {
             toast(context, response.message ?: ctx.getString(R.string.home_error_connect))
-            return
+            return null
         }
-        if (VpnManager.connect(context, config)) {
-            VpnManager.connectedServerName = best.name
-            VpnEvents.connectSucceeded.tryEmit(best)
-        } else {
-            toast(context, ctx.getString(R.string.home_error_connect))
-        }
+        ConfigCache.save(context, server.id, config)
+        return config
     }
 
     private fun toast(context: Context, text: String) {
@@ -658,6 +694,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                 2 -> SettingsScreen(
                     token = token, user = user, subscription = subscription,
                     isLoading = isLoadingSettings, onLogout = onLogout,
+                    onReloadAccount = refreshPings,
                     backgroundMode = backgroundMode,
                     onBackgroundModeChange = { enabled ->
                         backgroundMode = enabled
