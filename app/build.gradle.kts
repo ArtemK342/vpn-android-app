@@ -17,8 +17,8 @@ android {
         applicationId = "ru.fsociety.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.0.3.5"
+        versionCode = 11
+        versionName = "0.0.3.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Только 64-битные ARM-телефоны: x86/x86_64 (эмуляторы) и armeabi-v7a (старые 32-битные)
         // раздували APK с ~150 до 460 МБ — нативные библиотеки (libbox, OpenVPN, Cloak) ×4
