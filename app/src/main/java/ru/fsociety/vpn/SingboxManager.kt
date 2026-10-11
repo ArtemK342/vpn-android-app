@@ -37,10 +37,11 @@ object SingboxManager {
 
     private const val TAG = "SingboxManager"
 
-    // 204 через прокси = трафик реально проходит через сервер
+    // 204 через прокси = трафик реально проходит через сервер.
+    // Только HTTPS: cleartext HTTP запрещён network security policy (targetSdk ≥ 28).
     private val PROBE_URLS = listOf(
-        "http://cp.cloudflare.com/generate_204",
-        "http://connectivitycheck.gstatic.com/generate_204"
+        "https://cp.cloudflare.com/generate_204",
+        "https://www.gstatic.com/generate_204"
     )
 
     /** Результат последнего запуска из XrayVpnService: null — ещё идёт, true/false — итог. */
@@ -162,7 +163,8 @@ object SingboxManager {
             .build()
         for (url in PROBE_URLS) {
             try {
-                val request = Request.Builder().url(url).header("Proxy-Authorization", auth).build()
+                // Авторизацию для CONNECT добавляет proxyAuthenticator (OkHttp зовёт его превентивно)
+                val request = Request.Builder().url(url).build()
                 // Только 204 от generate_204: ошибка выхода у прокси (напр. 502) — не успех
                 val code = client.newCall(request).execute().use { it.code }
                 if (code == 204) return true
