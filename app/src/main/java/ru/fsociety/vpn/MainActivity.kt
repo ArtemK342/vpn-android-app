@@ -84,6 +84,26 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Повтор API-запроса при сетевых сбоях / 5xx (нестабильная сеть, блокировки в РФ).
+ * 401/403 не повторяются — их обрабатывает вызывающий код (refresh / logout).
+ */
+suspend fun <T> withRetry(attempts: Int = 3, block: suspend () -> T): T {
+    var last: Exception? = null
+    for (i in 0 until attempts) {
+        try {
+            return block()
+        } catch (e: Exception) {
+            val code = (e as? retrofit2.HttpException)?.code()
+            if (code == 401 || code == 403 || e is kotlinx.coroutines.CancellationException) throw e
+            last = e
+            android.util.Log.w("withRetry", "attempt ${i + 1}/$attempts failed: ${e.message}")
+            if (i < attempts - 1) kotlinx.coroutines.delay(2000L * (i + 1))
+        }
+    }
+    throw last ?: IllegalStateException("withRetry: no attempts")
+}
+
 // ── VPN Events (для отключения из уведомления) ──
 
 object VpnEvents {
@@ -351,19 +371,35 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
         }
     }
 
+    // Список серверов и аккаунт обновляются и при подключённом VPN (раньше
+    // refresh ничего не делал, пока isConnected) — не пингуем только серверы.
     val refreshPings: () -> Unit = {
-        if (!isRefreshingPings && !isConnected) {
+        if (!isRefreshingPings) {
             isRefreshingPings = true
             scope.launch {
                 try {
-                    try { servers = ApiClient.service.getServers("Bearer $token") } catch (_: Exception) {}
-                    val jobs = servers.map { server ->
-                        scope.launch {
-                            val ping = measurePing(server.id, servers)
-                            serverPings = serverPings + (server.id to ping)
+                    try {
+                        servers = withRetry(2) { ApiClient.service.getServers("Bearer $token") }
+                    } catch (e: Exception) {
+                        android.util.Log.w("AppNavigation", "refresh servers failed: ${e.message}")
+                    }
+                    if (user == null) {
+                        try {
+                            user = ApiClient.service.getMe("Bearer $token")
+                            subscription = ApiClient.service.getSubscription("Bearer $token")
+                        } catch (e: Exception) {
+                            android.util.Log.w("AppNavigation", "refresh account failed: ${e.message}")
                         }
                     }
-                    jobs.forEach { it.join() }
+                    if (!isConnected) {
+                        val jobs = servers.map { server ->
+                            scope.launch {
+                                val ping = measurePing(server.id, servers)
+                                serverPings = serverPings + (server.id to ping)
+                            }
+                        }
+                        jobs.forEach { it.join() }
+                    }
                 } finally {
                     isRefreshingPings = false
                 }
@@ -374,7 +410,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     LaunchedEffect(token) {
         scope.launch {
             try {
-                val result = ApiClient.service.getServers("Bearer $token")
+                val result = withRetry { ApiClient.service.getServers("Bearer $token") }
                 servers = result
                 // Синхронизируем состояние VPN при открытии приложения —
                 // на случай если подключение произошло из уведомления в фоне
@@ -416,8 +452,8 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
         }
         scope.launch {
             try {
-                user = ApiClient.service.getMe("Bearer $token")
-                subscription = ApiClient.service.getSubscription("Bearer $token")
+                user = withRetry { ApiClient.service.getMe("Bearer $token") }
+                subscription = withRetry { ApiClient.service.getSubscription("Bearer $token") }
                 try { usage = ApiClient.service.getUsage("Bearer $token") } catch (_: Exception) {}
             } catch (e: Exception) {
                 val code = (e as? retrofit2.HttpException)?.code()

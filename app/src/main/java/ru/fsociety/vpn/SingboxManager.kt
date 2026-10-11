@@ -112,7 +112,9 @@ object SingboxManager {
         service: XrayVpnService,
         configJson: String,
         serverName: String
-    ): Boolean {
+    ): Boolean = synchronized(startLock) {
+        // Параллельные запуски убивали друг другу sing-box, а одновременные
+        // вызовы в libbox роняли Go-рантайм ("fatal error: unknown caller pc").
         val port = try {
             ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { it.localPort }
         } catch (_: Exception) { 0 }
@@ -120,16 +122,18 @@ object SingboxManager {
         val pass = UUID.randomUUID().toString()
         val probeConfig = if (port > 0) buildProbeConfig(configJson, port, user, pass) else null
         if (probeConfig != null) {
-            if (!connect(context, service, probeConfig, serverName)) return false
+            if (!connect(context, service, probeConfig, serverName)) return@synchronized false
             val works = probeThroughProxy(port, user, pass)
             disconnect()
             if (!works) {
                 Log.e(TAG, "probe failed: server does not pass traffic")
-                return false
+                return@synchronized false
             }
         }
-        return connect(context, service, configJson, serverName)
+        connect(context, service, configJson, serverName)
     }
+
+    private val startLock = Any()
 
     /** Тот же конфиг, но вместо TUN — локальный mixed-прокси с авторизацией. */
     private fun buildProbeConfig(configJson: String, port: Int, user: String, pass: String): String? =

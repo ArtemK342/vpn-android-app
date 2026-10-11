@@ -1,5 +1,6 @@
 package ru.fsociety.vpn
 
+import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
@@ -290,15 +291,43 @@ interface ApiService {
 
 object ApiClient {
     private const val BASE_URL = "https://fsociety-vpn.org/api/"
+    // Тот же API напрямую на Финляндию, без Cloudflare
+    private const val DIRECT_HOST = "api.fsociety-vpn.org"
+
+    /**
+     * Cloudflare из РФ часто режется (соединение замирает после первых КБ),
+     * поэтому при сетевой ошибке запрос повторяется напрямую через DIRECT_HOST.
+     * Тело ответа вычитывается здесь же, чтобы зависание на чтении тоже
+     * ловилось и уходило в fallback, а не падало позже в конвертере.
+     */
+    private val directFallback = okhttp3.Interceptor { chain ->
+        val req = chain.request()
+        if (req.url.host == DIRECT_HOST) return@Interceptor chain.proceed(req)
+        try {
+            val resp = chain
+                .withConnectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .withReadTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+                .proceed(req)
+            val body = resp.body ?: return@Interceptor resp
+            val bytes = body.bytes()
+            resp.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
+        } catch (e: java.io.IOException) {
+            if (chain.call().isCanceled()) throw e
+            android.util.Log.w("ApiClient", "${req.url.encodedPath} via Cloudflare failed (${e.message}), retry direct")
+            chain.proceed(req.newBuilder().url(req.url.newBuilder().host(DIRECT_HOST).build()).build())
+        }
+    }
 
     private fun buildOkHttp(readTimeoutSec: Long) = okhttp3.OkHttpClient.Builder()
         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(readTimeoutSec, java.util.concurrent.TimeUnit.SECONDS)
         .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .callTimeout(readTimeoutSec + 10, java.util.concurrent.TimeUnit.SECONDS)
+        // запас на попытку через Cloudflare (до ~20с) + повтор напрямую
+        .callTimeout(readTimeoutSec + 30, java.util.concurrent.TimeUnit.SECONDS)
         .retryOnConnectionFailure(false)
         .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
         .connectionPool(okhttp3.ConnectionPool(0, 1, java.util.concurrent.TimeUnit.SECONDS))
+        .addInterceptor(directFallback)
         .addInterceptor { chain ->
             chain.proceed(
                 chain.request().newBuilder()

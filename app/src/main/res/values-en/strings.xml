@@ -35,6 +35,7 @@
     <string name="home_favorite_label">★ favorite</string>
     <string name="home_hint_long_press">Long press a server\nto add to favorites</string>
     <string name="home_no_servers">No servers available</string>
+    <string name="home_refresh">Refresh</string>
     <string name="home_status_connected">● CONNECTED</string>
     <string name="home_status_soon">SOON</string>
     <string name="home_status_test">⚡ TEST</string>

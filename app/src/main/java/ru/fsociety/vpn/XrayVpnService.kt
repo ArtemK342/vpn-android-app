@@ -11,6 +11,9 @@ import android.util.Log
 import io.nekohasekai.libbox.TunOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -56,6 +59,7 @@ class XrayVpnService : VpnService() {
     }
 
     @Volatile private var intentionalStop = false
+    private var startJob: Job? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -72,8 +76,14 @@ class XrayVpnService : VpnService() {
                     buildNotification(serverName)
                 )
 
-                scope.launch {
+                // Новый запуск сначала отменяет и дожидается предыдущего (повторный тап,
+                // авто-реконнект) — иначе два запуска ломали друг другу sing-box.
+                val prev = startJob
+                startJob = scope.launch {
+                    prev?.cancelAndJoin()
                     val ok = SingboxManager.connectVerified(applicationContext, this@XrayVpnService, config, serverName)
+                    // Отменён более новым запуском или STOP — итог публикует не этот job
+                    if (!isActive) return@launch
                     SingboxManager.startResult.value = ok
                     if (!ok) { pfd?.close(); pfd = null; stopSelf(); return@launch }
 
@@ -93,7 +103,10 @@ class XrayVpnService : VpnService() {
             }
             ACTION_STOP -> {
                 intentionalStop = true
+                val job = startJob
+                startJob = null
                 scope.launch {
+                    job?.cancelAndJoin()
                     SingboxManager.disconnect()
                     pfd?.close(); pfd = null
                     stopSelf()

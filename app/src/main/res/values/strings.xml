@@ -35,6 +35,7 @@
     <string name="home_favorite_label">★ избранное</string>
     <string name="home_hint_long_press">Удерживайте сервер\nчтобы добавить в избранное</string>
     <string name="home_no_servers">Нет доступных серверов</string>
+    <string name="home_refresh">Обновить</string>
     <string name="home_status_connected">● ПОДКЛЮЧЁН</string>
     <string name="home_status_soon">СКОРО</string>
     <string name="home_status_test">⚡ ТЕСТ.</string>

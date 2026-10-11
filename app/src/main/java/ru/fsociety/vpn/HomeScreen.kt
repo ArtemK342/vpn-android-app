@@ -9,6 +9,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -478,7 +479,14 @@ fun HomeScreen(
                     CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
                 }
             } else if (displayedServers.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                // Прокручиваемый контейнер — иначе pull-to-refresh на пустом списке не срабатывает
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         stringResource(
                             if (serverListTab == 1) R.string.home_hint_long_press
@@ -487,6 +495,11 @@ fun HomeScreen(
                         color = TextMuted, fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
                     )
+                    if (serverListTab == 0) {
+                        TextButton(onClick = onRefreshPings, enabled = !isRefreshingPings) {
+                            Text(stringResource(R.string.home_refresh), color = Accent, fontFamily = FontFamily.Monospace)
+                        }
+                    }
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
