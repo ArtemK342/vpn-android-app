@@ -191,6 +191,7 @@ fun SettingsRow(label: String, value: String) {
 
 @Composable
 fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionResponse?, isLoading: Boolean, onLogout: () -> Unit, onBack: () -> Unit) {
+    val errCtx = LocalContext.current
     BackHandler { onBack() }
     var oldPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
@@ -205,7 +206,6 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
     val strErrorLength   = stringResource(R.string.account_error_length)
     val strPasswordChanged = stringResource(R.string.account_password_changed)
     val strErrorWrongPw  = stringResource(R.string.account_error_wrong_password)
-    val strErrorNetwork  = stringResource(R.string.account_error_network)
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -308,8 +308,9 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                                     } else {
                                         pwError = strErrorWrongPw
                                     }
-                                } catch (_: Exception) {
-                                    pwError = strErrorNetwork
+                                } catch (e: Exception) {
+                                    AppErrors.log("change password", e)
+                                    pwError = AppErrors.text(errCtx, e)
                                 } finally {
                                     isSaving = false
                                 }
@@ -347,6 +348,7 @@ fun formatMsgTime(raw: String): String {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TicketsTab(token: String, onBack: () -> Unit) {
+    val errCtx = LocalContext.current
     var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -365,7 +367,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
 
     LaunchedEffect(token) {
         try { tickets = ApiClient.service.getTickets("Bearer $token") }
-        catch (_: Exception) {}
+        catch (e: Exception) { AppErrors.toast(errCtx, "load tickets", e) }
         finally { isLoading = false }
     }
 
@@ -394,7 +396,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                             val t = ApiClient.service.createTicket("Bearer $token", TicketCreateRequest(newSubject))
                             tickets = listOf(t) + tickets
                             showCreateDialog = false; newSubject = ""
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { AppErrors.toast(errCtx, "create ticket", e) }
                         finally { isSending = false }
                     }
                 }) { Text(stringResource(R.string.tickets_btn_create), color = Accent, fontFamily = FontFamily.Monospace) }
@@ -433,7 +435,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                         try {
                             ApiClient.service.deleteTicket("Bearer $token", t.id)
                             tickets = tickets.filter { it.id != t.id }
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { AppErrors.toast(errCtx, "delete ticket", e) }
                         ticketToDelete = null
                     }
                 }) { Text(stringResource(R.string.tickets_delete_confirm), color = ErrorRed, fontFamily = FontFamily.Monospace) }
@@ -470,7 +472,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                                 ApiClient.service.closeTicket("Bearer $token", detail.ticket.id)
                                 selectedTicket = detail.copy(ticket = detail.ticket.copy(status = "closed"))
                                 tickets = tickets.map { if (it.id == detail.ticket.id) it.copy(status = "closed") else it }
-                            } catch (_: Exception) {}
+                            } catch (e: Exception) { AppErrors.toast(errCtx, "close ticket", e) }
                         }
                     }) { Text(stringResource(R.string.tickets_btn_close), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
                 }
@@ -524,7 +526,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                                     val msg = ApiClient.service.sendMessage("Bearer $token", detail.ticket.id, MessageCreateRequest(newMessage))
                                     selectedTicket = detail.copy(messages = detail.messages + msg)
                                     newMessage = ""
-                                } catch (_: Exception) {}
+                                } catch (e: Exception) { AppErrors.toast(errCtx, "send ticket message", e) }
                                 finally { isSending = false }
                             }
                         },
@@ -565,7 +567,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                                         try {
                                             val detail = ApiClient.service.getTicket("Bearer $token", ticket.id)
                                             selectedTicket = detail
-                                        } catch (_: Exception) {}
+                                        } catch (e: Exception) { AppErrors.toast(errCtx, "open ticket", e) }
                                     }
                                 },
                                 onLongClick = { ticketToDelete = ticket }

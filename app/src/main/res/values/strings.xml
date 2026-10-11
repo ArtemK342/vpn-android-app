@@ -24,7 +24,21 @@
     <string name="home_error_server_unreachable">Сервер не пропускает трафик — попробуйте другой протокол или сервер</string>
     <string name="home_error_subscription_only">Этот сервер доступен только по подписке</string>
     <string name="home_maintenance_default">Ведутся технические работы. Приносим извинения за неудобства.</string>
-    <string name="home_error_generic">Ошибка: %s</string>
+    <!-- Фиксированные тексты ошибок (AppErrors.kt) -->
+    <string name="err_network">Нет связи с сервером. Проверьте интернет</string>
+    <string name="err_timeout">Сервер не отвечает, попробуйте ещё раз</string>
+    <string name="err_session">Сессия истекла — войдите заново</string>
+    <string name="err_forbidden">Доступ запрещён</string>
+    <string name="err_not_found">Не найдено</string>
+    <string name="err_update">Нужно обновить приложение</string>
+    <string name="err_rate_limit">Слишком много запросов, попробуйте позже</string>
+    <string name="err_unavailable">Сервис временно недоступен</string>
+    <string name="err_server">Ошибка сервера, попробуйте позже</string>
+    <string name="err_bad_response">Некорректный ответ сервера</string>
+    <string name="err_unknown">Что-то пошло не так</string>
+    <string name="login_error_not_verified">Email не подтверждён — проверьте почту</string>
+    <string name="login_error_blocked">Аккаунт заблокирован</string>
+    <string name="register_error_email_taken">Email уже зарегистрирован</string>
     <string name="home_tab_all">ВСЕ</string>
     <string name="home_tab_favorites">ИЗБРАННЫЕ</string>
     <string name="home_disconnected">○ Отключён</string>
@@ -44,6 +58,7 @@
     <string name="home_status_maintenance">🔧 ОБСЛ.</string>
     <string name="home_status_subscription">🔒 ПОДПИСКА</string>
     <string name="home_status_blocked">⛔ ЗАКРЫТ</string>
+    <string name="home_logs_on">● LOGS ON</string>
     <string name="home_btn_disconnect">● ОТКЛЮЧИТЬСЯ</string>
     <string name="home_btn_connect">○ ПОДКЛЮЧИТЬСЯ</string>
 
@@ -57,7 +72,6 @@
     <string name="login_btn">ВОЙТИ →</string>
     <string name="login_error_code_length">Введите 16 цифр</string>
     <string name="login_error_empty">Заполните все поля</string>
-    <string name="login_error_network">Ошибка сети, попробуйте ещё раз</string>
     <string name="login_error_code_not_found">Код не найден</string>
     <string name="login_error_credentials">Неверный email или пароль</string>
     <string name="login_telegram_support">Поддержка в Telegram</string>
@@ -72,7 +86,6 @@
     <string name="register_error_passwords_mismatch">Пароли не совпадают</string>
     <string name="register_error_password_length">Пароль минимум 8 символов</string>
     <string name="register_success">Письмо отправлено на %s — подтвердите аккаунт</string>
-    <string name="register_error_server">Email уже зарегистрирован или ошибка сервера</string>
     <string name="register_back">← Уже есть аккаунт? Войти</string>
 
     <!-- Rules -->
@@ -133,7 +146,6 @@
     <string name="account_error_length">Минимум 8 символов</string>
     <string name="account_password_changed">Пароль изменён</string>
     <string name="account_error_wrong_password">Неверный текущий пароль</string>
-    <string name="account_error_network">Ошибка сети</string>
     <string name="account_btn_change_password">СМЕНИТЬ ПАРОЛЬ →</string>
     <string name="account_btn_logout">ВЫЙТИ →</string>
 
@@ -243,7 +255,6 @@
     <string name="anon_register_subtitle">// РЕГИСТРАЦИЯ</string>
     <string name="anon_register_desc">Создайте анонимный аккаунт без email и пароля. Вместо них — уникальный 16-значный код.</string>
     <string name="anon_register_btn">СОЗДАТЬ АККАУНТ →</string>
-    <string name="anon_register_error">Ошибка создания аккаунта. Попробуйте позже.</string>
     <string name="anon_register_error_rate_limit">Вы уже создали анонимный аккаунт сегодня. Повторите завтра.</string>
     <string name="anon_code_subtitle">// АНОНИМНЫЙ АККАУНТ</string>
     <string name="anon_code_label">// КОД ДОСТУПА</string>

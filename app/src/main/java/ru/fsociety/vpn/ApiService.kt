@@ -61,7 +61,9 @@ data class ServerResponse(
     // true: сервер только по подписке, а пользователь бесплатный (allow_free=false в админке)
     val subscription_required: Boolean = false,
     // не null: подключение закрыто в «Настройки → Доступ» (техработы / протокол / тип аккаунта)
-    val access_block: AccessBlock? = null
+    val access_block: AccessBlock? = null,
+    // На сервере временно ведутся логи (галочка в админке) — показываем заметную пометку LOGS ON
+    val logs_enabled: Boolean = false
 ) {
     // Можно ли нажать на сервер: флаги из админки + подписка + блокировки доступа
     val canConnect: Boolean get() = connectable && !subscription_required && access_block == null
@@ -419,14 +421,3 @@ object ApiClient {
             .create(ApiService::class.java)
     }
 }
-/**
- * Текст ошибки из ответа вида {"detail": {"code", "message", "message_en"}}
- * (блокировки «Настройки → Доступ»: регистрация закрыта, техработы и т.п.) на языке
- * приложения; null — если ответ другого формата.
- */
-fun accessErrorText(e: retrofit2.HttpException, context: android.content.Context): String? = try {
-    val body = e.response()?.errorBody()?.string() ?: ""
-    val d = org.json.JSONObject(body).getJSONObject("detail")
-    val en = context.resources.configuration.locales[0].language == "en"
-    d.optString(if (en) "message_en" else "message").ifBlank { null }
-} catch (_: Exception) { null }

@@ -165,7 +165,10 @@ fun HomeScreen(
             // недоступен (сеть, блокировки), не мешаем: решит сервер при выдаче конфига.
             val access = try {
                 ApiClient.service.checkAccess("Bearer $token", server.server_type)
-            } catch (e: java.io.IOException) { null }
+            } catch (e: java.io.IOException) {
+                AppErrors.log("access pre-check (fail-open)", e)
+                null
+            }
             if (access != null && !access.allowed) {
                 statusMsg = access.text(lang) ?: strErrorConnect
                 isConnecting = false
@@ -281,21 +284,20 @@ fun HomeScreen(
             isConnecting = false
         } catch (e: retrofit2.HttpException) {
             // 403 бывает по разным причинам: сервер только по подписке / лимит исчерпан
-            val detail = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null } ?: ""
+            val detail = AppErrors.readBody(e) ?: ""
+            AppErrors.log("connect ${server.server_type} HTTP ${e.code()}", e)
             statusMsg = when {
-                // 503 {detail: {code, message, message_en}} — блокировка из «Настройки → Доступ»
-                e.code() == 503 -> try {
-                    val d = org.json.JSONObject(detail).getJSONObject("detail")
-                    d.optString(if (lang == "en") "message_en" else "message").ifBlank { null }
-                } catch (_: Exception) { null } ?: strErrorConnect
                 e.code() == 403 && (detail.contains("подписк", true) || detail.contains("subscri", true)) ->
                     context.getString(R.string.home_error_subscription_only)
-                e.code() == 403 -> context.getString(R.string.home_limit_reached)
-                else -> context.getString(R.string.home_error_generic, "HTTP ${e.code()}: ${e.message()}")
+                e.code() == 403 && AppErrors.serverMessage(context, detail) == null ->
+                    context.getString(R.string.home_limit_reached)
+                // 503 «Настройки → Доступ» (сообщение сервера), 5xx, 401 и т.п. — фиксированные тексты
+                else -> AppErrors.httpText(context, e.code(), detail)
             }
             isConnecting = false
         } catch (e: Exception) {
-            statusMsg = context.getString(R.string.home_error_generic, e.message ?: "")
+            AppErrors.log("connect ${server.server_type}", e)
+            statusMsg = AppErrors.text(context, e)
             isConnecting = false
         }
     }
@@ -396,7 +398,9 @@ fun HomeScreen(
                     connectToServer(serverToReconnect)
                     reconnected = true
                     break
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    AppErrors.log("auto-reconnect attempt $attempt", e)
+                }
             }
             if (!reconnected) {
                 statusMsg = strReconnectFailed
@@ -462,6 +466,13 @@ fun HomeScreen(
                     }
                     Text(pingText, color = Accent, fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace)
+                    // Флаг мог включиться после подключения — берём из свежего списка
+                    val logsOn = servers.find { it.id == connectedServer.id }?.logs_enabled
+                        ?: connectedServer.logs_enabled
+                    if (logsOn) {
+                        Text(stringResource(R.string.home_logs_on), color = ErrorRed, fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
                 }
                 if (usage != null && usage.is_limited) {
                     val used = usage.bytes_used
@@ -668,6 +679,7 @@ fun HomeScreen(
                                     )
                                 }
                             }
+                            Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = when {
                                     isThisConnected      -> stringResource(R.string.home_status_connected)
@@ -698,6 +710,13 @@ fun HomeScreen(
                                 },
                                 fontSize = 10.sp, fontFamily = FontFamily.Monospace
                             )
+                            // Сервис без логов; если на доступном сервере их временно включили — видно сразу
+                            if (server.logs_enabled && (server.canConnect || isThisConnected)) {
+                                Text(stringResource(R.string.home_logs_on), color = ErrorRed,
+                                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace)
+                            }
+                            }
                         }
                         HorizontalDivider(color = Border, thickness = 1.dp)
                     }

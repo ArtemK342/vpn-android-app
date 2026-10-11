@@ -286,7 +286,7 @@ fun App(context: android.content.Context) {
                 // через updateRequired — тот же путь, что и для 426 (диалог + отключение VPN)
                 ApiClient.updateRequired.value = cfg.update_url
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) { AppErrors.log("app-config", e) }
 
         // Silent token refresh
         if (token.isEmpty()) {
@@ -414,7 +414,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     // Плашка техработ обновляется вместе со списком (раз в минуту и по свайпу)
                     try {
                         ApiClient.maintenance.value = ApiClient.service.getAppConfig().access?.maintenance
-                    } catch (_: Exception) { }
+                    } catch (e: Exception) { AppErrors.log("refresh maintenance", e) }
                     if (user == null) {
                         try {
                             user = ApiClient.service.getMe("Bearer $token")
@@ -457,7 +457,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                             val r = ApiClient.service.refresh(RefreshRequest(savedRefresh))
                             if (r.access_token.isNotEmpty()) onSessionExpired(r.access_token, r.refresh_token)
                             return@launch
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { AppErrors.log("token refresh", e) }
                     }
                     onLogout()
                 } else if (code == 403) {
@@ -473,7 +473,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
             try {
                 user = withRetry { ApiClient.service.getMe("Bearer $token") }
                 subscription = withRetry { ApiClient.service.getSubscription("Bearer $token") }
-                try { usage = ApiClient.service.getUsage("Bearer $token") } catch (_: Exception) {}
+                try { usage = ApiClient.service.getUsage("Bearer $token") } catch (e: Exception) { AppErrors.log("load usage", e) }
             } catch (e: Exception) {
                 val code = (e as? retrofit2.HttpException)?.code()
                 if (code == 401) {
@@ -483,7 +483,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                             val r = ApiClient.service.refresh(RefreshRequest(savedRefresh))
                             if (r.access_token.isNotEmpty()) onSessionExpired(r.access_token, r.refresh_token)
                             return@launch
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { AppErrors.log("token refresh", e) }
                     }
                     onLogout()
                 } else if (code == 403) {

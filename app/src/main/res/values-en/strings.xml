@@ -24,7 +24,21 @@
     <string name="home_error_server_unreachable">Server is not passing traffic — try another protocol or server</string>
     <string name="home_error_subscription_only">This server is available with a subscription only</string>
     <string name="home_maintenance_default">Maintenance in progress. We apologize for the inconvenience.</string>
-    <string name="home_error_generic">Error: %s</string>
+    <!-- Fixed error texts (AppErrors.kt) -->
+    <string name="err_network">No connection to the server. Check your internet</string>
+    <string name="err_timeout">Server is not responding, try again</string>
+    <string name="err_session">Session expired — please sign in again</string>
+    <string name="err_forbidden">Access denied</string>
+    <string name="err_not_found">Not found</string>
+    <string name="err_update">Please update the app</string>
+    <string name="err_rate_limit">Too many requests, try again later</string>
+    <string name="err_unavailable">Service temporarily unavailable</string>
+    <string name="err_server">Server error, try again later</string>
+    <string name="err_bad_response">Invalid server response</string>
+    <string name="err_unknown">Something went wrong</string>
+    <string name="login_error_not_verified">Email not verified — check your inbox</string>
+    <string name="login_error_blocked">Account is blocked</string>
+    <string name="register_error_email_taken">Email is already registered</string>
     <string name="home_tab_all">ALL</string>
     <string name="home_tab_favorites">FAVORITES</string>
     <string name="home_disconnected">○ Disconnected</string>
@@ -44,6 +58,7 @@
     <string name="home_status_maintenance">🔧 MAINT.</string>
     <string name="home_status_subscription">🔒 PREMIUM</string>
     <string name="home_status_blocked">⛔ CLOSED</string>
+    <string name="home_logs_on">● LOGS ON</string>
     <string name="home_btn_disconnect">● DISCONNECT</string>
     <string name="home_btn_connect">○ CONNECT</string>
 
@@ -57,7 +72,6 @@
     <string name="login_btn">SIGN IN →</string>
     <string name="login_error_code_length">Enter 16 digits</string>
     <string name="login_error_empty">Fill in all fields</string>
-    <string name="login_error_network">Network error, please try again</string>
     <string name="login_error_code_not_found">Code not found</string>
     <string name="login_error_credentials">Incorrect email or password</string>
     <string name="login_telegram_support">Support in Telegram</string>
@@ -72,7 +86,6 @@
     <string name="register_error_passwords_mismatch">Passwords do not match</string>
     <string name="register_error_password_length">Password must be at least 8 characters</string>
     <string name="register_success">Email sent to %s — confirm your account</string>
-    <string name="register_error_server">Email already registered or server error</string>
     <string name="register_back">← Already have an account? Sign in</string>
 
     <!-- Rules -->
@@ -133,7 +146,6 @@
     <string name="account_error_length">Minimum 8 characters</string>
     <string name="account_password_changed">Password changed</string>
     <string name="account_error_wrong_password">Incorrect current password</string>
-    <string name="account_error_network">Network error</string>
     <string name="account_btn_change_password">CHANGE PASSWORD →</string>
     <string name="account_btn_logout">SIGN OUT →</string>
 
@@ -242,7 +254,6 @@
     <string name="anon_register_subtitle">// REGISTRATION</string>
     <string name="anon_register_desc">Create an anonymous account without email or password. Instead — a unique 16-digit code.</string>
     <string name="anon_register_btn">CREATE ACCOUNT →</string>
-    <string name="anon_register_error">Account creation failed. Please try again later.</string>
     <string name="anon_register_error_rate_limit">You have already created an anonymous account today. Try again tomorrow.</string>
     <string name="anon_code_subtitle">// ANONYMOUS ACCOUNT</string>
     <string name="anon_code_label">// ACCESS CODE</string>

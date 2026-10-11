@@ -111,7 +111,7 @@ class OpenVpnService : VpnService() {
             ACTION_STOP -> {
                 stopping = true
                 scope.launch {
-                    try { openVpn?.stopVpn() } catch (_: Exception) {}
+                    try { openVpn?.stopVpn() } catch (e: Exception) { AppErrors.log("openvpn stop", e) }
                     openVpn = null
                     VpnEvents.disconnectRequested.tryEmit(Unit)
                     stopSelf()
@@ -150,7 +150,7 @@ class OpenVpnService : VpnService() {
 
     override fun onDestroy() {
         isRunning = false
-        scope.launch { try { openVpn?.stopVpn() } catch (_: Exception) {} }
+        scope.launch { try { openVpn?.stopVpn() } catch (e: Exception) { AppErrors.log("openvpn stop", e) } }
         super.onDestroy()
     }
 }

@@ -275,8 +275,6 @@ private fun AnonRegisterScreen(
     val lang = remember { context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru" }
     val strPrivacyTitle   = stringResource(R.string.privacy_screen_title)
     val strTermsTitle     = stringResource(R.string.terms_screen_title)
-    val strErrorNetwork   = stringResource(R.string.login_error_network)
-    val strErrorServer    = stringResource(R.string.anon_register_error)
     val strErrorRateLimit = stringResource(R.string.anon_register_error_rate_limit)
 
     Box(
@@ -325,13 +323,13 @@ private fun AnonRegisterScreen(
                         try {
                             val resp = ApiClient.service.generateNumericAccount()
                             onSuccess(AnonResult(resp.code, resp.access_token, resp.refresh_token))
-                        } catch (e: java.net.SocketTimeoutException) {
-                            errorMsg = strErrorNetwork
                         } catch (e: retrofit2.HttpException) {
+                            AppErrors.log("create anonymous account HTTP ${e.code()}", e)
                             errorMsg = if (e.code() == 429) strErrorRateLimit
-                                       else accessErrorText(e, context) ?: strErrorServer
+                                       else AppErrors.text(context, e)  // вкл. «регистрация закрыта»
                         } catch (e: Exception) {
-                            errorMsg = strErrorServer
+                            AppErrors.log("create anonymous account", e)
+                            errorMsg = AppErrors.text(context, e)
                         } finally {
                             isLoading = false
                         }
@@ -381,7 +379,8 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
 
     val strErrorCodeLength   = stringResource(R.string.login_error_code_length)
     val strErrorEmpty        = stringResource(R.string.login_error_empty)
-    val strErrorNetwork      = stringResource(R.string.login_error_network)
+    val strErrorNotVerified  = stringResource(R.string.login_error_not_verified)
+    val strErrorBlocked      = stringResource(R.string.login_error_blocked)
     val strErrorCodeNotFound = stringResource(R.string.login_error_code_not_found)
     val strErrorCredentials  = stringResource(R.string.login_error_credentials)
 
@@ -512,10 +511,18 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                                 ApiClient.service.login(email, password)
                             }
                             onLogin(response.access_token, response.refresh_token)
-                        } catch (e: java.net.SocketTimeoutException) {
-                            errorMsg = strErrorNetwork
+                        } catch (e: retrofit2.HttpException) {
+                            AppErrors.log("login HTTP ${e.code()}", e)
+                            val body = AppErrors.readBody(e) ?: ""
+                            errorMsg = when {
+                                e.code() == 401 -> if (isAnonymousMode) strErrorCodeNotFound else strErrorCredentials
+                                e.code() == 403 && body.contains("подтвержд") -> strErrorNotVerified
+                                e.code() == 403 -> strErrorBlocked
+                                else -> AppErrors.httpText(context, e.code(), body)
+                            }
                         } catch (e: Exception) {
-                            errorMsg = if (isAnonymousMode) strErrorCodeNotFound else strErrorCredentials
+                            AppErrors.log("login", e)
+                            errorMsg = AppErrors.text(context, e)
                         } finally {
                             isLoading = false
                         }
@@ -629,7 +636,7 @@ fun RegisterScreen(onBack: () -> Unit) {
     val strErrorEmpty    = stringResource(R.string.login_error_empty)
     val strErrorMismatch = stringResource(R.string.register_error_passwords_mismatch)
     val strErrorLength   = stringResource(R.string.register_error_password_length)
-    val strErrorServer   = stringResource(R.string.register_error_server)
+    val strErrorEmailTaken = stringResource(R.string.register_error_email_taken)
     val strSuccess       = stringResource(R.string.register_success, email)
     val strPrivacyTitle  = stringResource(R.string.privacy_screen_title)
     val strTermsTitle    = stringResource(R.string.terms_screen_title)
@@ -729,10 +736,14 @@ fun RegisterScreen(onBack: () -> Unit) {
                             ApiClient.service.register(RegisterRequest(email, password))
                             successMsg = strSuccess
                         } catch (e: retrofit2.HttpException) {
-                            // напр. «Регистрация временно закрыта» (Настройки → Доступ)
-                            errorMsg = accessErrorText(e, context2) ?: strErrorServer
+                            AppErrors.log("register HTTP ${e.code()}", e)
+                            val body = AppErrors.readBody(e) ?: ""
+                            // 400 «Email уже зарегистрирован»; 403 «Регистрация временно закрыта» — текст сервера
+                            errorMsg = if (e.code() == 400 && body.contains("зарегистр")) strErrorEmailTaken
+                                       else AppErrors.httpText(context2, e.code(), body)
                         } catch (e: Exception) {
-                            errorMsg = strErrorServer
+                            AppErrors.log("register", e)
+                            errorMsg = AppErrors.text(context2, e)
                         } finally {
                             isLoading = false
                         }
