@@ -108,7 +108,7 @@ fun HomeScreen(
         statusMsg = strConnecting
         SingboxManager.startResult.value = null
         XrayVpnService.start(context, config, server.displayName(lang))
-        val ok = kotlinx.coroutines.withTimeoutOrNull(45_000) {
+        val ok = kotlinx.coroutines.withTimeoutOrNull(60_000) {
             SingboxManager.startResult.first { it != null }
         }
         if (ok == true) {

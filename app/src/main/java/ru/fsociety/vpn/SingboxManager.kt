@@ -122,9 +122,17 @@ object SingboxManager {
         val pass = UUID.randomUUID().toString()
         val probeConfig = if (port > 0) buildProbeConfig(configJson, port, user, pass) else null
         if (probeConfig != null) {
-            if (!connect(context, service, probeConfig, serverName)) return@synchronized false
-            val works = probeThroughProxy(port, user, pass)
-            disconnect()
+            // Две попытки, каждая с новым экземпляром sing-box (новое соединение):
+            // первый QUIC-хендшейк Hysteria2 из РФ иногда теряется целиком, сервер
+            // его даже не видит, а повторная попытка проходит сразу.
+            var works = false
+            for (attempt in 1..2) {
+                if (!connect(context, service, probeConfig, serverName)) return@synchronized false
+                works = probeThroughProxy(port, user, pass)
+                disconnect()
+                if (works) break
+                Log.w(TAG, "probe attempt $attempt failed")
+            }
             if (!works) {
                 Log.e(TAG, "probe failed: server does not pass traffic")
                 return@synchronized false
