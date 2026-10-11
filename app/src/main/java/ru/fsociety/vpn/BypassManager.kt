@@ -21,8 +21,8 @@ object BypassManager {
     // Одна тестовая стратегия (подбирается по провайдерам РФ): фейковый пакет с малым TTL,
     // перестановка и дробление TLS ClientHello, фейки для UDP (голос Discord).
     private val STRATEGY = listOf(
-        "--disorder", "1", "--split", "1+s", "--fake", "-1", "--ttl", "8",
-        "--tlsrec", "1+s", "--udp-fake", "6",
+        "--disorder", "1", "--fake", "-1", "--ttl", "8",
+        "--udp-fake", "6",  // без позиций «+s»: SNI часто дальше первых 1500 байт (Kyber ClientHello)
     )
 
     // Списки из zapret-discord-youtube (lists/list-general.txt, list-google.txt)
@@ -44,9 +44,16 @@ object BypassManager {
 
     private var process: Process? = null
 
-    /** Запустить byedpi; false — бинарника нет или он сразу упал. */
+    /** Стратегия из админки (/app-config → access.bypass_strategy), если она безопасна, иначе встроенная. */
+    private fun strategyArgs(remote: String?): List<String> {
+        val s = remote?.trim().orEmpty()
+        if (s.isEmpty() || !Regex("[A-Za-z0-9 +\\-,.:=_]+").matches(s)) return STRATEGY
+        return s.split(Regex("\\s+"))
+    }
+
+    /** Запустить byedpi; false — бинарника нет или он сразу упал. [remoteStrategy] — из админки. */
     @Synchronized
-    fun start(context: Context): Boolean {
+    fun start(context: Context, remoteStrategy: String? = null): Boolean {
         stop()
         val bin = File(context.applicationInfo.nativeLibraryDir, "libciadpi.so")
         if (!bin.exists()) {
@@ -54,7 +61,9 @@ object BypassManager {
             return false
         }
         return try {
-            val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", SOCKS_PORT.toString()) + STRATEGY
+            val args = strategyArgs(remoteStrategy)
+            Log.i(TAG, "strategy: ${args.joinToString(" ")}")
+            val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", SOCKS_PORT.toString()) + args
             val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
             // Вывод byedpi — в logcat (иначе буфер заполнится и процесс встанет)
             Thread {

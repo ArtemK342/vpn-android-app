@@ -177,7 +177,11 @@ fun HomeScreen(
             if (server.server_type == "bypass") {
                 // «Режим РФ»: конфиг локальный, сервер не нужен — запускаем byedpi и sing-box
                 val started = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    BypassManager.start(context)
+                    // Стратегия подбирается в админке без релиза; нет связи — встроенная
+                    val remote = try {
+                        ApiClient.service.getAppConfig().access?.bypass_strategy
+                    } catch (e: Exception) { AppErrors.log("bypass strategy", e); null }
+                    BypassManager.start(context, remote)
                 }
                 if (!started) {
                     statusMsg = strErrorConnect

@@ -154,7 +154,9 @@ data class AppConfigResponse(
 data class AccessStatus(
     val maintenance: MaintenanceStatus? = null,
     val protocols: Map<String, Boolean>? = null,
-    val registration: Map<String, Boolean>? = null
+    val registration: Map<String, Boolean>? = null,
+    // Аргументы byedpi для «Режима РФ» из админки (пусто — встроенная стратегия)
+    val bypass_strategy: String? = null
 )
 
 data class MaintenanceStatus(
