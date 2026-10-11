@@ -281,6 +281,7 @@ fun App(context: android.content.Context) {
         // Force update check
         try {
             val cfg = ApiClient.service.getAppConfig()
+            ApiClient.maintenance.value = cfg.access?.maintenance
             if (BuildConfig.VERSION_CODE < cfg.android_min_version) {
                 // через updateRequired — тот же путь, что и для 426 (диалог + отключение VPN)
                 ApiClient.updateRequired.value = cfg.update_url
@@ -410,6 +411,10 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     } catch (e: Exception) {
                         android.util.Log.w("AppNavigation", "refresh servers failed: ${e.message}")
                     }
+                    // Плашка техработ обновляется вместе со списком (раз в минуту и по свайпу)
+                    try {
+                        ApiClient.maintenance.value = ApiClient.service.getAppConfig().access?.maintenance
+                    } catch (_: Exception) { }
                     if (user == null) {
                         try {
                             user = ApiClient.service.getMe("Bearer $token")

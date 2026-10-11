@@ -159,6 +159,17 @@ fun HomeScreen(
         isConnecting = true
         statusMsg = strGettingConfig
         try {
+            // Настройки → Доступ (техработы / протокол / тип аккаунта): спрашиваем до
+            // подключения — так блокируется и WireGuard из кэша конфигов. Если API
+            // недоступен (сеть, блокировки), не мешаем: решит сервер при выдаче конфига.
+            val access = try {
+                ApiClient.service.checkAccess("Bearer $token", server.server_type)
+            } catch (e: java.io.IOException) { null }
+            if (access != null && !access.allowed) {
+                statusMsg = access.text(lang) ?: strErrorConnect
+                isConnecting = false
+                return
+            }
             if (server.server_type == "vless") {
                 val response = ApiClient.service.getVlessConfig("Bearer $token", server.id)
                 val intent = VpnService.prepare(context)
@@ -271,6 +282,11 @@ fun HomeScreen(
             // 403 бывает по разным причинам: сервер только по подписке / лимит исчерпан
             val detail = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null } ?: ""
             statusMsg = when {
+                // 503 {detail: {code, message, message_en}} — блокировка из «Настройки → Доступ»
+                e.code() == 503 -> try {
+                    val d = org.json.JSONObject(detail).getJSONObject("detail")
+                    d.optString(if (lang == "en") "message_en" else "message").ifBlank { null }
+                } catch (_: Exception) { null } ?: strErrorConnect
                 e.code() == 403 && (detail.contains("подписк", true) || detail.contains("subscri", true)) ->
                     context.getString(R.string.home_error_subscription_only)
                 e.code() == 403 -> context.getString(R.string.home_limit_reached)
@@ -498,6 +514,20 @@ fun HomeScreen(
         }
 
         HorizontalDivider(color = Border, thickness = 1.dp)
+
+        // Плашка технических работ (админка → Настройки → Доступ), из /app-config
+        val maintenance by ApiClient.maintenance.collectAsState()
+        maintenance?.takeIf { it.enabled }?.let { m ->
+            Text(
+                "⚠ " + (m.text(lang) ?: stringResource(R.string.home_maintenance_default)),
+                color = Color(0xFFF59E0B), fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0x14F59E0B))
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+            HorizontalDivider(color = Border, thickness = 1.dp)
+        }
 
         val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
         PullToRefreshBox(

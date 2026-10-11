@@ -328,7 +328,8 @@ private fun AnonRegisterScreen(
                         } catch (e: java.net.SocketTimeoutException) {
                             errorMsg = strErrorNetwork
                         } catch (e: retrofit2.HttpException) {
-                            errorMsg = if (e.code() == 429) strErrorRateLimit else strErrorServer
+                            errorMsg = if (e.code() == 429) strErrorRateLimit
+                                       else accessErrorText(e, context) ?: strErrorServer
                         } catch (e: Exception) {
                             errorMsg = strErrorServer
                         } finally {
@@ -727,6 +728,9 @@ fun RegisterScreen(onBack: () -> Unit) {
                         try {
                             ApiClient.service.register(RegisterRequest(email, password))
                             successMsg = strSuccess
+                        } catch (e: retrofit2.HttpException) {
+                            // напр. «Регистрация временно закрыта» (Настройки → Доступ)
+                            errorMsg = accessErrorText(e, context2) ?: strErrorServer
                         } catch (e: Exception) {
                             errorMsg = strErrorServer
                         } finally {

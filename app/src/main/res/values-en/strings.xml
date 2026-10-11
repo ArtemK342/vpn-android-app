@@ -23,6 +23,7 @@
     <string name="home_error_timeout">Timeout, please try again</string>
     <string name="home_error_server_unreachable">Server is not passing traffic — try another protocol or server</string>
     <string name="home_error_subscription_only">This server is available with a subscription only</string>
+    <string name="home_maintenance_default">Maintenance in progress. We apologize for the inconvenience.</string>
     <string name="home_error_generic">Error: %s</string>
     <string name="home_tab_all">ALL</string>
     <string name="home_tab_favorites">FAVORITES</string>

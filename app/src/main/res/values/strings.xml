@@ -23,6 +23,7 @@
     <string name="home_error_timeout">Таймаут, попробуйте ещё раз</string>
     <string name="home_error_server_unreachable">Сервер не пропускает трафик — попробуйте другой протокол или сервер</string>
     <string name="home_error_subscription_only">Этот сервер доступен только по подписке</string>
+    <string name="home_maintenance_default">Ведутся технические работы. Приносим извинения за неудобства.</string>
     <string name="home_error_generic">Ошибка: %s</string>
     <string name="home_tab_all">ВСЕ</string>
     <string name="home_tab_favorites">ИЗБРАННЫЕ</string>

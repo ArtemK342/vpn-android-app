@@ -140,8 +140,34 @@ data class UsageResponse(
 
 data class AppConfigResponse(
     val android_min_version: Int,
-    val update_url: String
+    val update_url: String,
+    val access: AccessStatus? = null
 )
+
+/** Публичная часть «Настройки → Доступ» из /app-config (плашка техработ, протоколы, регистрация). */
+data class AccessStatus(
+    val maintenance: MaintenanceStatus? = null,
+    val protocols: Map<String, Boolean>? = null,
+    val registration: Map<String, Boolean>? = null
+)
+
+data class MaintenanceStatus(
+    val enabled: Boolean = false,
+    val message: String? = null,
+    val message_en: String? = null
+) {
+    fun text(lang: String): String? = (if (lang == "en") message_en else message)?.takeIf { it.isNotBlank() }
+}
+
+/** GET /vpn/access — можно ли сейчас открыть новое подключение этим протоколом. */
+data class AccessCheckResponse(
+    val allowed: Boolean = true,
+    val code: String? = null,
+    val message: String? = null,
+    val message_en: String? = null
+) {
+    fun text(lang: String): String? = (if (lang == "en") message_en else message)?.takeIf { it.isNotBlank() }
+}
 
 data class GenerateNumericResponse(
     val code: String,
@@ -253,6 +279,12 @@ interface ApiService {
         @Query("server_id") serverId: String
     ): VlessConfigResponse
 
+    @GET("vpn/access")
+    suspend fun checkAccess(
+        @Header("Authorization") token: String,
+        @Query("server_type") serverType: String
+    ): AccessCheckResponse
+
     @GET("vpn/hysteria-config")
     suspend fun getHysteriaConfig(
         @Header("Authorization") token: String,
@@ -349,6 +381,9 @@ object ApiClient {
 
     private const val UPDATE_URL = "https://fsociety-vpn.org/download"
 
+    /** Статус техработ из последнего /app-config; HomeScreen показывает плашку. */
+    val maintenance = kotlinx.coroutines.flow.MutableStateFlow<MaintenanceStatus?>(null)
+
     /** Ссылка на обновление, если сервер ответил 426; MainActivity показывает блокирующий диалог. */
     val updateRequired = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
@@ -371,3 +406,14 @@ object ApiClient {
             .create(ApiService::class.java)
     }
 }
+/**
+ * Текст ошибки из ответа вида {"detail": {"code", "message", "message_en"}}
+ * (блокировки «Настройки → Доступ»: регистрация закрыта, техработы и т.п.) на языке
+ * приложения; null — если ответ другого формата.
+ */
+fun accessErrorText(e: retrofit2.HttpException, context: android.content.Context): String? = try {
+    val body = e.response()?.errorBody()?.string() ?: ""
+    val d = org.json.JSONObject(body).getJSONObject("detail")
+    val en = context.resources.configuration.locales[0].language == "en"
+    d.optString(if (en) "message_en" else "message").ifBlank { null }
+} catch (_: Exception) { null }
