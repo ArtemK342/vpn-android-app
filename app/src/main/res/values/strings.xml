@@ -223,7 +223,7 @@
     <string name="reconnect_failed">Не удалось переподключиться</string>
     <!-- Force update dialog -->
     <string name="update_required_title">Требуется обновление</string>
-    <string name="update_required_message">Эта версия приложения устарела. Пожалуйста, установите последнюю версию, чтобы продолжить.</string>
+    <string name="update_required_message">Эта версия приложения устарела. Пожалуйста, установите последнюю версию, чтобы продолжить.\n\nЕсли после установки на телефоне окажется два приложения FsocietyNet — удалите старое.</string>
     <string name="update_required_button">Обновить</string>
 
     <!-- Privacy Policy / Terms -->

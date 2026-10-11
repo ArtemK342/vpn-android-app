@@ -223,7 +223,7 @@
     <string name="reconnect_failed">Failed to reconnect</string>
     <!-- Force update dialog -->
     <string name="update_required_title">Update Required</string>
-    <string name="update_required_message">This version of the app is outdated. Please install the latest version to continue.</string>
+    <string name="update_required_message">This version of the app is outdated. Please install the latest version to continue.\n\nIf you end up with two FsocietyNet apps after installing, uninstall the old one.</string>
     <string name="update_required_button">Update</string>
     <!-- Privacy Policy / Terms -->
     <string name="privacy_accept_prefix">I accept the</string>

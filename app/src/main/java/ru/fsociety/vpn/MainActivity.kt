@@ -95,7 +95,8 @@ suspend fun <T> withRetry(attempts: Int = 3, block: suspend () -> T): T {
             return block()
         } catch (e: Exception) {
             val code = (e as? retrofit2.HttpException)?.code()
-            if (code == 401 || code == 403 || e is kotlinx.coroutines.CancellationException) throw e
+            // 426 = версия заблокирована: повтор бессмыслен, диалог покажет ApiClient.updateRequired
+            if (code == 401 || code == 403 || code == 426 || e is kotlinx.coroutines.CancellationException) throw e
             last = e
             android.util.Log.w("withRetry", "attempt ${i + 1}/$attempts failed: ${e.message}")
             if (i < attempts - 1) kotlinx.coroutines.delay(2000L * (i + 1))
@@ -249,6 +250,11 @@ fun App(context: android.content.Context) {
     var showRegister by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var forceUpdateUrl by remember { mutableStateOf<String?>(null) }
+
+    // Любой ответ 426 от API (не только проверка при старте) → блокирующий диалог
+    LaunchedEffect(Unit) {
+        ApiClient.updateRequired.collect { url -> if (url != null) forceUpdateUrl = url }
+    }
 
     // On startup: check minimum required version + silent token refresh
     LaunchedEffect(Unit) {

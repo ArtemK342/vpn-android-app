@@ -329,13 +329,26 @@ object ApiClient {
         .connectionPool(okhttp3.ConnectionPool(0, 1, java.util.concurrent.TimeUnit.SECONDS))
         .addInterceptor(directFallback)
         .addInterceptor { chain ->
-            chain.proceed(
+            val resp = chain.proceed(
                 chain.request().newBuilder()
                     .addHeader("X-App-Version", BuildConfig.VERSION_CODE.toString())
                     .build()
             )
+            // 426 = версия ниже минимальной (задаётся в админке) → блокирующий диалог
+            if (resp.code == 426) {
+                val url = try {
+                    org.json.JSONObject(resp.peekBody(4096).string()).optString("update_url")
+                } catch (_: Exception) { "" }
+                updateRequired.value = url.ifEmpty { UPDATE_URL }
+            }
+            resp
         }
         .build()
+
+    private const val UPDATE_URL = "https://fsociety-vpn.org/download"
+
+    /** Ссылка на обновление, если сервер ответил 426; MainActivity показывает блокирующий диалог. */
+    val updateRequired = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
     val service: ApiService by lazy {
         Retrofit.Builder()
