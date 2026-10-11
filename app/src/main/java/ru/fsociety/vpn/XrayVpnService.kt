@@ -190,6 +190,7 @@ class XrayVpnService : VpnService() {
 
     override fun onDestroy() {
         scope.launch { SingboxManager.disconnect() }
+        BypassManager.stop()  // режим РФ: вместе с туннелем гасим локальный byedpi
         pfd?.close()
         super.onDestroy()
     }

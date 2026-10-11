@@ -80,7 +80,7 @@ fun autoSelectServer(
     wireguardOnly: Boolean = false
 ): ServerResponse? =
     servers
-        .filter { it.canConnect && it.allow_auto_connect }
+        .filter { it.canConnect && it.allow_auto_connect && it.server_type != "bypass" }  // режим РФ — не VPN, только вручную
         .filter { !wireguardOnly || it.server_type == "wireguard" }
         .minByOrNull { pings[it.id] ?: 999 }
 
@@ -174,7 +174,27 @@ fun HomeScreen(
                 isConnecting = false
                 return
             }
-            if (server.server_type == "vless") {
+            if (server.server_type == "bypass") {
+                // «Режим РФ»: конфиг локальный, сервер не нужен — запускаем byedpi и sing-box
+                val started = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    BypassManager.start(context)
+                }
+                if (!started) {
+                    statusMsg = strErrorConnect
+                    isConnecting = false
+                    return
+                }
+                val config = BypassManager.buildConfig()
+                val intent = VpnService.prepare(context)
+                if (intent != null) {
+                    pendingConfig = config
+                    pendingServer = server
+                    pendingServerType = "bypass"
+                    launchVpnIntent?.invoke(intent)
+                } else {
+                    startSingbox(config, server)
+                }
+            } else if (server.server_type == "vless") {
                 val response = ApiClient.service.getVlessConfig("Bearer $token", server.id)
                 val intent = VpnService.prepare(context)
                 if (intent != null) {
@@ -327,7 +347,7 @@ fun HomeScreen(
             pendingServer = null
             scope.launch {
                 statusMsg = strConnecting
-                if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan") {
+                if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan" || serverType == "bypass") {
                     startSingbox(config, server)
                 } else if (serverType == "openvpn_cloak") {
                     OpenVpnService.start(context, config, server.displayName(lang))
@@ -344,6 +364,7 @@ fun HomeScreen(
             }
         } else {
             statusMsg = strVpnDenied
+            BypassManager.stop()  // режим РФ: byedpi уже запущен, VPN не разрешили
             isConnecting = false
         }
     }
@@ -639,7 +660,8 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = when (server.country) {
+                                // Режим РФ — без флага страны (локальный обход, не сервер)
+                                text = if (server.server_type == "bypass") "⚡" else when (server.country) {
                                     "Finland"     -> "🇫🇮"
                                     "Switzerland" -> "🇨🇭"
                                     "Russia"      -> "🇷🇺"
@@ -659,6 +681,7 @@ fun HomeScreen(
                                         "hysteria"      -> "Hysteria2"
                                         "trojan"        -> "Trojan"
                                         "openvpn_cloak" -> "OpenVPN+Cloak"
+                                        "bypass"        -> "Обход РФ · без сервера"
                                         else            -> "AmneziaWG"
                                     },
                                     color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace
@@ -694,6 +717,7 @@ fun HomeScreen(
                                         else R.string.home_status_blocked)
                                     server.subscription_required -> stringResource(R.string.home_status_subscription)
                                     server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
+                                    server.server_type == "bypass" -> "● РФ"  // без сервера — пинговать нечего
                                     ping == null         -> "● ..."
                                     ping >= 999          -> "● —"
                                     else                 -> "● $ping$strMs"

@@ -70,7 +70,7 @@ data class ServerResponse(
     val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
     val hasWarning: Boolean get() = status in setOf("degraded", "attacked")
     // VLESS, Hysteria2 and Trojan all use sing-box under the hood
-    val usesSingbox: Boolean get() = server_type in setOf("vless", "hysteria", "trojan")
+    val usesSingbox: Boolean get() = server_type in setOf("vless", "hysteria", "trojan", "bypass")
     val usesOpenVpn: Boolean get() = server_type == "openvpn_cloak"
     // English name when the app language is English (falls back to the default name).
     fun displayName(lang: String): String =
