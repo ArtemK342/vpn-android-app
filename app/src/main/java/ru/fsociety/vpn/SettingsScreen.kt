@@ -880,6 +880,28 @@ fun AutoReconnectTab(autoReconnect: Boolean, onAutoReconnectChange: (Boolean) ->
     }
 }
 
+/**
+ * Описание релиза с GitHub (Markdown) → простой текст для экрана обновления.
+ * Если описание двуязычное (RU, затем EN после строки «---»), берётся часть
+ * на языке приложения; заголовки/жирный убираются, пункты списка → «•».
+ */
+fun plainReleaseNotes(markdown: String, context: android.content.Context): String {
+    val parts = markdown.replace("\r", "").split(Regex("\n-{3,}\n"))
+    val isEn = context.resources.configuration.locales[0].language == "en"
+    val section = if (parts.size > 1 && isEn) parts[1] else parts[0]
+    return section.lines()
+        .map { it.trim() }
+        .filterNot { it.startsWith("## ") }            // заголовок релиза «FsocietyNet vX» уже показан выше
+        .map { line ->
+            line.removePrefix("### ")
+                .replace("**", "")
+                .replace(Regex("^[-*] "), "• ")
+        }
+        .joinToString("\n")
+        .replace(Regex("\n{3,}"), "\n\n")
+        .trim()
+}
+
 @Composable
 fun UpdateTab(onBack: () -> Unit) {
     BackHandler { onBack() }
@@ -911,7 +933,14 @@ fun UpdateTab(onBack: () -> Unit) {
         }
         HorizontalDivider(color = Border)
 
-        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        // Прокрутка: длинное описание релиза не должно выталкивать кнопку «Обновить» за экран
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(24.dp)
+        ) {
             Spacer(modifier = Modifier.height(8.dp))
             SettingsRow(label = stringResource(R.string.update_current_version), value = currentVersion)
 
@@ -945,7 +974,7 @@ fun UpdateTab(onBack: () -> Unit) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(stringResource(R.string.update_whats_new), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(info.releaseNotes, color = TextMuted, fontSize = 12.sp)
+                        Text(plainReleaseNotes(info.releaseNotes, context), color = TextMuted, fontSize = 12.sp)
                     }
                     Spacer(modifier = Modifier.height(24.dp))
 
