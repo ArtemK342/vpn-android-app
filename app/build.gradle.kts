@@ -37,6 +37,10 @@ android {
     buildTypes {
         debug {
             isDebuggable = true
+            // Отдельное приложение «FsocietyNet DEV» (ru.fsociety.vpn.debug): ставится рядом с релизом,
+            // без конфликта подписей (Run в Android Studio больше не мешает релизной версии)
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-dev"
         }
         release {
             isMinifyEnabled = true

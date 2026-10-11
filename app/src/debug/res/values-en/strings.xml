@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Отладочная сборка — отдельное приложение рядом с релизом -->
+<resources>
+    <string name="app_name">FsocietyNet DEV</string>
+</resources>
