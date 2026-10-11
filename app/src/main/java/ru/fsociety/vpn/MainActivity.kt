@@ -105,6 +105,25 @@ suspend fun <T> withRetry(attempts: Int = 3, block: suspend () -> T): T {
     throw last ?: IllegalStateException("withRetry: no attempts")
 }
 
+/**
+ * Версия заблокирована (426 / ниже android_min_version): рвём любой активный
+ * туннель и чистим кэш WG-конфигов, чтобы заблокированная версия не могла
+ * ни держать соединение, ни переподключаться к AmneziaWG в обход API.
+ */
+suspend fun disconnectForBlockedVersion(context: Context) {
+    ConfigCache.clearAll(context)
+    try {
+        when {
+            OpenVpnService.isRunning     -> OpenVpnService.stop(context)
+            SingboxManager.isConnected() -> XrayVpnService.stop(context)
+            VpnManager.isConnected()     -> VpnManager.disconnect()
+        }
+        VpnEvents.disconnectRequested.tryEmit(Unit)
+    } catch (e: Exception) {
+        android.util.Log.w("UpdateRequired", "disconnect failed: ${e.message}")
+    }
+}
+
 // ── VPN Events (для отключения из уведомления) ──
 
 object VpnEvents {
@@ -252,8 +271,14 @@ fun App(context: android.content.Context) {
     var forceUpdateUrl by remember { mutableStateOf<String?>(null) }
 
     // Любой ответ 426 от API (не только проверка при старте) → блокирующий диалог
+    // + разрыв активного туннеля (диалог перекрывает кнопку отключения).
     LaunchedEffect(Unit) {
-        ApiClient.updateRequired.collect { url -> if (url != null) forceUpdateUrl = url }
+        ApiClient.updateRequired.collect { url ->
+            if (url != null) {
+                forceUpdateUrl = url
+                disconnectForBlockedVersion(context)
+            }
+        }
     }
 
     // On startup: check minimum required version + silent token refresh
@@ -262,7 +287,8 @@ fun App(context: android.content.Context) {
         try {
             val cfg = ApiClient.service.getAppConfig()
             if (BuildConfig.VERSION_CODE < cfg.android_min_version) {
-                forceUpdateUrl = cfg.update_url
+                // через updateRequired — тот же путь, что и для 426 (диалог + отключение VPN)
+                ApiClient.updateRequired.value = cfg.update_url
             }
         } catch (_: Exception) { }
 

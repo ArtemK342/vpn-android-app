@@ -16,4 +16,8 @@ object ConfigCache {
     fun clear(context: Context, serverId: String) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().remove(serverId).apply()
+
+    fun clearAll(context: Context) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().clear().apply()
 }
