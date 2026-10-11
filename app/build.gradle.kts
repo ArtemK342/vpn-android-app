@@ -20,6 +20,9 @@ android {
         versionCode = 10
         versionName = "0.0.3.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Только 64-битные ARM-телефоны: x86/x86_64 (эмуляторы) и armeabi-v7a (старые 32-битные)
+        // раздували APK с ~150 до 460 МБ — нативные библиотеки (libbox, OpenVPN, Cloak) ×4
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     signingConfigs {
@@ -59,6 +62,8 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        // .so в APK сжатые (меньше скачивать); при установке Android распаковывает их
+        jniLibs { useLegacyPackaging = true }
     }
 }
 
