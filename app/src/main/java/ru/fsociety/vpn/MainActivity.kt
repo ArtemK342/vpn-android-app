@@ -106,8 +106,8 @@ suspend fun <T> withRetry(attempts: Int = 3, block: suspend () -> T): T {
 }
 
 /**
- * Версия заблокирована (426 / ниже android_min_version): рвём любой активный
- * туннель и чистим кэш WG-конфигов, чтобы заблокированная версия не могла
+ * Версия заблокирована (426 / ниже android_min_version) или выход из аккаунта:
+ * рвём любой активный туннель и чистим кэш WG-конфигов, чтобы нельзя было
  * ни держать соединение, ни переподключаться к AmneziaWG в обход API.
  */
 suspend fun disconnectForBlockedVersion(context: Context) {
@@ -178,31 +178,78 @@ class VpnConnectReceiver : BroadcastReceiver() {
             return
         }
 
+        val prefs = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
+        if (prefs.getString("token", "").isNullOrEmpty()) {
+            // Вышли из аккаунта — подключаться нечем, открываем экран входа
+            context.startActivity(Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            })
+            return
+        }
+
+        // Тексты — на языке приложения, а не системы
+        val lang = prefs.getString("language", "ru") ?: "ru"
+        val config = android.content.res.Configuration(context.resources.configuration)
+            .apply { setLocale(java.util.Locale(lang)) }
+        val ctx = context.createConfigurationContext(config)
+
         // Разрешение есть — подключаем без открытия приложения
         val pending = goAsync()
         VpnEvents.isConnecting = true
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val prefs = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
-                val token = prefs.getString("token", "") ?: return@launch
-                val servers = ApiClient.service.getServers("Bearer $token")
-                // Фоновое автоподключение умеет только WireGuard (getVpnConfig) — раньше
-                // сюда мог попасть VLESS/Hysteria-сервер, и подключение молча не происходило.
-                val best = autoSelectServer(servers, measureAllPings(servers), wireguardOnly = true)
-                    ?: return@launch
-                val response = ApiClient.service.getVpnConfig("Bearer $token", best.id)
-                if (response.config != null) {
-                    val success = VpnManager.connect(context, response.config)
-                    if (success) {
-                        VpnManager.connectedServerName = best.name
-                        VpnEvents.connectSucceeded.tryEmit(best)
-                    }
-                }
-            } catch (_: Exception) {
+                connectInBackground(context, ctx, prefs)
+            } catch (e: Exception) {
+                AppErrors.log("notification connect", e)
+                toast(context, AppErrors.text(ctx, e))
             } finally {
                 VpnEvents.isConnecting = false
                 pending.finish()
             }
+        }
+    }
+
+    /** [ctx] — контекст с языком приложения для текстов. */
+    private suspend fun connectInBackground(context: Context, ctx: Context, prefs: android.content.SharedPreferences) {
+        var token = prefs.getString("token", "") ?: ""
+        // Access-токен живёт сутки: если приложение давно не открывали — обновляем по refresh
+        val servers = try {
+            ApiClient.service.getServers("Bearer $token")
+        } catch (e: retrofit2.HttpException) {
+            if (e.code() != 401) throw e
+            val refresh = prefs.getString("refresh_token", "").orEmpty()
+            if (refresh.isEmpty()) throw e
+            val r = ApiClient.service.refresh(RefreshRequest(refresh))
+            prefs.edit().putString("token", r.access_token)
+                .putString("refresh_token", r.refresh_token.ifEmpty { refresh }).apply()
+            token = r.access_token
+            ApiClient.service.getServers("Bearer $token")
+        }
+        // Фоновое автоподключение умеет только WireGuard (getVpnConfig); пингуем только кандидатов
+        val candidates = servers.filter { it.server_type == "wireguard" && it.canConnect && it.allow_auto_connect }
+        val best = autoSelectServer(candidates, measureAllPings(candidates), wireguardOnly = true)
+        if (best == null) {
+            toast(context, ctx.getString(R.string.notif_no_server))
+            return
+        }
+        // Конфиг всегда с сервера (не из кэша): так действуют лимиты и блокировки из админки
+        val response = ApiClient.service.getVpnConfig("Bearer $token", best.id)
+        val config = response.config
+        if (config == null) {
+            toast(context, response.message ?: ctx.getString(R.string.home_error_connect))
+            return
+        }
+        if (VpnManager.connect(context, config)) {
+            VpnManager.connectedServerName = best.name
+            VpnEvents.connectSucceeded.tryEmit(best)
+        } else {
+            toast(context, ctx.getString(R.string.home_error_connect))
+        }
+    }
+
+    private fun toast(context: Context, text: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_LONG).show()
         }
     }
 }
@@ -340,6 +387,9 @@ fun App(context: android.content.Context) {
             onLogout = {
                 prefs.edit().remove("token").remove("refresh_token").apply()
                 token = ""
+                // Туннель и кэш WG-конфигов принадлежат старому аккаунту: иначе следующий
+                // аккаунт подключится чужим ключом в обход API (лимиты, учёт, блокировки)
+                scope.launch { disconnectForBlockedVersion(context) }
             },
             onSessionExpired = { newToken, newRefresh ->
                 prefs.edit()
@@ -352,6 +402,7 @@ fun App(context: android.content.Context) {
         showRegister -> RegisterScreen(onBack = { showRegister = false })
         else -> LoginScreen(
             onLogin = { accessToken, refreshToken ->
+                ConfigCache.clearAll(context)  // на случай старого кэша от другого аккаунта
                 prefs.edit()
                     .putString("token", accessToken)
                     .putString("refresh_token", refreshToken)

@@ -59,6 +59,7 @@
     <string name="home_status_subscription">🔒 PREMIUM</string>
     <string name="home_status_blocked">⛔ CLOSED</string>
     <string name="home_logs_on">● LOGS ON</string>
+    <string name="notif_no_server">No WireGuard server available to connect from the notification — open the app</string>
     <string name="home_btn_disconnect">● DISCONNECT</string>
     <string name="home_btn_connect">○ CONNECT</string>
 

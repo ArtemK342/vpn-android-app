@@ -59,6 +59,7 @@
     <string name="home_status_subscription">🔒 ПОДПИСКА</string>
     <string name="home_status_blocked">⛔ ЗАКРЫТ</string>
     <string name="home_logs_on">● LOGS ON</string>
+    <string name="notif_no_server">Нет доступного WireGuard-сервера для подключения из уведомления — откройте приложение</string>
     <string name="home_btn_disconnect">● ОТКЛЮЧИТЬСЯ</string>
     <string name="home_btn_connect">○ ПОДКЛЮЧИТЬСЯ</string>
 
