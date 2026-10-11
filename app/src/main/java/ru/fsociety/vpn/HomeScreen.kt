@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.async
@@ -448,8 +449,11 @@ fun HomeScreen(
                 Text("[f]", color = Accent, fontSize = 48.sp,
                     fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 if (statusMsg.isNotEmpty()) {
+                    // Длинные ошибки переносятся с отступами от краёв, а не упираются в край экрана
                     Text(statusMsg, color = TextMuted, fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace)
+                        fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
+                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 32.dp))
                 } else if (isConnected && connectedServer != null) {
                     val connectedPing = serverPings[connectedServer.id]
                     val pingText = when {
