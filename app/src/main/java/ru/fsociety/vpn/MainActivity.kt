@@ -391,15 +391,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                             android.util.Log.w("AppNavigation", "refresh account failed: ${e.message}")
                         }
                     }
-                    if (!isConnected) {
-                        val jobs = servers.map { server ->
-                            scope.launch {
-                                val ping = measurePing(server.id, servers)
-                                serverPings = serverPings + (server.id to ping)
-                            }
-                        }
-                        jobs.forEach { it.join() }
-                    }
+                    if (!isConnected) serverPings = measureAllPings(servers)
                 } finally {
                     isRefreshingPings = false
                 }
@@ -423,12 +415,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         connectedServer = connected
                     }
                 }
-                result.forEach { server ->
-                    scope.launch {
-                        val ping = measurePing(server.id, servers)
-                        serverPings = serverPings + (server.id to ping)
-                    }
-                }
+                scope.launch { serverPings = measureAllPings(result) }
             } catch (e: Exception) {
                 val code = (e as? retrofit2.HttpException)?.code()
                 if (code == 401) {

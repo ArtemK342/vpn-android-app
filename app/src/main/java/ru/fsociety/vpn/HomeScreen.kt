@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -56,7 +58,22 @@ suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int =
             java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, p), 2000) }
             (System.currentTimeMillis() - start).toInt()
         } catch (_: Exception) { null }
-        tcpPing(port) ?: (if (port != 443) tcpPing(443) else null) ?: tcpPing(22) ?: 999
+        // Все порты проверяются одновременно (раньше по очереди, до 3×2 с на сервер),
+        // результат берётся в порядке приоритета: порт сервера → 443 → 22.
+        kotlinx.coroutines.coroutineScope {
+            val main = async { tcpPing(port) }
+            val https = if (port != 443) async { tcpPing(443) } else null
+            val ssh = async { tcpPing(22) }
+            main.await() ?: https?.await() ?: ssh.await() ?: 999
+        }
+    }
+
+/** Пинги всех серверов параллельно; возвращаются разом, чтобы в списке появлялись одновременно. */
+suspend fun measureAllPings(servers: List<ServerResponse>): Map<String, Int> =
+    kotlinx.coroutines.coroutineScope {
+        servers.map { server -> async { server.id to measurePing(server.id, servers) } }
+            .awaitAll()
+            .toMap()
     }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
