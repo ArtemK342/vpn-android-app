@@ -22,6 +22,7 @@
     <string name="home_vpn_denied">Разрешение VPN отклонено</string>
     <string name="home_error_timeout">Таймаут, попробуйте ещё раз</string>
     <string name="home_error_server_unreachable">Сервер не пропускает трафик — попробуйте другой протокол или сервер</string>
+    <string name="home_error_subscription_only">Этот сервер доступен только по подписке</string>
     <string name="home_error_generic">Ошибка: %s</string>
     <string name="home_tab_all">ВСЕ</string>
     <string name="home_tab_favorites">ИЗБРАННЫЕ</string>
@@ -40,6 +41,7 @@
     <string name="home_status_soon">СКОРО</string>
     <string name="home_status_test">⚡ ТЕСТ.</string>
     <string name="home_status_maintenance">🔧 ОБСЛ.</string>
+    <string name="home_status_subscription">🔒 ПОДПИСКА</string>
     <string name="home_btn_disconnect">● ОТКЛЮЧИТЬСЯ</string>
     <string name="home_btn_connect">○ ПОДКЛЮЧИТЬСЯ</string>
 

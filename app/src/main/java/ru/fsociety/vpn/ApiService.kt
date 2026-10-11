@@ -57,7 +57,9 @@ data class ServerResponse(
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
     val status_message: String? = null,
     val status_message_extra: String? = null,
-    val connectable: Boolean = is_active    // computed server-side based on user role
+    val connectable: Boolean = is_active,   // computed server-side based on user role
+    // true: сервер только по подписке, а пользователь бесплатный (allow_free=false в админке)
+    val subscription_required: Boolean = false
 ) {
     val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
     val hasWarning: Boolean get() = status in setOf("degraded", "attacked")

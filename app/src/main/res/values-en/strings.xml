@@ -22,6 +22,7 @@
     <string name="home_vpn_denied">VPN permission denied</string>
     <string name="home_error_timeout">Timeout, please try again</string>
     <string name="home_error_server_unreachable">Server is not passing traffic — try another protocol or server</string>
+    <string name="home_error_subscription_only">This server is available with a subscription only</string>
     <string name="home_error_generic">Error: %s</string>
     <string name="home_tab_all">ALL</string>
     <string name="home_tab_favorites">FAVORITES</string>
@@ -40,6 +41,7 @@
     <string name="home_status_soon">SOON</string>
     <string name="home_status_test">⚡ TEST</string>
     <string name="home_status_maintenance">🔧 MAINT.</string>
+    <string name="home_status_subscription">🔒 PREMIUM</string>
     <string name="home_btn_disconnect">● DISCONNECT</string>
     <string name="home_btn_connect">○ CONNECT</string>
 

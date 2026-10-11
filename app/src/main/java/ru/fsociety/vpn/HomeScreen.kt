@@ -68,6 +68,21 @@ suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int =
         }
     }
 
+/**
+ * Автовыбор сервера: доступный, с разрешённым авто-подключением (флаги из админки)
+ * и не «только по подписке» для бесплатного пользователя; среди них — с минимальным пингом.
+ * [wireguardOnly] — для фонового автоподключения, которое умеет только WireGuard.
+ */
+fun autoSelectServer(
+    servers: List<ServerResponse>,
+    pings: Map<String, Int>,
+    wireguardOnly: Boolean = false
+): ServerResponse? =
+    servers
+        .filter { it.connectable && it.allow_auto_connect && !it.subscription_required }
+        .filter { !wireguardOnly || it.server_type == "wireguard" }
+        .minByOrNull { pings[it.id] ?: 999 }
+
 /** Пинги всех серверов параллельно; возвращаются разом, чтобы в списке появлялись одновременно. */
 suspend fun measureAllPings(servers: List<ServerResponse>): Map<String, Int> =
     kotlinx.coroutines.coroutineScope {
@@ -93,6 +108,8 @@ fun HomeScreen(
     onDisconnected: () -> Unit
 ) {
     var selectedServer by remember { mutableStateOf<ServerResponse?>(null) }
+    // Пока пользователь сам не выбрал сервер, автовыбор пересчитывается по мере прихода пингов
+    var userPickedServer by remember { mutableStateOf(false) }
     var serverListTab by remember { mutableStateOf(0) }
     var favoriteServers by remember { mutableStateOf(setOf<String>()) }
     var showFavoriteDialog by remember { mutableStateOf<String?>(null) }
@@ -251,8 +268,14 @@ fun HomeScreen(
             statusMsg = strTimeout
             isConnecting = false
         } catch (e: retrofit2.HttpException) {
-            statusMsg = if (e.code() == 403) context.getString(R.string.home_limit_reached)
-                        else context.getString(R.string.home_error_generic, "HTTP ${e.code()}: ${e.message()}")
+            // 403 бывает по разным причинам: сервер только по подписке / лимит исчерпан
+            val detail = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null } ?: ""
+            statusMsg = when {
+                e.code() == 403 && (detail.contains("подписк", true) || detail.contains("subscri", true)) ->
+                    context.getString(R.string.home_error_subscription_only)
+                e.code() == 403 -> context.getString(R.string.home_limit_reached)
+                else -> context.getString(R.string.home_error_generic, "HTTP ${e.code()}: ${e.message()}")
+            }
             isConnecting = false
         } catch (e: Exception) {
             statusMsg = context.getString(R.string.home_error_generic, e.message ?: "")
@@ -308,10 +331,11 @@ fun HomeScreen(
     launchVpnIntent = { vpnPermissionLauncher.launch(it) }
 
     LaunchedEffect(servers, serverPings) {
-        if (selectedServer == null && servers.isNotEmpty() && !isConnected) {
-            selectedServer = servers
-                .filter { it.connectable && it.allow_auto_connect }
-                .minByOrNull { serverPings[it.id] ?: 999 }
+        // Раньше выбор делался один раз — до прихода пингов (все 999) → всегда первый
+        // сервер в списке. Теперь пересчитывается, когда пинги готовы, пока
+        // пользователь не выбрал сервер вручную.
+        if (!userPickedServer && servers.isNotEmpty() && !isConnected) {
+            autoSelectServer(servers, serverPings)?.let { selectedServer = it }
         }
     }
 
@@ -530,6 +554,7 @@ fun HomeScreen(
                                     onClick = {
                                         if (server.connectable && !isConnecting) {
                                             selectedServer = server
+                                            userPickedServer = true
                                             if (!isConnected) {
                                                 scope.launch { connectToServer(server) }
                                             } else {
@@ -608,6 +633,7 @@ fun HomeScreen(
                                         "maintenance" -> stringResource(R.string.home_status_maintenance)
                                         else          -> stringResource(R.string.home_status_soon)
                                     }
+                                    server.subscription_required -> stringResource(R.string.home_status_subscription)
                                     server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
                                     ping == null         -> "● ..."
                                     ping >= 999          -> "● —"
@@ -617,6 +643,7 @@ fun HomeScreen(
                                     isThisConnected      -> Accent
                                     server.isUnavailable -> TextMuted
                                     !server.connectable  -> TextMuted
+                                    server.subscription_required -> TextMuted
                                     server.hasWarning    -> Color(0xFFF59E0B)
                                     ping == null || ping >= 999 -> TextMuted
                                     ping < 100  -> Accent

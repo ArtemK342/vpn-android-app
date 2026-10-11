@@ -186,15 +186,10 @@ class VpnConnectReceiver : BroadcastReceiver() {
                 val prefs = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
                 val token = prefs.getString("token", "") ?: return@launch
                 val servers = ApiClient.service.getServers("Bearer $token")
-                    .filter { it.is_active && it.allow_auto_connect }
-                if (servers.isEmpty()) return@launch
-                var best: ServerResponse? = null
-                var bestPing = Int.MAX_VALUE
-                for (server in servers) {
-                    val ping = measurePing(server.id, servers)
-                    if (ping < bestPing) { bestPing = ping; best = server }
-                }
-                best ?: return@launch
+                // Фоновое автоподключение умеет только WireGuard (getVpnConfig) — раньше
+                // сюда мог попасть VLESS/Hysteria-сервер, и подключение молча не происходило.
+                val best = autoSelectServer(servers, measureAllPings(servers), wireguardOnly = true)
+                    ?: return@launch
                 val response = ApiClient.service.getVpnConfig("Bearer $token", best.id)
                 if (response.config != null) {
                     val success = VpnManager.connect(context, response.config)
@@ -509,9 +504,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     LaunchedEffect(Unit) {
         AutoConnectRequest.trigger.collect {
             if (!isConnected && servers.isNotEmpty()) {
-                val best = servers
-                    .filter { it.is_active && it.allow_auto_connect }
-                    .minByOrNull { serverPings[it.id] ?: 999 }
+                val best = autoSelectServer(servers, serverPings)
                 if (best != null) {
                     selectedTab = 0  // переключаемся на главный экран
                     // HomeScreen подхватит выбранный сервер и подключится
