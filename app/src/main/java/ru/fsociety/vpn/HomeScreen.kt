@@ -46,14 +46,15 @@ fun formatBytes(bytes: Long, context: Context): String {
 suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int =
     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val server = servers.firstOrNull { it.id == serverId } ?: return@withContext 999
-        val host = server.endpoint?.split(":")?.firstOrNull()
-            ?.takeIf { it.isNotEmpty() } ?: return@withContext 999
-        try {
+        val parts = server.endpoint?.split(":") ?: return@withContext 999
+        val host = parts.firstOrNull()?.takeIf { it.isNotEmpty() } ?: return@withContext 999
+        val port = parts.getOrNull(1)?.toIntOrNull() ?: 443
+        fun tcpPing(p: Int): Int? = try {
             val start = System.currentTimeMillis()
-            val process = Runtime.getRuntime().exec(arrayOf("ping", "-c", "1", "-W", "3", host))
-            val exitCode = process.waitFor()
-            if (exitCode == 0) (System.currentTimeMillis() - start).toInt() else 999
-        } catch (_: Exception) { 999 }
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, p), 2000) }
+            (System.currentTimeMillis() - start).toInt()
+        } catch (_: Exception) { null }
+        tcpPing(port) ?: (if (port != 443) tcpPing(443) else null) ?: tcpPing(22) ?: 999
     }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
