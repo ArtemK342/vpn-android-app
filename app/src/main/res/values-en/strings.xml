@@ -43,6 +43,7 @@
     <string name="home_status_test">⚡ TEST</string>
     <string name="home_status_maintenance">🔧 MAINT.</string>
     <string name="home_status_subscription">🔒 PREMIUM</string>
+    <string name="home_status_blocked">⛔ CLOSED</string>
     <string name="home_btn_disconnect">● DISCONNECT</string>
     <string name="home_btn_connect">○ CONNECT</string>
 

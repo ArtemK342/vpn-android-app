@@ -43,6 +43,7 @@
     <string name="home_status_test">⚡ ТЕСТ.</string>
     <string name="home_status_maintenance">🔧 ОБСЛ.</string>
     <string name="home_status_subscription">🔒 ПОДПИСКА</string>
+    <string name="home_status_blocked">⛔ ЗАКРЫТ</string>
     <string name="home_btn_disconnect">● ОТКЛЮЧИТЬСЯ</string>
     <string name="home_btn_connect">○ ПОДКЛЮЧИТЬСЯ</string>
 

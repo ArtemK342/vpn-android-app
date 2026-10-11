@@ -79,7 +79,7 @@ fun autoSelectServer(
     wireguardOnly: Boolean = false
 ): ServerResponse? =
     servers
-        .filter { it.connectable && it.allow_auto_connect && !it.subscription_required }
+        .filter { it.canConnect && it.allow_auto_connect }
         .filter { !wireguardOnly || it.server_type == "wireguard" }
         .minByOrNull { pings[it.id] ?: 999 }
 
@@ -346,6 +346,10 @@ fun HomeScreen(
     }
     launchVpnIntent = { vpnPermissionLauncher.launch(it) }
 
+    // Выбранный сервер в актуальном виде: список обновляется раз в минуту, и сервер
+    // мог стать недоступным (техработы, подписка) — тогда кнопка «Подключить» гаснет.
+    val selectedFresh = selectedServer?.let { s -> servers.find { it.id == s.id } ?: s }
+
     LaunchedEffect(servers, serverPings) {
         // Раньше выбор делался один раз — до прихода пингов (все 999) → всегда первый
         // сервер в списке. Теперь пересчитывается, когда пинги готовы, пока
@@ -580,9 +584,11 @@ fun HomeScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                // Недоступные (по подписке / закрытые в «Доступе» / статус из админки) не нажимаются
                                 .combinedClickable(
+                                    enabled = server.canConnect,
                                     onClick = {
-                                        if (server.connectable && !isConnecting) {
+                                        if (!isConnecting) {
                                             selectedServer = server
                                             userPickedServer = true
                                             if (!isConnected) {
@@ -630,7 +636,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(server.displayName(lang),
-                                    color = if (server.isUnavailable) TextMuted else TextPrimary,
+                                    color = if (server.canConnect || isThisConnected) TextPrimary else TextMuted,
                                     fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 Text(
                                     text = "· " + when (server.server_type) {
@@ -645,6 +651,10 @@ fun HomeScreen(
                                 if (favoriteServers.contains(server.name)) {
                                     Text(stringResource(R.string.home_favorite_label),
                                         color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                }
+                                // Причина закрытия протокола / типа аккаунта (техработы уже на общей плашке)
+                                server.access_block?.takeIf { it.code != "maintenance" }?.text(lang)?.let {
+                                    Text(it, color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                                 }
                                 if (server.hasWarning && server.status_message != null) {
                                     Text(
@@ -663,6 +673,9 @@ fun HomeScreen(
                                         "maintenance" -> stringResource(R.string.home_status_maintenance)
                                         else          -> stringResource(R.string.home_status_soon)
                                     }
+                                    server.access_block != null -> stringResource(
+                                        if (server.access_block.code == "maintenance") R.string.home_status_maintenance
+                                        else R.string.home_status_blocked)
                                     server.subscription_required -> stringResource(R.string.home_status_subscription)
                                     server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
                                     ping == null         -> "● ..."
@@ -672,8 +685,7 @@ fun HomeScreen(
                                 color = when {
                                     isThisConnected      -> Accent
                                     server.isUnavailable -> TextMuted
-                                    !server.connectable  -> TextMuted
-                                    server.subscription_required -> TextMuted
+                                    !server.canConnect   -> TextMuted
                                     server.hasWarning    -> Color(0xFFF59E0B)
                                     ping == null || ping >= 999 -> TextMuted
                                     ping < 100  -> Accent
@@ -717,13 +729,13 @@ fun HomeScreen(
                             isConnecting = false
                         }
                     } else {
-                        val server = selectedServer ?: return@launch
+                        val server = selectedFresh?.takeIf { it.canConnect } ?: return@launch
                         connectToServer(server)
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            enabled = !isConnecting && (isConnected || selectedServer != null),
+            enabled = !isConnecting && (isConnected || selectedFresh?.canConnect == true),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (isConnected) ErrorRed else Accent,
                 contentColor = BgDark

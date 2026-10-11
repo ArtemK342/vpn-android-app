@@ -59,8 +59,12 @@ data class ServerResponse(
     val status_message_extra: String? = null,
     val connectable: Boolean = is_active,   // computed server-side based on user role
     // true: сервер только по подписке, а пользователь бесплатный (allow_free=false в админке)
-    val subscription_required: Boolean = false
+    val subscription_required: Boolean = false,
+    // не null: подключение закрыто в «Настройки → Доступ» (техработы / протокол / тип аккаунта)
+    val access_block: AccessBlock? = null
 ) {
+    // Можно ли нажать на сервер: флаги из админки + подписка + блокировки доступа
+    val canConnect: Boolean get() = connectable && !subscription_required && access_block == null
     val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
     val hasWarning: Boolean get() = status in setOf("degraded", "attacked")
     // VLESS, Hysteria2 and Trojan all use sing-box under the hood
@@ -153,6 +157,15 @@ data class AccessStatus(
 
 data class MaintenanceStatus(
     val enabled: Boolean = false,
+    val message: String? = null,
+    val message_en: String? = null
+) {
+    fun text(lang: String): String? = (if (lang == "en") message_en else message)?.takeIf { it.isNotBlank() }
+}
+
+/** ServerResponse.access_block — почему сервер сейчас недоступен этому пользователю. */
+data class AccessBlock(
+    val code: String? = null,      // maintenance | protocol_disabled | segment_blocked
     val message: String? = null,
     val message_en: String? = null
 ) {
