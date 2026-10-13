@@ -230,7 +230,7 @@
     <string name="update_auto_switch">Update automatically</string>
     <string name="update_net_wifi">Wi-Fi only</string>
     <string name="update_net_any">Wi-Fi and mobile data</string>
-    <string name="update_auto_desc">On launch the app checks for a new version, downloads it and then offers to install it. Android never installs anything without your confirmation.</string>
+    <string name="update_auto_desc">Once a day, while the phone is charging and idle (usually at night), the app checks for a new version, downloads it and on Android 12+ installs it by itself. If the VPN is on at that time or Android asks for confirmation, you will be offered the update when you open the app.</string>
     <string name="update_apk_link">Download the latest APK in the browser ↗</string>
     <string name="update_ready">✓ Update downloaded</string>
     <string name="update_btn_install">INSTALL →</string>

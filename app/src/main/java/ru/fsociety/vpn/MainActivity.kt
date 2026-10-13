@@ -396,6 +396,7 @@ fun App(context: android.content.Context) {
     var autoUpdateApk by remember { mutableStateOf<Pair<String, java.io.File>?>(null) }
     val installApk = rememberApkInstaller()
     LaunchedEffect(Unit) {
+        AutoUpdateScheduler.apply(context)  // ночная задача (или её отмена) по текущим настройкам
         if (!prefs.getBoolean(PREF_AUTO_UPDATE, false)) return@LaunchedEffect
         // «Только через Wi-Fi» (по умолчанию): на мобильном интернете не проверяем и не качаем
         val net = prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI)

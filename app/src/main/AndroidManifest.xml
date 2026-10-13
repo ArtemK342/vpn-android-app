@@ -51,6 +51,10 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <!-- Результат ночной тихой установки обновления (AutoUpdate.kt) -->
+        <receiver
+            android:name=".InstallResultReceiver"
+            android:exported="false" />
         <receiver
             android:name=".VpnDisconnectReceiver"
             android:exported="false">

@@ -1037,6 +1037,7 @@ fun UpdateTab(onBack: () -> Unit) {
                         onCheckedChange = { on ->
                             autoUpdate = on
                             prefs.edit().putBoolean(PREF_AUTO_UPDATE, on).apply()
+                            AutoUpdateScheduler.apply(context)  // включить/выключить ночную задачу
                         },
                         colors = SwitchDefaults.colors(checkedThumbColor = BgDark, checkedTrackColor = Accent)
                     )
@@ -1052,6 +1053,7 @@ fun UpdateTab(onBack: () -> Unit) {
                             .clickable(enabled = autoUpdate) {
                                 autoUpdateNet = value
                                 prefs.edit().putString(PREF_AUTO_UPDATE_NET, value).apply()
+                                AutoUpdateScheduler.apply(context)
                             }
                     ) {
                         RadioButton(
@@ -1059,6 +1061,7 @@ fun UpdateTab(onBack: () -> Unit) {
                             onClick = {
                                 autoUpdateNet = value
                                 prefs.edit().putString(PREF_AUTO_UPDATE_NET, value).apply()
+                                AutoUpdateScheduler.apply(context)
                             },
                             colors = RadioButtonDefaults.colors(selectedColor = Accent, unselectedColor = TextMuted)
                         )

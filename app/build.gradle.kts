@@ -85,6 +85,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("com.zaneschepke:amneziawg-android:2.3.4")
     implementation("com.getkeepsafe.relinker:relinker:1.4.5")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")  // ночное автообновление
     implementation("io.nekohasekai:libbox:1.0")
 
     implementation(libs.androidx.core.ktx)
