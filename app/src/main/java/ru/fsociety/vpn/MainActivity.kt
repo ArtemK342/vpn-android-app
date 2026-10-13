@@ -459,6 +459,7 @@ fun App(context: android.content.Context) {
             token = token,
             onLogout = {
                 prefs.edit().remove("token").remove("refresh_token").apply()
+                ProfileCache.clear(context)  // профиль старого аккаунта не показывать следующему
                 token = ""
                 // Туннель и кэш WG-конфигов принадлежат старому аккаунту: иначе следующий
                 // аккаунт подключится чужим ключом в обход API (лимиты, учёт, блокировки)
@@ -494,10 +495,12 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
 
     var servers by remember { mutableStateOf<List<ServerResponse>>(emptyList()) }
     var serverPings by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
-    var user by remember { mutableStateOf<UserResponse?>(null) }
-    var subscription by remember { mutableStateOf<SubscriptionResponse?>(null) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    // Сохранённый профиль — сразу, без «Загрузка…»; ниже обновляется с сервера
+    var user by remember { mutableStateOf(ProfileCache.user(appContext)) }
+    var subscription by remember { mutableStateOf(ProfileCache.subscription(appContext)) }
     var isLoadingServers by remember { mutableStateOf(true) }
-    var isLoadingSettings by remember { mutableStateOf(true) }
+    var isLoadingSettings by remember { mutableStateOf(user == null) }
     var isRefreshingPings by remember { mutableStateOf(false) }
     var usage by remember { mutableStateOf<UsageResponse?>(null) }
     var isConnected by remember { mutableStateOf(false) }
@@ -543,6 +546,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                         try {
                             user = ApiClient.service.getMe("Bearer $token")
                             subscription = ApiClient.service.getSubscription("Bearer $token")
+                            ProfileCache.save(appContext, user, subscription)
                         } catch (e: Exception) {
                             android.util.Log.w("AppNavigation", "refresh account failed: ${e.message}")
                         }
@@ -597,6 +601,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
             try {
                 user = withRetry { ApiClient.service.getMe("Bearer $token") }
                 subscription = withRetry { ApiClient.service.getSubscription("Bearer $token") }
+                ProfileCache.save(appContext, user, subscription)
                 try { usage = ApiClient.service.getUsage("Bearer $token") } catch (e: Exception) { AppErrors.log("load usage", e) }
             } catch (e: Exception) {
                 val code = (e as? retrofit2.HttpException)?.code()
