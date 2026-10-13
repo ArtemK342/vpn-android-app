@@ -907,27 +907,82 @@ fun plainReleaseNotes(markdown: String, context: android.content.Context): Strin
         .trim()
 }
 
+/**
+ * Установка APK с запросом разрешения «установка из неизвестных источников»: если его нет —
+ * открываем системный переключатель, а по возвращении (ON_RESUME) с включённым разрешением
+ * установщик запускается сам. Раньше разрешение просил установщик, и после тапа мимо его
+ * окна приложение «зависало» в состоянии «Установщик запущен».
+ */
+@Composable
+fun rememberApkInstaller(): (java.io.File) -> Unit {
+    val context = LocalContext.current
+    var pending by remember { mutableStateOf<java.io.File?>(null) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val apk = pending
+                if (apk != null && UpdateManager.canInstall(context)) {
+                    pending = null
+                    UpdateManager.launchInstaller(context, apk)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return { apk ->
+        if (UpdateManager.canInstall(context)) UpdateManager.launchInstaller(context, apk)
+        else { pending = apk; UpdateManager.openInstallPermission(context) }
+    }
+}
+
+const val PREF_AUTO_UPDATE = "auto_update"
+
 @Composable
 fun UpdateTab(onBack: () -> Unit) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE) }
     val currentVersion = BuildConfig.VERSION_NAME
+    var tab by remember { mutableStateOf(if (prefs.getBoolean(PREF_AUTO_UPDATE, false)) 1 else 0) }
+    var autoUpdate by remember { mutableStateOf(prefs.getBoolean(PREF_AUTO_UPDATE, false)) }
     var updateInfo by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
     var isChecking by remember { mutableStateOf(true) }
     var checkError by remember { mutableStateOf("") }
-    var downloadProgress by remember { mutableStateOf(-1) }
+    var downloadProgress by remember { mutableStateOf(-1) }   // -1 нет загрузки, 0..99 идёт
     var downloadError by remember { mutableStateOf("") }
+    var apk by remember { mutableStateOf<java.io.File?>(null) } // уже скачанный APK новой версии
     val scope = rememberCoroutineScope()
+    val install = rememberApkInstaller()
 
     val strCheckError    = stringResource(R.string.update_error)
     val strDownloadError = stringResource(R.string.update_error_download)
 
-    LaunchedEffect(Unit) {
-        val result = UpdateManager.checkForUpdate(currentVersion)
-        result.onSuccess { updateInfo = it }
-        result.onFailure { checkError = strCheckError }
+    suspend fun check() {
+        isChecking = true; checkError = ""
+        UpdateManager.checkForUpdate(currentVersion)
+            .onSuccess { info ->
+                updateInfo = info
+                apk = if (info.hasUpdate) UpdateManager.downloadedApk(context, info.latestVersion) else null
+            }
+            .onFailure { checkError = strCheckError }
         isChecking = false
     }
+
+    fun startDownload(info: UpdateManager.UpdateInfo) {
+        downloadProgress = 0; downloadError = ""
+        scope.launch {
+            UpdateManager.download(context, info) { p -> downloadProgress = p }
+                .onSuccess { file -> apk = file; downloadProgress = -1; install(file) }
+                .onFailure { e ->
+                    AppErrors.log("update download", e)
+                    downloadError = strDownloadError; downloadProgress = -1
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) { check() }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -936,7 +991,17 @@ fun UpdateTab(onBack: () -> Unit) {
             Spacer(modifier = Modifier.width(16.dp))
             Text(stringResource(R.string.update_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
-        HorizontalDivider(color = Border)
+        // Вкладки: «Вручную» / «Автоматически»
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+            listOf(R.string.update_tab_manual, R.string.update_tab_auto).forEachIndexed { i, res ->
+                Column(modifier = Modifier.weight(1f).clickable { tab = i }, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(stringResource(res), color = if (tab == i) Accent else TextMuted, fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(vertical = 10.dp))
+                    Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(if (tab == i) Accent else Border))
+                }
+            }
+        }
 
         // Прокрутка: длинное описание релиза не должно выталкивать кнопку «Обновить» за экран
         Column(
@@ -946,9 +1011,27 @@ fun UpdateTab(onBack: () -> Unit) {
                 .navigationBarsPadding()
                 .padding(24.dp)
         ) {
+            if (tab == 1) {
+                // ── Автоматически ──
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.update_auto_switch), color = TextPrimary, fontSize = 14.sp,
+                        modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = autoUpdate,
+                        onCheckedChange = { on ->
+                            autoUpdate = on
+                            prefs.edit().putBoolean(PREF_AUTO_UPDATE, on).apply()
+                        },
+                        colors = SwitchDefaults.colors(checkedThumbColor = BgDark, checkedTrackColor = Accent)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(stringResource(R.string.update_auto_desc), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
             SettingsRow(label = stringResource(R.string.update_current_version), value = currentVersion)
-
             Spacer(modifier = Modifier.height(16.dp))
 
             when {
@@ -962,68 +1045,76 @@ fun UpdateTab(onBack: () -> Unit) {
                 checkError.isNotEmpty() -> {
                     Text(checkError, color = ErrorRed, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(12.dp))
-                    TextButton(onClick = {
-                        isChecking = true; checkError = ""
-                        scope.launch {
-                            val result = UpdateManager.checkForUpdate(currentVersion)
-                            result.onSuccess { updateInfo = it }
-                            result.onFailure { checkError = strCheckError }
-                            isChecking = false
-                        }
-                    }) { Text(stringResource(R.string.update_retry), color = Accent, fontFamily = FontFamily.Monospace) }
+                    TextButton(onClick = { scope.launch { check() } }) {
+                        Text(stringResource(R.string.update_retry), color = Accent, fontFamily = FontFamily.Monospace)
+                    }
                 }
                 updateInfo?.hasUpdate == true -> {
                     val info = updateInfo!!
                     SettingsRow(label = stringResource(R.string.update_new_version), value = info.latestVersion)
-                    if (info.releaseNotes.isNotBlank()) {
+                    if (tab == 0 && info.releaseNotes.isNotBlank()) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(stringResource(R.string.update_whats_new), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(plainReleaseNotes(info.releaseNotes, context), color = TextMuted, fontSize = 12.sp)
                     }
+                    if (tab == 0 && info.downloadUrl.isNotEmpty()) {
+                        // Прямая ссылка на APK последнего релиза (можно скачать браузером)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(stringResource(R.string.update_apk_link), color = Accent, fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                            modifier = Modifier.clickable {
+                                try {
+                                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(info.downloadUrl)))
+                                } catch (e: Exception) { AppErrors.log("open apk link", e) }
+                            })
+                    }
                     Spacer(modifier = Modifier.height(24.dp))
 
                     if (downloadProgress in 0..99) {
-                        Column {
-                            Text(stringResource(R.string.update_downloading, downloadProgress),
-                                color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LinearProgressIndicator(
-                                progress = { downloadProgress / 100f },
-                                modifier = Modifier.fillMaxWidth(),
-                                color = Accent, trackColor = Surface
-                            )
-                        }
-                    } else if (downloadProgress == 100) {
-                        Text(stringResource(R.string.update_installed), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                        Text(stringResource(R.string.update_downloading, downloadProgress),
+                            color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { downloadProgress / 100f },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Accent, trackColor = Surface
+                        )
                     } else {
                         if (downloadError.isNotEmpty()) {
                             Text(downloadError, color = ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                             Spacer(modifier = Modifier.height(8.dp))
                         }
+                        val ready = apk
+                        if (ready != null) {
+                            // Уже скачано: установщик можно запускать сколько угодно раз
+                            Text(stringResource(R.string.update_ready), color = Accent, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                         Button(
-                            onClick = {
-                                downloadProgress = 0; downloadError = ""
-                                scope.launch {
-                                    UpdateManager.downloadAndInstall(context, info.downloadUrl) { p ->
-                                        downloadProgress = p
-                                    }.onFailure {
-                                        downloadError = strDownloadError
-                                        downloadProgress = -1
-                                    }.onSuccess {
-                                        downloadProgress = 100
-                                    }
-                                }
-                            },
+                            onClick = { if (ready != null) install(ready) else startDownload(info) },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
                         ) {
                             Text(
-                                stringResource(R.string.update_btn, formatBytes(info.sizeBytes, context)),
+                                if (ready != null) stringResource(R.string.update_btn_install)
+                                else stringResource(R.string.update_btn, formatBytes(info.sizeBytes, context)),
                                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp
                             )
                         }
+                        if (ready != null) {
+                            TextButton(onClick = { apk = null; ready.delete(); startDownload(info) },
+                                modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.update_redownload), color = TextMuted,
+                                    fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(stringResource(R.string.update_install_hint), color = TextMuted, fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace)
                     }
                 }
                 else -> {

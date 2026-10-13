@@ -222,10 +222,21 @@
     <string name="update_new_version">Новая версия</string>
     <string name="update_whats_new">// ЧТО НОВОГО</string>
     <string name="update_downloading">Загрузка… %d%%</string>
-    <string name="update_installed">✓ Установщик запущен</string>
     <string name="update_error_download">Ошибка загрузки</string>
     <string name="update_btn">ОБНОВИТЬ → %s</string>
     <string name="update_up_to_date">✓ Установлена актуальная версия</string>
+    <string name="update_tab_manual">ВРУЧНУЮ</string>
+    <string name="update_tab_auto">АВТОМАТИЧЕСКИ</string>
+    <string name="update_auto_switch">Обновлять автоматически</string>
+    <string name="update_auto_desc">При запуске приложение само проверит новую версию и скачает её, затем предложит установить. Без вашего подтверждения Android ничего не устанавливает.</string>
+    <string name="update_apk_link">Скачать APK последней версии в браузере ↗</string>
+    <string name="update_ready">✓ Обновление скачано</string>
+    <string name="update_btn_install">УСТАНОВИТЬ →</string>
+    <string name="update_redownload">Скачать заново</string>
+    <string name="update_install_hint">Если Android попросит — разрешите установку из этого источника и вернитесь: установщик откроется сам. Кнопка «Установить» в окне Android появляется через пару секунд — это защита системы.</string>
+    <string name="update_auto_dialog_title">Обновление %s скачано</string>
+    <string name="update_auto_dialog_text">Установить новую версию сейчас?</string>
+    <string name="update_later">Позже</string>
 
     <!-- Notification -->
     <string name="notification_channel_name">Статус VPN</string>

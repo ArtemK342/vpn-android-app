@@ -222,10 +222,21 @@
     <string name="update_new_version">New version</string>
     <string name="update_whats_new">// WHAT\'S NEW</string>
     <string name="update_downloading">Downloading… %d%%</string>
-    <string name="update_installed">✓ Installer launched</string>
     <string name="update_error_download">Download error</string>
     <string name="update_btn">UPDATE → %s</string>
     <string name="update_up_to_date">✓ Up to date</string>
+    <string name="update_tab_manual">MANUAL</string>
+    <string name="update_tab_auto">AUTOMATIC</string>
+    <string name="update_auto_switch">Update automatically</string>
+    <string name="update_auto_desc">On launch the app checks for a new version, downloads it and then offers to install it. Android never installs anything without your confirmation.</string>
+    <string name="update_apk_link">Download the latest APK in the browser ↗</string>
+    <string name="update_ready">✓ Update downloaded</string>
+    <string name="update_btn_install">INSTALL →</string>
+    <string name="update_redownload">Download again</string>
+    <string name="update_install_hint">If Android asks, allow installs from this source and come back: the installer opens by itself. The Install button in the Android dialog appears after a couple of seconds — that is a system safeguard.</string>
+    <string name="update_auto_dialog_title">Update %s downloaded</string>
+    <string name="update_auto_dialog_text">Install the new version now?</string>
+    <string name="update_later">Later</string>
 
     <!-- Notification -->
     <string name="notification_channel_name">VPN Status</string>

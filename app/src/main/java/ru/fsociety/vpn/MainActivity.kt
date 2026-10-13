@@ -391,20 +391,54 @@ fun App(context: android.content.Context) {
         }
     }
 
-    // Force update dialog — non-dismissible, blocks all UI
-    forceUpdateUrl?.let { url ->
+    // Автообновление (Настройки → Обновление → «Автоматически»): при запуске проверяем GitHub,
+    // скачиваем молча и предлагаем установить. Без подтверждения Android ничего не ставит.
+    var autoUpdateApk by remember { mutableStateOf<Pair<String, java.io.File>?>(null) }
+    val installApk = rememberApkInstaller()
+    LaunchedEffect(Unit) {
+        if (!prefs.getBoolean(PREF_AUTO_UPDATE, false)) return@LaunchedEffect
+        UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME).onSuccess { info ->
+            if (!info.hasUpdate || info.downloadUrl.isEmpty()) return@onSuccess
+            val apk = UpdateManager.downloadedApk(context, info.latestVersion)
+                ?: UpdateManager.download(context, info) { }.getOrElse { e ->
+                    AppErrors.log("auto update download", e); null
+                }
+            if (apk != null) autoUpdateApk = info.latestVersion to apk
+        }.onFailure { e -> AppErrors.log("auto update check", e) }
+    }
+    autoUpdateApk?.let { (version, apk) ->
+        AlertDialog(
+            onDismissRequest = { autoUpdateApk = null },
+            containerColor = Bg2,
+            title = { Text(stringResource(R.string.update_auto_dialog_title, version), color = TextPrimary) },
+            text = { Text(stringResource(R.string.update_auto_dialog_text), color = TextMuted) },
+            confirmButton = {
+                TextButton(onClick = { autoUpdateApk = null; installApk(apk) }) {
+                    Text(stringResource(R.string.update_btn_install), color = Accent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { autoUpdateApk = null }) {
+                    Text(stringResource(R.string.update_later), color = TextMuted)
+                }
+            }
+        )
+    }
+
+    // Force update — блокирует всё; «Обновить» открывает экран обновления в приложении
+    // (скачать/установить), а не сайт. Назад — снова к блокирующему окну.
+    var showForcedUpdateScreen by remember { mutableStateOf(false) }
+    forceUpdateUrl?.let { _ ->
+        if (showForcedUpdateScreen) {
+            UpdateTab(onBack = { showForcedUpdateScreen = false })
+            return
+        }
         AlertDialog(
             onDismissRequest = { /* non-dismissible */ },
             title = { Text(stringResource(R.string.update_required_title), color = TextPrimary) },
             text  = { Text(stringResource(R.string.update_required_message), color = TextMuted) },
             confirmButton = {
-                TextButton(onClick = {
-                    val intent = android.content.Intent(
-                        android.content.Intent.ACTION_VIEW,
-                        android.net.Uri.parse(url)
-                    )
-                    context.startActivity(intent)
-                }) {
+                TextButton(onClick = { showForcedUpdateScreen = true }) {
                     Text(stringResource(R.string.update_required_button), color = Accent)
                 }
             },

@@ -84,50 +84,77 @@ object UpdateManager {
         }
     }
 
-    suspend fun downloadAndInstall(
+    // Скачивание и установка разделены: скачанный APK лежит по версии, поэтому если установщик
+    // отменили (тап мимо, выдача разрешения «неизвестные источники»), «Установить» запускает его
+    // снова без повторного скачивания и без перезапуска приложения.
+
+    private fun apkDir(context: Context) = File(context.cacheDir, "apk").apply { mkdirs() }
+
+    /** Уже скачанный APK этой версии (полный — .part переименовывается только после загрузки). */
+    fun downloadedApk(context: Context, version: String): File? =
+        File(apkDir(context), "fsociety-$version.apk").takeIf { it.exists() && it.length() > 0 }
+
+    suspend fun download(
         context: Context,
-        downloadUrl: String,
+        info: UpdateInfo,
         onProgress: (Int) -> Unit
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
-            val cacheDir = File(context.cacheDir, "apk").apply { mkdirs() }
-            val apkFile = File(cacheDir, "update.apk")
-
-            val client = okhttp3.OkHttpClient()
-            val request = okhttp3.Request.Builder().url(downloadUrl).build()
-            val response = client.newCall(request).execute()
+            val dir = apkDir(context)
+            val target = File(dir, "fsociety-${info.latestVersion}.apk")
+            val part = File(dir, target.name + ".part")
+            val response = okhttp3.OkHttpClient().newCall(
+                okhttp3.Request.Builder().url(info.downloadUrl).build()
+            ).execute()
+            if (!response.isSuccessful) error("HTTP ${response.code}")
             val body = response.body ?: error("Пустой ответ")
-            val total = body.contentLength()
+            val total = body.contentLength().takeIf { it > 0 } ?: info.sizeBytes
             var downloaded = 0L
-
-            apkFile.outputStream().use { out ->
+            part.outputStream().use { out ->
                 body.byteStream().use { input ->
                     val buf = ByteArray(8192)
                     var n: Int
                     while (input.read(buf).also { n = it } != -1) {
                         out.write(buf, 0, n)
                         downloaded += n
-                        if (total > 0) onProgress(((downloaded * 100) / total).toInt())
+                        if (total > 0) onProgress(((downloaded * 100) / total).toInt().coerceAtMost(99))
                     }
                 }
             }
-
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.provider",
-                apkFile
-            )
-            val install = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+            if (info.sizeBytes > 0 && downloaded != info.sizeBytes) {
+                part.delete(); error("Скачано $downloaded из ${info.sizeBytes} байт")
             }
-            context.startActivity(install)
+            // старые версии больше не нужны
+            dir.listFiles()?.filter { it.name.endsWith(".apk") && it != target }?.forEach { it.delete() }
+            if (!part.renameTo(target)) error("Не удалось сохранить файл")
+            onProgress(100)
+            target
         }
+    }
+
+    /** Разрешено ли приложению ставить APK («установка из неизвестных источников»). */
+    fun canInstall(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
+
+    /** Экран системы с переключателем «Разрешить установку» именно для нашего приложения. */
+    fun openInstallPermission(context: Context) {
+        context.startActivity(
+            Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                android.net.Uri.parse("package:${context.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
+
+    fun launchInstaller(context: Context, apk: File) {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", apk)
+        context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+        })
     }
 
     // Сравниваем версии формата "0.0.1"
     private fun isNewerVersion(latest: String, current: String): Boolean {
-        fun parse(v: String) = v.split(".").map { it.toIntOrNull() ?: 0 }
+        fun parse(v: String) = v.substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }  // «0.0.3.6-dev» = 0.0.3.6
         val l = parse(latest)
         val c = parse(current)
         for (i in 0 until maxOf(l.size, c.size)) {
