@@ -938,6 +938,21 @@ fun rememberApkInstaller(): (java.io.File) -> Unit {
 }
 
 const val PREF_AUTO_UPDATE = "auto_update"
+const val PREF_AUTO_UPDATE_NET = "auto_update_network"
+const val AUTO_UPDATE_WIFI = "wifi"   // по умолчанию: не тратить мобильный трафик (~50 МБ)
+const val AUTO_UPDATE_ANY = "any"
+
+/** Есть ли сейчас Wi-Fi (сам Wi-Fi, а не VPN поверх него — VPN Android считает «лимитным»). */
+fun isOnWifi(context: android.content.Context): Boolean {
+    val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return false
+    @Suppress("DEPRECATION")
+    return cm.allNetworks.any { n ->
+        val caps = cm.getNetworkCapabilities(n) ?: return@any false
+        caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) &&
+            !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) &&
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+}
 
 @Composable
 fun UpdateTab(onBack: () -> Unit) {
@@ -947,6 +962,7 @@ fun UpdateTab(onBack: () -> Unit) {
     val currentVersion = BuildConfig.VERSION_NAME
     var tab by remember { mutableStateOf(if (prefs.getBoolean(PREF_AUTO_UPDATE, false)) 1 else 0) }
     var autoUpdate by remember { mutableStateOf(prefs.getBoolean(PREF_AUTO_UPDATE, false)) }
+    var autoUpdateNet by remember { mutableStateOf(prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI) ?: AUTO_UPDATE_WIFI) }
     var updateInfo by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
     var isChecking by remember { mutableStateOf(true) }
     var checkError by remember { mutableStateOf("") }
@@ -1024,6 +1040,30 @@ fun UpdateTab(onBack: () -> Unit) {
                         },
                         colors = SwitchDefaults.colors(checkedThumbColor = BgDark, checkedTrackColor = Accent)
                     )
+                }
+                // Через какую сеть скачивать автоматически (активно только при включённом автообновлении)
+                listOf(
+                    AUTO_UPDATE_WIFI to R.string.update_net_wifi,
+                    AUTO_UPDATE_ANY to R.string.update_net_any,
+                ).forEach { (value, res) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable(enabled = autoUpdate) {
+                                autoUpdateNet = value
+                                prefs.edit().putString(PREF_AUTO_UPDATE_NET, value).apply()
+                            }
+                    ) {
+                        RadioButton(
+                            selected = autoUpdateNet == value, enabled = autoUpdate,
+                            onClick = {
+                                autoUpdateNet = value
+                                prefs.edit().putString(PREF_AUTO_UPDATE_NET, value).apply()
+                            },
+                            colors = RadioButtonDefaults.colors(selectedColor = Accent, unselectedColor = TextMuted)
+                        )
+                        Text(stringResource(res), color = if (autoUpdate) TextPrimary else TextMuted, fontSize = 13.sp)
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(stringResource(R.string.update_auto_desc), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)

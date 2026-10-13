@@ -228,6 +228,8 @@
     <string name="update_tab_manual">MANUAL</string>
     <string name="update_tab_auto">AUTOMATIC</string>
     <string name="update_auto_switch">Update automatically</string>
+    <string name="update_net_wifi">Wi-Fi only</string>
+    <string name="update_net_any">Wi-Fi and mobile data</string>
     <string name="update_auto_desc">On launch the app checks for a new version, downloads it and then offers to install it. Android never installs anything without your confirmation.</string>
     <string name="update_apk_link">Download the latest APK in the browser ↗</string>
     <string name="update_ready">✓ Update downloaded</string>

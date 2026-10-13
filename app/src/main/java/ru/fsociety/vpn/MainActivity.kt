@@ -397,6 +397,9 @@ fun App(context: android.content.Context) {
     val installApk = rememberApkInstaller()
     LaunchedEffect(Unit) {
         if (!prefs.getBoolean(PREF_AUTO_UPDATE, false)) return@LaunchedEffect
+        // «Только через Wi-Fi» (по умолчанию): на мобильном интернете не проверяем и не качаем
+        val net = prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI)
+        if (net != AUTO_UPDATE_ANY && !isOnWifi(context)) return@LaunchedEffect
         UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME).onSuccess { info ->
             if (!info.hasUpdate || info.downloadUrl.isEmpty()) return@onSuccess
             val apk = UpdateManager.downloadedApk(context, info.latestVersion)
