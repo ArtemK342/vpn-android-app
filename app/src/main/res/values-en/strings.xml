@@ -204,7 +204,8 @@
     <string name="killswitch_description">If the VPN connection unexpectedly drops — all internet is blocked until reconnection. Protects against real IP leaks.</string>
     <string name="killswitch_switch_enabled">Enabled</string>
     <string name="killswitch_switch_disabled">Disabled</string>
-    <string name="killswitch_note">// When VPN drops, the app will disconnect the tunnel and show a notification.</string>
+    <string name="killswitch_note">// If the connection drops, internet is blocked until the app reconnects or you tap “Unblock” in the notification.
+// For protection even when Android closes the app, enable “Always-on VPN” and “Block connections without VPN” in Android settings.</string>
 
     <!-- Background Mode tab -->
     <string name="background_title">Background Mode.</string>
@@ -300,4 +301,13 @@
     <string name="proto_speed_up">Upload (MB/s)</string>
     <string name="proto_speed_hint">Measure your speed without VPN and set it slightly lower. 1 MB/s = 8 Mbps. Too high → packet loss and stalls.</string>
     <string name="proto_apply_note">Changes apply on the next Hysteria2 connection (reconnect).</string>
+    <!-- Kill Switch (KillSwitch.kt) -->
+    <string name="ks_notif_title">Kill Switch: internet blocked</string>
+    <string name="ks_notif_text">VPN dropped — traffic is blocked until reconnection</string>
+    <string name="ks_unblock">UNBLOCK</string>
+    <string name="ks_android_settings">Android VPN settings →</string>
+    <string name="reconnect_failed_killswitch">Failed to reconnect. Internet is blocked by Kill Switch — connect again or tap “Unblock” in the notification.</string>
+    <!-- RF mode -->
+    <string name="home_proto_bypass">RF bypass · no server</string>
+    <string name="home_status_bypass">● RF</string>
 </resources>

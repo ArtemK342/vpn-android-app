@@ -770,6 +770,13 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(stringResource(R.string.killswitch_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Spacer(modifier = Modifier.height(8.dp))
+            // Системная защита: «Постоянная VPN» + «Блокировать соединения без VPN»
+            val ctx = LocalContext.current
+            TextButton(onClick = {
+                try { ctx.startActivity(Intent(AndroidSettings.ACTION_VPN_SETTINGS)) }
+                catch (e: Exception) { AppErrors.log("open vpn settings", e) }
+            }) { Text(stringResource(R.string.ks_android_settings), color = Accent, fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
         }
     }
 }

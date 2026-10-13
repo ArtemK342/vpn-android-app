@@ -16,15 +16,20 @@ import java.io.File
  */
 object BypassManager {
     private const val TAG = "BypassManager"
-    const val SOCKS_PORT = 10808
 
-    // Встроенная стратегия (проверена 2026-10-14: YouTube работает): дробление TLS-записи + OOB-байт,
-    // который сбивает ТСПУ, а сервер отбрасывает. TTL-фейки ломают видео (кэши Google внутри сети
-    // провайдера) и DoH, --md5sig ядро Android не поддерживает. Подбор других — через админку.
-    private val STRATEGY = listOf(
-        "--tlsrec", "3", "--split", "1", "--oob", "3", "--disorder", "5",
-        "--udp-fake", "6",  // без позиций «+s»: SNI часто дальше первых 1500 байт (Kyber ClientHello)
-    )
+    // Встроенная стратегия (проверена 2026-10-14 у юзера: YouTube и Discord работают). Подбор — в админке.
+    // • Discord (Cloudflare 162.159.128.0/18): фейк с малым TTL — серверы далеко, фейк до них не долетает,
+    //   а ТСПУ обманывает. Группы перебираются по обрывам (-A t,s), рабочий TTL запоминается по IP.
+    // • Остальное (YouTube): дробление TLS-записи + OOB-байт. TTL-фейки тут ломают видео (кэши Google
+    //   внутри провайдера) и DoH; --md5sig ядро Android не поддерживает; позиции «+s» не годятся —
+    //   SNI часто дальше первых 1500 байт (Kyber ClientHello).
+    private val STRATEGY = (
+        "-j :162.159.128.0/18 --fake -1 --ttl 4 --disorder 1 --udp-fake 6 " +
+        "-A t,s -j :162.159.128.0/18 --fake -1 --ttl 6 --disorder 1 " +
+        "-A t,s -j :162.159.128.0/18 --fake -1 --ttl 8 --disorder 1 " +
+        "-A t,s -j :162.159.128.0/18 --fake -1 --ttl 12 --disorder 1 " +
+        "-A n --tlsrec 3 --split 1 --oob 3 --disorder 5 --udp-fake 6"
+    ).split(" ")
 
     // Списки из zapret-discord-youtube (lists/list-general.txt, list-google.txt)
     private val YOUTUBE = listOf(
@@ -48,6 +53,8 @@ object BypassManager {
     )
 
     private var process: Process? = null
+    private var runningCmd: List<String>? = null
+    private var restarts = 0
 
     /** Стратегия из админки (/app-config → access.bypass_strategy), если она безопасна, иначе встроенная. */
     private fun strategyArgs(remote: String?): List<String> {
@@ -57,57 +64,88 @@ object BypassManager {
         return s.split(Regex("\\s+"))
     }
 
-    /** Запустить byedpi; false — бинарника нет или он сразу упал. [remoteStrategy] — из админки;
-     *  если с ней byedpi не стартует (опечатка в параметрах), откатываемся на встроенную. */
+    /** Свободный порт на 127.0.0.1 (раньше фиксированный 10808 — его же занимают v2rayNG и др.). */
+    private fun freePort(): Int? = try {
+        java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1")).use { it.localPort }
+    } catch (_: Exception) { null }
+
+    /**
+     * Запустить byedpi; возвращает порт локального SOCKS5 или null (бинарника нет / сразу упал).
+     * [remoteStrategy] — из админки; если с ней byedpi не стартует (опечатка), берём встроенную.
+     */
     @Synchronized
-    fun start(context: Context, remoteStrategy: String? = null): Boolean {
-        if (startWith(context, remoteStrategy)) return true
-        if (remoteStrategy.isNullOrBlank()) return false
+    fun start(context: Context, remoteStrategy: String? = null): Int? {
+        val port = freePort() ?: return null
+        restarts = 0
+        if (startWith(context, remoteStrategy, port)) return port
+        if (remoteStrategy.isNullOrBlank()) return null
         Log.w(TAG, "remote strategy rejected, falling back to the built-in one")
-        return startWith(context, null)
+        return if (startWith(context, null, port)) port else null
     }
 
-    private fun startWith(context: Context, remoteStrategy: String?): Boolean {
+    private fun startWith(context: Context, remoteStrategy: String?, port: Int): Boolean {
         stop()
         val bin = File(context.applicationInfo.nativeLibraryDir, "libciadpi.so")
         if (!bin.exists()) {
             Log.w(TAG, "libciadpi.so not found in ${bin.parent}")
             return false
         }
-        return try {
-            val args = strategyArgs(remoteStrategy)
-            Log.i(TAG, "strategy: ${args.joinToString(" ")}")
-            val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", SOCKS_PORT.toString()) + args
-            val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
-            // Вывод byedpi — в logcat (иначе буфер заполнится и процесс встанет)
-            Thread {
-                try { p.inputStream.bufferedReader().forEachLine { Log.i(TAG, it) } } catch (_: Exception) {}
-            }.apply { isDaemon = true }.start()
-            Thread.sleep(300)
-            if (!p.isAlive) {
-                Log.w(TAG, "byedpi exited with ${p.exitValue()}")
-                false
-            } else {
-                process = p
-                true
-            }
-        } catch (e: Exception) {
-            AppErrors.log("byedpi start", e)
+        val args = strategyArgs(remoteStrategy)
+        Log.i(TAG, "strategy: ${args.joinToString(" ")}")
+        val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", port.toString()) + args
+        return launch(cmd)
+    }
+
+    private fun launch(cmd: List<String>): Boolean = try {
+        val p = ProcessBuilder(cmd).redirectErrorStream(true).start()
+        // Вывод byedpi — в logcat (иначе буфер заполнится и процесс встанет)
+        Thread {
+            try { p.inputStream.bufferedReader().forEachLine { Log.i(TAG, it) } } catch (_: Exception) {}
+        }.apply { isDaemon = true }.start()
+        Thread.sleep(300)
+        if (!p.isAlive) {
+            Log.w(TAG, "byedpi exited with ${p.exitValue()}")
             false
+        } else {
+            process = p
+            runningCmd = cmd
+            watch(p)
+            true
         }
+    } catch (e: Exception) {
+        AppErrors.log("byedpi start", e)
+        false
+    }
+
+    /** byedpi упал во время работы — перезапускаем на том же порту (до 3 раз), иначе обход молча не работал. */
+    private fun watch(p: Process) {
+        Thread {
+            val code = try { p.waitFor() } catch (_: InterruptedException) { return@Thread }
+            synchronized(this) {
+                if (process !== p) return@Thread       // остановлен намеренно / заменён
+                process = null
+                val cmd = runningCmd ?: return@Thread
+                if (restarts++ < 3) {
+                    Log.w(TAG, "byedpi exited unexpectedly ($code), restart $restarts/3")
+                    launch(cmd)
+                } else Log.e(TAG, "byedpi keeps exiting ($code), giving up")
+            }
+        }.apply { isDaemon = true }.start()
     }
 
     @Synchronized
     fun stop() {
-        process?.let { p ->
-            p.destroy()
-            try { if (!p.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)) p.destroyForcibly() } catch (_: Exception) {}
-        }
+        val p = process
         process = null
+        runningCmd = null
+        p?.let {
+            it.destroy()
+            try { if (!it.waitFor(1, java.util.concurrent.TimeUnit.SECONDS)) it.destroyForcibly() } catch (_: Exception) {}
+        }
     }
 
-    /** Конфиг sing-box для режима обхода (тот же формат, что у серверных конфигов). */
-    fun buildConfig(): String {
+    /** Конфиг sing-box для режима обхода (тот же формат, что у серверных конфигов). [port] — byedpi. */
+    fun buildConfig(port: Int): String {
         val all = JSONArray(YOUTUBE + DISCORD)
         val config = JSONObject()
             .put("log", JSONObject().put("level", "warn"))
@@ -123,7 +161,7 @@ object BypassManager {
                 .put("stack", "system")))
             .put("outbounds", JSONArray()
                 .put(JSONObject().put("type", "socks").put("tag", "bypass")
-                    .put("server", "127.0.0.1").put("server_port", SOCKS_PORT).put("version", "5"))
+                    .put("server", "127.0.0.1").put("server_port", port).put("version", "5"))
                 .put(JSONObject().put("type", "direct").put("tag", "direct"))
                 .put(JSONObject().put("type", "block").put("tag", "block")))
             .put("route", JSONObject()

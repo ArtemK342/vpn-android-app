@@ -204,7 +204,8 @@
     <string name="killswitch_description">Если VPN-соединение неожиданно обрывается — весь интернет блокируется до повторного подключения. Защищает от утечки реального IP.</string>
     <string name="killswitch_switch_enabled">Включён</string>
     <string name="killswitch_switch_disabled">Выключен</string>
-    <string name="killswitch_note">// При обрыве VPN приложение отключит туннель и покажет уведомление.</string>
+    <string name="killswitch_note">// Если подключение оборвётся, интернет будет заблокирован, пока приложение не переподключится или вы не нажмёте «Разблокировать» в уведомлении.
+// Чтобы защита работала и когда приложение закрыто системой — включите в настройках Android «Постоянная VPN» и «Блокировать соединения без VPN».</string>
 
     <!-- Background Mode tab -->
     <string name="background_title">Фоновый режим.</string>
@@ -301,4 +302,13 @@
     <string name="proto_speed_up">Отдача (МБ/с)</string>
     <string name="proto_speed_hint">Измерьте скорость без VPN (Speedtest) и поставьте чуть ниже реальной. 1 МБ/с = 8 Мбит/с. Слишком высокое значение → потери и рывки.</string>
     <string name="proto_apply_note">Изменения применятся при следующем подключении к Hysteria2 (переподключитесь).</string>
+    <!-- Kill Switch (KillSwitch.kt) -->
+    <string name="ks_notif_title">Kill Switch: интернет заблокирован</string>
+    <string name="ks_notif_text">VPN оборвался — трафик заблокирован до переподключения</string>
+    <string name="ks_unblock">РАЗБЛОКИРОВАТЬ</string>
+    <string name="ks_android_settings">Настройки VPN Android →</string>
+    <string name="reconnect_failed_killswitch">Не удалось переподключиться. Интернет заблокирован Kill Switch — подключитесь снова или нажмите «Разблокировать» в уведомлении.</string>
+    <!-- «Режим РФ» -->
+    <string name="home_proto_bypass">Обход РФ · без сервера</string>
+    <string name="home_status_bypass">● РФ</string>
 </resources>

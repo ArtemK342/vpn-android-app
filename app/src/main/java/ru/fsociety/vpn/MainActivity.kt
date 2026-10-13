@@ -4,7 +4,6 @@ import kotlinx.coroutines.launch
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -16,10 +15,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -27,37 +24,19 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.fsociety.vpn.ui.theme.*
 
-// Модель сервера
-data class Server(
-    val name: String,
-    val country: String,
-    val flag: String,
-    val isActive: Boolean
-)
-
-object AutoConnectRequest {
-    val trigger = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        VpnNotificationHelper.init(this)
         if (intent?.getBooleanExtra(VpnNotificationHelper.EXTRA_AUTO_CONNECT, false) == true) {
-            AutoConnectRequest.trigger.tryEmit(Unit)
+            HomeUiState.autoConnectRequested.value = true
         }
         enableEdgeToEdge()
         setContent {
@@ -70,18 +49,11 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra(VpnNotificationHelper.EXTRA_AUTO_CONNECT, false)) {
-            AutoConnectRequest.trigger.tryEmit(Unit)
+            HomeUiState.autoConnectRequested.value = true
         }
     }
 
-    override fun attachBaseContext(newBase: Context) {
-        val prefs = newBase.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
-        val lang = prefs.getString("language", "ru") ?: "ru"
-        val locale = java.util.Locale(lang)
-        val config = android.content.res.Configuration(newBase.resources.configuration)
-        config.setLocale(locale)
-        super.attachBaseContext(newBase.createConfigurationContext(config))
-    }
+    override fun attachBaseContext(newBase: Context) = super.attachBaseContext(localized(newBase))
 }
 
 /**
@@ -105,26 +77,7 @@ suspend fun <T> withRetry(attempts: Int = 3, block: suspend () -> T): T {
     throw last ?: IllegalStateException("withRetry: no attempts")
 }
 
-/**
- * Версия заблокирована (426 / ниже android_min_version) или выход из аккаунта:
- * рвём любой активный туннель и чистим кэш WG-конфигов, чтобы нельзя было
- * ни держать соединение, ни переподключаться к AmneziaWG в обход API.
- */
-suspend fun disconnectForBlockedVersion(context: Context) {
-    ConfigCache.clearAll(context)
-    try {
-        when {
-            OpenVpnService.isRunning     -> OpenVpnService.stop(context)
-            SingboxManager.isConnected() -> XrayVpnService.stop(context)
-            VpnManager.isConnected()     -> VpnManager.disconnect()
-        }
-        VpnEvents.disconnectRequested.tryEmit(Unit)
-    } catch (e: Exception) {
-        android.util.Log.w("UpdateRequired", "disconnect failed: ${e.message}")
-    }
-}
-
-// ── VPN Events (для отключения из уведомления) ──
+// ── VPN Events (службы и ресиверы → ConnectionManager) ──
 
 object VpnEvents {
     val disconnectRequested = MutableSharedFlow<Unit>(
@@ -140,7 +93,7 @@ object VpnEvents {
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    var isConnecting: Boolean = false
+    @Volatile var isConnecting: Boolean = false
 }
 
 class VpnDisconnectReceiver : BroadcastReceiver() {
@@ -167,7 +120,7 @@ class VpnConnectReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != VpnNotificationHelper.ACTION_CONNECT) return
 
-        // Если разрешение ещё не выдано — открываем приложение
+        // Если разрешение ещё не выдано — открываем приложение (оно само подключится)
         val vpnIntent = VpnService.prepare(context)
         if (vpnIntent != null) {
             val openApp = Intent(context, MainActivity::class.java).apply {
@@ -178,8 +131,7 @@ class VpnConnectReceiver : BroadcastReceiver() {
             return
         }
 
-        val prefs = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
-        if (prefs.getString("token", "").isNullOrEmpty()) {
+        if (TokenStore.access.value.isEmpty()) {
             // Вышли из аккаунта — подключаться нечем, открываем экран входа
             context.startActivity(Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -188,17 +140,14 @@ class VpnConnectReceiver : BroadcastReceiver() {
         }
 
         // Тексты — на языке приложения, а не системы
-        val lang = prefs.getString("language", "ru") ?: "ru"
-        val config = android.content.res.Configuration(context.resources.configuration)
-            .apply { setLocale(java.util.Locale(lang)) }
-        val ctx = context.createConfigurationContext(config)
+        val ctx = localized(context)
 
         // Разрешение есть — подключаем без открытия приложения
         val pending = goAsync()
         VpnEvents.isConnecting = true
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                connectInBackground(context, ctx, prefs)
+                connectInBackground(context, ctx)
             } catch (e: Exception) {
                 AppErrors.log("notification connect", e)
                 toast(context, AppErrors.text(ctx, e))
@@ -209,22 +158,11 @@ class VpnConnectReceiver : BroadcastReceiver() {
         }
     }
 
-    /** [ctx] — контекст с языком приложения для текстов. */
-    private suspend fun connectInBackground(context: Context, ctx: Context, prefs: android.content.SharedPreferences) {
-        var token = prefs.getString("token", "") ?: ""
-        // Access-токен живёт сутки: если приложение давно не открывали — обновляем по refresh
-        val servers = try {
-            ApiClient.service.getServers("Bearer $token")
-        } catch (e: retrofit2.HttpException) {
-            if (e.code() != 401) throw e
-            val refresh = prefs.getString("refresh_token", "").orEmpty()
-            if (refresh.isEmpty()) throw e
-            val r = ApiClient.service.refresh(RefreshRequest(refresh))
-            prefs.edit().putString("token", r.access_token)
-                .putString("refresh_token", r.refresh_token.ifEmpty { refresh }).apply()
-            token = r.access_token
-            ApiClient.service.getServers("Bearer $token")
-        }
+    /** [ctx] — контекст с языком приложения для текстов. Токен при 401 обновляется сам (ApiClient). */
+    private suspend fun connectInBackground(context: Context, ctx: Context) {
+        val bearer = "Bearer ${TokenStore.access.value}"
+        val lang = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru"
+        val servers = ApiClient.service.getServers(bearer)
         // Фоновое автоподключение умеет только WireGuard (getVpnConfig); пингуем только кандидатов
         val candidates = servers.filter { it.server_type == "wireguard" && it.canConnect && it.allow_auto_connect }
         val best = autoSelectServer(candidates, measureAllPings(candidates), wireguardOnly = true)
@@ -233,9 +171,8 @@ class VpnConnectReceiver : BroadcastReceiver() {
             return
         }
         // Как в приложении: сначала «Настройки → Доступ» (кэш обходит API), сеть недоступна — не мешаем
-        val lang = prefs.getString("language", "ru") ?: "ru"
         val access = try {
-            ApiClient.service.checkAccess("Bearer $token", best.server_type)
+            ApiClient.service.checkAccess(bearer, best.server_type)
         } catch (e: java.io.IOException) {
             AppErrors.log("notification access pre-check (fail-open)", e)
             null
@@ -248,32 +185,32 @@ class VpnConnectReceiver : BroadcastReceiver() {
         // на сервере это 3–6 SSH-команд (секунды), а при лимите подключений он ещё и снимал
         // ключ, которым пользуется приложение.
         val cached = ConfigCache.get(context, best.id)
-        val config = cached ?: fetchWgConfig(context, ctx, token, best) ?: return
+        val config = cached ?: fetchWgConfig(context, ctx, best) ?: return
         if (!VpnManager.connect(context, config)) {
             toast(context, ctx.getString(R.string.home_error_connect))
             return
         }
-        VpnManager.connectedServerName = best.name
         VpnEvents.connectSucceeded.tryEmit(best)
         VpnEvents.isConnecting = false  // проверка ниже идёт уже на подключённом туннеле
         if (cached != null) {
             // Ключ мог быть снят (лимит, «Разорвать подключения»): трафик уходит, ответа нет →
-            // берём свежий конфиг (тот же критерий, что у watchdog в приложении)
+            // берём свежий конфиг (тот же критерий, что у сторожа в приложении)
             kotlinx.coroutines.delay(8_000)
             val (rx, tx) = VpnManager.getTrafficStats()
             if (VpnManager.isConnected() && tx > 0L && rx == 0L) {
                 AppErrors.log("notification connect", IllegalStateException("stale cached config"))
                 ConfigCache.clear(context, best.id)
                 VpnManager.disconnect()
-                val fresh = fetchWgConfig(context, ctx, token, best) ?: return
-                if (!VpnManager.connect(context, fresh)) toast(context, ctx.getString(R.string.home_error_connect))
+                val fresh = fetchWgConfig(context, ctx, best) ?: return
+                if (VpnManager.connect(context, fresh)) VpnEvents.connectSucceeded.tryEmit(best)
+                else toast(context, ctx.getString(R.string.home_error_connect))
             }
         }
     }
 
     /** Новый WG-конфиг с сервера (и в кэш); null + тост, если сервер отказал. */
-    private suspend fun fetchWgConfig(context: Context, ctx: Context, token: String, server: ServerResponse): String? {
-        val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
+    private suspend fun fetchWgConfig(context: Context, ctx: Context, server: ServerResponse): String? {
+        val response = ApiClient.service.getVpnConfig("Bearer ${TokenStore.access.value}", server.id)
         val config = response.config
         if (config == null) {
             toast(context, response.message ?: ctx.getString(R.string.home_error_connect))
@@ -300,35 +237,12 @@ object VpnNotificationHelper {
     fun init(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, context.getString(R.string.notification_channel_name),
+                CHANNEL_ID, localized(context).getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply { setShowBadge(false) }
             context.getSystemService(NotificationManager::class.java)
                 .createNotificationChannel(channel)
         }
-    }
-
-    fun show(context: Context, serverName: String, rx: Long, tx: Long) {
-        val disconnectIntent = PendingIntent.getBroadcast(
-            context, 0,
-            Intent(context, VpnDisconnectReceiver::class.java).apply { action = ACTION_DISCONNECT },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_secure)
-            .setContentTitle(context.getString(R.string.notification_title_connected))
-            .setContentText("$serverName · ↓ ${formatBytes(context, rx)} ↑ ${formatBytes(context, tx)}")
-            .setOngoing(true)
-            .setSilent(true)
-            .addAction(0, context.getString(R.string.notification_disconnect), disconnectIntent)
-            .build()
-        context.getSystemService(NotificationManager::class.java)
-            .notify(NOTIFICATION_ID, notification)
-    }
-
-    fun cancel(context: Context) {
-        context.getSystemService(NotificationManager::class.java)
-            .cancel(NOTIFICATION_ID)
     }
 
     fun formatBytes(context: Context, bytes: Long): String = when {
@@ -343,10 +257,23 @@ object VpnNotificationHelper {
 @Composable
 fun App(context: android.content.Context) {
     val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
-    var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
+    // Токен — из общего хранилища: обновляется сам (ApiClient на 401) и одинаков для всего процесса
+    val token by TokenStore.access.collectAsState()
     var showRegister by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var forceUpdateUrl by remember { mutableStateOf<String?>(null) }
+
+    // Выход: токены, профиль, выбор сервера и туннель старого аккаунта не переносим на следующий
+    // (иначе следующий аккаунт подключился бы чужим ключом WireGuard в обход API)
+    val logout: () -> Unit = {
+        TokenStore.clear()
+        ProfileCache.clear(context)
+        HomeUiState.reset()
+        scope.launch { ConnectionManager.resetForLogout() }
+    }
+
+    // Сервер отклонил refresh (сессия кончилась / аккаунт заблокирован) — на экран входа
+    LaunchedEffect(Unit) { TokenStore.sessionExpired.collect { logout() } }
 
     // Любой ответ 426 от API (не только проверка при старте) → блокирующий диалог
     // + разрыв активного туннеля (диалог перекрывает кнопку отключения).
@@ -354,45 +281,30 @@ fun App(context: android.content.Context) {
         ApiClient.updateRequired.collect { url ->
             if (url != null) {
                 forceUpdateUrl = url
-                disconnectForBlockedVersion(context)
+                ConnectionManager.resetForLogout()
             }
         }
     }
 
     // On startup: check minimum required version + silent token refresh
     LaunchedEffect(Unit) {
-        // Force update check
         try {
             val cfg = ApiClient.service.getAppConfig()
             ApiClient.maintenance.value = cfg.access?.maintenance
             if (BuildConfig.VERSION_CODE < cfg.android_min_version) {
                 // через updateRequired — тот же путь, что и для 426 (диалог + отключение VPN)
-                ApiClient.updateRequired.value = cfg.update_url
+                ApiClient.updateRequired.value = cfg.update_url.ifEmpty { "https://fsociety-vpn.org/download" }
             }
         } catch (e: Exception) { AppErrors.log("app-config", e) }
 
-        // Silent token refresh
-        if (token.isEmpty()) {
-            val savedRefresh = prefs.getString("refresh_token", null)
-            if (!savedRefresh.isNullOrEmpty()) {
-                try {
-                    val result = ApiClient.service.refresh(RefreshRequest(savedRefresh))
-                    if (result.access_token.isNotEmpty()) {
-                        prefs.edit()
-                            .putString("token", result.access_token)
-                            .putString("refresh_token", result.refresh_token.ifEmpty { savedRefresh })
-                            .apply()
-                        token = result.access_token
-                    }
-                } catch (_: Exception) {
-                    prefs.edit().remove("refresh_token").apply()
-                }
-            }
+        // Есть refresh, но нет access-токена (старые версии) — тихо получаем новый
+        if (token.isEmpty() && TokenStore.refresh.isNotEmpty()) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TokenStore.refreshBlocking("") }
         }
     }
 
-    // Автообновление (Настройки → Обновление → «Автоматически»): при запуске проверяем GitHub,
-    // скачиваем молча и предлагаем установить. Без подтверждения Android ничего не ставит.
+    // Автообновление (Настройки → Обновление → «Автоматически»): при запуске проверяем GitHub
+    // (не чаще раза в 6 ч), скачиваем молча и предлагаем установить.
     var autoUpdateApk by remember { mutableStateOf<Pair<String, java.io.File>?>(null) }
     val installApk = rememberApkInstaller()
     LaunchedEffect(Unit) {
@@ -401,6 +313,13 @@ fun App(context: android.content.Context) {
         // «Только через Wi-Fi» (по умолчанию): на мобильном интернете не проверяем и не качаем
         val net = prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI)
         if (net != AUTO_UPDATE_ANY && !isOnWifi(context)) return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong("auto_update_checked_at", 0L) < 6 * 3600_000L) {
+            // недавно проверяли — только предложить уже скачанное
+            UpdateManager.newestDownloadedApk(context)?.let { autoUpdateApk = it }
+            return@LaunchedEffect
+        }
+        prefs.edit().putLong("auto_update_checked_at", now).apply()
         UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME).onSuccess { info ->
             if (!info.hasUpdate || info.downloadUrl.isEmpty()) return@onSuccess
             val apk = UpdateManager.downloadedApk(context, info.latestVersion)
@@ -456,34 +375,12 @@ fun App(context: android.content.Context) {
     }
 
     when {
-        token.isNotEmpty() -> AppNavigation(
-            token = token,
-            onLogout = {
-                prefs.edit().remove("token").remove("refresh_token").apply()
-                ProfileCache.clear(context)  // профиль старого аккаунта не показывать следующему
-                HomeUiState.reset()
-                token = ""
-                // Туннель и кэш WG-конфигов принадлежат старому аккаунту: иначе следующий
-                // аккаунт подключится чужим ключом в обход API (лимиты, учёт, блокировки)
-                scope.launch { disconnectForBlockedVersion(context) }
-            },
-            onSessionExpired = { newToken, newRefresh ->
-                prefs.edit()
-                    .putString("token", newToken)
-                    .putString("refresh_token", newRefresh)
-                    .apply()
-                token = newToken
-            }
-        )
+        token.isNotEmpty() -> AppNavigation(token = token, onLogout = logout)
         showRegister -> RegisterScreen(onBack = { showRegister = false })
         else -> LoginScreen(
             onLogin = { accessToken, refreshToken ->
                 ConfigCache.clearAll(context)  // на случай старого кэша от другого аккаунта
-                prefs.edit()
-                    .putString("token", accessToken)
-                    .putString("refresh_token", refreshToken)
-                    .apply()
-                token = accessToken
+                TokenStore.save(accessToken, refreshToken)
             },
             onRegister = { showRegister = true }
         )
@@ -492,7 +389,7 @@ fun App(context: android.content.Context) {
 
 
 @Composable
-fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String, String) -> Unit = { _, _ -> }) {
+fun AppNavigation(token: String, onLogout: () -> Unit) {
     var selectedTab by remember { mutableStateOf(0) }
 
     var servers by remember { mutableStateOf<List<ServerResponse>>(emptyList()) }
@@ -505,8 +402,9 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     var isLoadingSettings by remember { mutableStateOf(user == null) }
     var isRefreshingPings by remember { mutableStateOf(false) }
     var usage by remember { mutableStateOf<UsageResponse?>(null) }
-    var isConnected by remember { mutableStateOf(false) }
-    var connectedServer by remember { mutableStateOf<ServerResponse?>(null) }
+    // Подключение — общее на процесс (ConnectionManager): переживает смену языка/поворот экрана
+    val connectedServer by ConnectionManager.connectedServer
+    val isConnected = connectedServer != null
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
@@ -516,20 +414,30 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
     var language by remember { mutableStateOf(prefs.getString("language", "ru") ?: "ru") }
     var splitSettings by remember { mutableStateOf(SplitTunnelingManager.load(prefs)) }
 
-    LaunchedEffect(killSwitch) { VpnManager.killSwitchEnabled = killSwitch }
     LaunchedEffect(splitSettings) { VpnManager.splitSettings = splitSettings }
 
+    // Разрешение на уведомления (Android 13+) — один раз, а не при каждом запуске
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val notifPermLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) { }
         LaunchedEffect(Unit) {
-            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            if (!prefs.getBoolean("notif_permission_asked", false)) {
+                prefs.edit().putBoolean("notif_permission_asked", true).apply()
+                notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
 
-    // Список серверов и аккаунт обновляются и при подключённом VPN (раньше
-    // refresh ничего не делал, пока isConnected) — не пингуем только серверы.
+    /** Токен не принят и обновить не вышло (ApiClient сам пробует refresh) / аккаунт заблокирован. */
+    fun handleAuthError(e: Exception) {
+        val code = (e as? retrofit2.HttpException)?.code()
+        if (code == 401 || code == 403) onLogout()
+        // Прочее (таймаут / 5xx / сеть) — НЕ разлогиниваем и НЕ обнуляем уже загруженные данные
+    }
+
+    // Список серверов, плашка техработ, аккаунт и остаток трафика обновляются и при подключённом
+    // VPN (раз в минуту и по свайпу) — не пингуем только серверы.
     val refreshPings: () -> Unit = {
         if (!isRefreshingPings) {
             isRefreshingPings = true
@@ -540,18 +448,19 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     } catch (e: Exception) {
                         android.util.Log.w("AppNavigation", "refresh servers failed: ${e.message}")
                     }
-                    // Плашка техработ обновляется вместе со списком (раз в минуту и по свайпу)
                     try {
                         ApiClient.maintenance.value = ApiClient.service.getAppConfig().access?.maintenance
                     } catch (e: Exception) { AppErrors.log("refresh maintenance", e) }
-                    if (user == null) {
-                        try {
+                    try {
+                        if (user == null) {
                             user = ApiClient.service.getMe("Bearer $token")
                             subscription = ApiClient.service.getSubscription("Bearer $token")
                             ProfileCache.save(appContext, user, subscription)
-                        } catch (e: Exception) {
-                            android.util.Log.w("AppNavigation", "refresh account failed: ${e.message}")
                         }
+                        // Остаток трафика: раньше загружался один раз за запуск
+                        usage = ApiClient.service.getUsage("Bearer $token")
+                    } catch (e: Exception) {
+                        android.util.Log.w("AppNavigation", "refresh account failed: ${e.message}")
                     }
                     if (!isConnected) serverPings = measureAllPings(servers)
                 } finally {
@@ -566,37 +475,15 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
             try {
                 val result = withRetry { ApiClient.service.getServers("Bearer $token") }
                 servers = result
-                // Синхронизируем состояние VPN при открытии приложения —
-                // на случай если подключение произошло из уведомления в фоне
-                if (VpnManager.isConnected() && VpnManager.connectedServerName.isNotEmpty()) {
-                    val connected = result.firstOrNull {
-                        it.name == VpnManager.connectedServerName || it.name_en == VpnManager.connectedServerName
-                    }
-                    if (connected != null) {
-                        isConnected = true
-                        connectedServer = connected
-                    }
+                // Туннель поднят, а состояние пустое (подключение из шторки до запуска процесса UI) —
+                // показываем последний сервер из списка по сохранённому имени
+                if (ConnectionManager.connectedServer.value == null && ConnectionManager.anyTunnelUp()) {
+                    result.firstOrNull { it.displayName(language) == VpnManager.connectedServerName }
+                        ?.let { ConnectionManager.connectedServer.value = it }
                 }
                 scope.launch { serverPings = measureAllPings(result) }
             } catch (e: Exception) {
-                val code = (e as? retrofit2.HttpException)?.code()
-                if (code == 401) {
-                    val savedRefresh = prefs.getString("refresh_token", null)
-                    if (!savedRefresh.isNullOrEmpty()) {
-                        try {
-                            val r = ApiClient.service.refresh(RefreshRequest(savedRefresh))
-                            if (r.access_token.isNotEmpty()) onSessionExpired(r.access_token, r.refresh_token)
-                            return@launch
-                        } catch (e: Exception) { AppErrors.log("token refresh", e) }
-                    }
-                    onLogout()
-                } else if (code == 403) {
-                    // Аккаунт заблокирован / доступ запрещён — выходим в логин,
-                    // а не зависаем с пустыми почтой/ролью.
-                    onLogout()
-                }
-                // Прочее (таймаут / 5xx / сеть) — НЕ разлогиниваем и НЕ обнуляем
-                // уже загруженные данные; перезагрузятся при следующем открытии/refresh.
+                handleAuthError(e)
             } finally { isLoadingServers = false }
         }
         scope.launch {
@@ -606,24 +493,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                 ProfileCache.save(appContext, user, subscription)
                 try { usage = ApiClient.service.getUsage("Bearer $token") } catch (e: Exception) { AppErrors.log("load usage", e) }
             } catch (e: Exception) {
-                val code = (e as? retrofit2.HttpException)?.code()
-                if (code == 401) {
-                    val savedRefresh = prefs.getString("refresh_token", null)
-                    if (!savedRefresh.isNullOrEmpty()) {
-                        try {
-                            val r = ApiClient.service.refresh(RefreshRequest(savedRefresh))
-                            if (r.access_token.isNotEmpty()) onSessionExpired(r.access_token, r.refresh_token)
-                            return@launch
-                        } catch (e: Exception) { AppErrors.log("token refresh", e) }
-                    }
-                    onLogout()
-                } else if (code == 403) {
-                    // Аккаунт заблокирован / доступ запрещён — выходим в логин,
-                    // а не зависаем с пустыми почтой/ролью.
-                    onLogout()
-                }
-                // Прочее (таймаут / 5xx / сеть) — НЕ разлогиниваем и НЕ обнуляем
-                // уже загруженные данные; перезагрузятся при следующем открытии/refresh.
+                handleAuthError(e)
             } finally { isLoadingSettings = false }
         }
     }
@@ -636,27 +506,9 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
         }
     }
 
-    // Авто-подключение когда приложение открылось из уведомления без VPN-разрешения
-    LaunchedEffect(Unit) {
-        AutoConnectRequest.trigger.collect {
-            if (!isConnected && servers.isNotEmpty()) {
-                val best = autoSelectServer(servers, serverPings)
-                if (best != null) {
-                    selectedTab = 0  // переключаемся на главный экран
-                    // HomeScreen подхватит выбранный сервер и подключится
-                    // через существующий механизм авто-выбора
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        VpnManager.tunnelDropped.collect {
-            isConnected = false
-            connectedServer = null
-            if (!backgroundMode) VpnForegroundService.stop(context)
-        }
-    }
+    // Открыли из уведомления «Подключить» без разрешения VPN — главный экран подключится сам
+    val autoConnectRequested by HomeUiState.autoConnectRequested
+    LaunchedEffect(autoConnectRequested) { if (autoConnectRequested) selectedTab = 0 }
 
     Scaffold(
         containerColor = BgDark,
@@ -695,7 +547,6 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
         Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
                 0 -> HomeScreen(
-                    token = token,
                     servers = servers,
                     serverPings = serverPings,
                     isLoadingServers = isLoadingServers,
@@ -703,30 +554,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     connectedServer = connectedServer,
                     isRefreshingPings = isRefreshingPings,
                     usage = usage,
-                    autoReconnect = autoReconnect,
-                    onRefreshPings = refreshPings,
-                    onConnected = { server ->
-                        isConnected = true
-                        connectedServer = server
-                        VpnManager.connectedServerName = server.displayName(language)
-                        if (!server.usesSingbox && !server.usesOpenVpn) {
-                            // WireGuard: notification is owned by VpnForegroundService.
-                            VpnForegroundService.start(context)
-                        } else {
-                            // sing-box / OpenVPN run their own foreground notification with
-                            // live traffic. Stop VpnForegroundService so background mode does
-                            // not keep a second (empty) notification competing with it.
-                            VpnForegroundService.stop(context)
-                        }
-                    },
-                    onDisconnected = {
-                        isConnected = false
-                        connectedServer = null
-                        // After a protocol tunnel ends, resume the idle persistent
-                        // notification if background mode is on; otherwise remove it.
-                        if (backgroundMode) VpnForegroundService.start(context)
-                        else VpnForegroundService.stop(context)
-                    }
+                    onRefreshPings = refreshPings
                 )
                 1 -> RulesScreen(
                     settings = splitSettings,
@@ -751,6 +579,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     onKillSwitchChange = { enabled ->
                         killSwitch = enabled
                         prefs.edit().putBoolean("kill_switch", enabled).apply()
+                        if (!enabled) KillSwitch.release(context)  // выключили — снять блокировку
                     },
                     autoReconnect = autoReconnect,
                     onAutoReconnectChange = { enabled ->
@@ -761,6 +590,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit, onSessionExpired: (String
                     onLanguageChange = { lang ->
                         language = lang
                         prefs.edit().putString("language", lang).apply()
+                        VpnNotificationHelper.init(context)   // название канала уведомлений — на новом языке
                         (context as? android.app.Activity)?.recreate()
                     }
                 )

@@ -15,6 +15,7 @@
 
 
     <application
+        android:name=".FsocietyApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -51,6 +52,22 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <!-- Kill Switch: блокирующий VPN-интерфейс при обрыве туннеля (KillSwitch.kt) -->
+        <service
+            android:name=".KillSwitchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="VPN kill switch" />
+        </service>
+        <receiver
+            android:name=".KillSwitchReleaseReceiver"
+            android:exported="false" />
         <!-- Результат ночной тихой установки обновления (AutoUpdate.kt) -->
         <receiver
             android:name=".InstallResultReceiver"

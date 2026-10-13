@@ -94,6 +94,15 @@ object UpdateManager {
     fun downloadedApk(context: Context, version: String): File? =
         File(apkDir(context), "fsociety-$version.apk").takeIf { it.exists() && it.length() > 0 }
 
+    /** Скачанный ранее APK версии новее установленной (версия, файл) — предложить установить. */
+    fun newestDownloadedApk(context: Context): Pair<String, File>? =
+        apkDir(context).listFiles()
+            ?.mapNotNull { f ->
+                Regex("fsociety-(.+)\\.apk").matchEntire(f.name)?.groupValues?.get(1)?.let { it to f }
+            }
+            ?.filter { (v, f) -> f.length() > 0 && isNewerVersion(v, BuildConfig.VERSION_NAME) }
+            ?.maxWithOrNull { a, b -> if (isNewerVersion(a.first, b.first)) 1 else if (isNewerVersion(b.first, a.first)) -1 else 0 }
+
     suspend fun download(
         context: Context,
         info: UpdateInfo,
@@ -103,21 +112,22 @@ object UpdateManager {
             val dir = apkDir(context)
             val target = File(dir, "fsociety-${info.latestVersion}.apk")
             val part = File(dir, target.name + ".part")
-            val response = okhttp3.OkHttpClient().newCall(
-                okhttp3.Request.Builder().url(info.downloadUrl).build()
-            ).execute()
-            if (!response.isSuccessful) error("HTTP ${response.code}")
-            val body = response.body ?: error("Пустой ответ")
-            val total = body.contentLength().takeIf { it > 0 } ?: info.sizeBytes
             var downloaded = 0L
-            part.outputStream().use { out ->
-                body.byteStream().use { input ->
-                    val buf = ByteArray(8192)
-                    var n: Int
-                    while (input.read(buf).also { n = it } != -1) {
-                        out.write(buf, 0, n)
-                        downloaded += n
-                        if (total > 0) onProgress(((downloaded * 100) / total).toInt().coerceAtMost(99))
+            okhttp3.OkHttpClient().newCall(
+                okhttp3.Request.Builder().url(info.downloadUrl).build()
+            ).execute().use { response ->
+                if (!response.isSuccessful) error("HTTP ${response.code}")
+                val body = response.body ?: error("Пустой ответ")
+                val total = body.contentLength().takeIf { it > 0 } ?: info.sizeBytes
+                part.outputStream().use { out ->
+                    body.byteStream().use { input ->
+                        val buf = ByteArray(8192)
+                        var n: Int
+                        while (input.read(buf).also { n = it } != -1) {
+                            out.write(buf, 0, n)
+                            downloaded += n
+                            if (total > 0) onProgress(((downloaded * 100) / total).toInt().coerceAtMost(99))
+                        }
                     }
                 }
             }

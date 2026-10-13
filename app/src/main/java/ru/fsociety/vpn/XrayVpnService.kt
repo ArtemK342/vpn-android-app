@@ -12,6 +12,7 @@ import io.nekohasekai.libbox.TunOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.SupervisorJob
@@ -85,7 +86,7 @@ class XrayVpnService : VpnService() {
                     // Отменён более новым запуском или STOP — итог публикует не этот job
                     if (!isActive) return@launch
                     SingboxManager.startResult.value = ok
-                    if (!ok) { pfd?.close(); pfd = null; stopSelf(); return@launch }
+                    if (!ok) { pfd?.close(); pfd = null; stopSelf(startId); return@launch }
 
                     val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                     while (SingboxManager.isConnected()) {
@@ -98,7 +99,7 @@ class XrayVpnService : VpnService() {
                     }
                     // Loop exited because sing-box dropped — notify for auto-reconnect
                     if (!intentionalStop) VpnEvents.vpnDropped.tryEmit(Unit)
-                    stopSelf()
+                    stopSelf(startId)
                 }
             }
             ACTION_STOP -> {
@@ -109,7 +110,8 @@ class XrayVpnService : VpnService() {
                     job?.cancelAndJoin()
                     SingboxManager.disconnect()
                     pfd?.close(); pfd = null
-                    stopSelf()
+                    // только если после STOP не пришёл новый START (переключение протокола)
+                    stopSelf(startId)
                 }
             }
         }
@@ -188,8 +190,15 @@ class XrayVpnService : VpnService() {
             .build()
     }
 
+    // Другое VPN-приложение забрало VPN: это не обрыв — без переподключения и Kill Switch
+    override fun onRevoke() {
+        intentionalStop = true
+        super.onRevoke()
+    }
+
     override fun onDestroy() {
-        scope.launch { SingboxManager.disconnect() }
+        scope.cancel()   // цикл уведомлений больше не нужен
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { SingboxManager.disconnect() }
         BypassManager.stop()  // режим РФ: вместе с туннелем гасим локальный byedpi
         pfd?.close()
         super.onDestroy()

@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.fsociety.vpn.ui.theme.*
 
@@ -70,24 +69,29 @@ suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int =
     }
 
 /**
- * Состояние подключения главного экрана живёт дольше самого экрана: вкладки переключаются через
- * `when (selectedTab)`, и HomeScreen при переходе в настройки уничтожается. Раньше вместе с ним
- * отменялось идущее подключение (rememberCoroutineScope) — теперь процесс доходит до конца.
+ * Выбор сервера на главном экране живёт дольше самого экрана (вкладки переключаются через
+ * `when (selectedTab)`, и HomeScreen при переходе в настройки уничтожается). Само подключение и
+ * его состояние — в [ConnectionManager].
  */
 object HomeUiState {
-    val isConnecting = mutableStateOf(false)
-    val statusMsg = mutableStateOf("")
     val selectedServer = mutableStateOf<ServerResponse?>(null)
     val userPickedServer = mutableStateOf(false)
-    val scope = kotlinx.coroutines.CoroutineScope(
-        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate
-    )
+    /** Приложение открыли из уведомления «Подключить» (не было разрешения VPN) — подключиться. */
+    val autoConnectRequested = mutableStateOf(false)
 
-    /** Выход из аккаунта: выбор сервера и статусы прошлого аккаунта не переносим. */
+    /** Выход из аккаунта: выбор сервера прошлого аккаунта не переносим. */
     fun reset() {
-        isConnecting.value = false; statusMsg.value = ""
-        selectedServer.value = null; userPickedServer.value = false
+        selectedServer.value = null; userPickedServer.value = false; autoConnectRequested.value = false
     }
+}
+
+/** Избранные серверы — по id (раньше по имени: 5 немецких серверов с одним именем шли разом) и в памяти. */
+private object Favorites {
+    private const val KEY = "favorite_servers"
+    fun load(context: Context): Set<String> =
+        context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getStringSet(KEY, emptySet())?.toSet() ?: emptySet()
+    fun save(context: Context, ids: Set<String>) =
+        context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).edit().putStringSet(KEY, ids).apply()
 }
 
 /**
@@ -116,7 +120,6 @@ suspend fun measureAllPings(servers: List<ServerResponse>): Map<String, Int> =
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    token: String,
     servers: List<ServerResponse>,
     serverPings: Map<String, Int>,
     isLoadingServers: Boolean,
@@ -124,293 +127,65 @@ fun HomeScreen(
     connectedServer: ServerResponse?,
     isRefreshingPings: Boolean,
     usage: UsageResponse? = null,
-    autoReconnect: Boolean = true,
-    onRefreshPings: () -> Unit,
-    onConnected: (ServerResponse) -> Unit,
-    onDisconnected: () -> Unit
+    onRefreshPings: () -> Unit
 ) {
-    // Состояние подключения — в HomeUiState (переживает переход на другую вкладку)
     var selectedServer by HomeUiState.selectedServer
     // Пока пользователь сам не выбрал сервер, автовыбор пересчитывается по мере прихода пингов
     var userPickedServer by HomeUiState.userPickedServer
-    var serverListTab by remember { mutableStateOf(0) }
-    var favoriteServers by remember { mutableStateOf(setOf<String>()) }
-    var showFavoriteDialog by remember { mutableStateOf<String?>(null) }
-    var isConnecting by HomeUiState.isConnecting
-    var statusMsg by HomeUiState.statusMsg
-    var pendingConfig by remember { mutableStateOf<String?>(null) }
-    var pendingServer by remember { mutableStateOf<ServerResponse?>(null) }
-    var pendingServerType by remember { mutableStateOf("wireguard") }
-    val scope = HomeUiState.scope  // не rememberCoroutineScope: подключение не отменяется при смене вкладки
+    var autoConnectRequested by HomeUiState.autoConnectRequested
+    val isConnecting by ConnectionManager.isConnecting
+    val statusMsg by ConnectionManager.statusMsg
+    val pending by ConnectionManager.pending
     val context = LocalContext.current
+    var serverListTab by remember { mutableStateOf(0) }
+    var favoriteServers by remember { mutableStateOf(Favorites.load(context)) }
+    var showFavoriteDialog by remember { mutableStateOf<ServerResponse?>(null) }
     val lang = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
         .getString("language", "ru") ?: "ru"
+    val strMs = stringResource(R.string.unit_ms)
 
-    val strConnecting   = stringResource(R.string.home_connecting)
-    val strGettingConfig = stringResource(R.string.home_getting_config)
-    val strDisconnecting = stringResource(R.string.home_disconnecting)
-    val strErrorConnect = stringResource(R.string.home_error_connect)
-    val strVpnDenied    = stringResource(R.string.home_vpn_denied)
-    val strTimeout      = stringResource(R.string.home_error_timeout)
-    val strServerUnreachable = stringResource(R.string.home_error_server_unreachable)
-    val strMs           = stringResource(R.string.unit_ms)
-
-    // Break circular deps: connectToServer ↔ watchdogReconnect ↔ vpnPermissionLauncher
-    var launchVpnIntent: ((android.content.Intent) -> Unit)? = null
-    var watchdogReconnectRef: (suspend (ServerResponse) -> Unit)? = null
-
-    // sing-box (VLESS/Hysteria2/Trojan): «подключено» только после того, как
-    // XrayVpnService проверил, что трафик реально идёт через сервер.
-    suspend fun startSingbox(config: String, server: ServerResponse) {
-        statusMsg = strConnecting
-        SingboxManager.startResult.value = null
-        XrayVpnService.start(context, config, server.displayName(lang))
-        val ok = kotlinx.coroutines.withTimeoutOrNull(60_000) {
-            SingboxManager.startResult.first { it != null }
-        }
-        if (ok == true) {
-            onConnected(server)
-            statusMsg = ""
-        } else {
-            if (ok == null) XrayVpnService.stop(context)
-            statusMsg = strServerUnreachable
-        }
-        isConnecting = false
+    fun connect(server: ServerResponse) {
+        ConnectionManager.scope.launch { ConnectionManager.connect(server) }
     }
 
-    suspend fun connectToServer(server: ServerResponse) {
-        isConnecting = true
-        statusMsg = strGettingConfig
-        try {
-            // Настройки → Доступ (техработы / протокол / тип аккаунта): спрашиваем до
-            // подключения — так блокируется и WireGuard из кэша конфигов. Если API
-            // недоступен (сеть, блокировки), не мешаем: решит сервер при выдаче конфига.
-            val access = try {
-                ApiClient.service.checkAccess("Bearer $token", server.server_type)
-            } catch (e: java.io.IOException) {
-                AppErrors.log("access pre-check (fail-open)", e)
-                null
-            }
-            if (access != null && !access.allowed) {
-                statusMsg = access.text(lang) ?: strErrorConnect
-                isConnecting = false
-                return
-            }
-            if (server.server_type == "bypass") {
-                // «Режим РФ»: конфиг локальный, сервер не нужен — запускаем byedpi и sing-box
-                val started = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    // Стратегия подбирается в админке без релиза; нет связи — встроенная
-                    val remote = try {
-                        ApiClient.service.getAppConfig().access?.bypass_strategy
-                    } catch (e: Exception) { AppErrors.log("bypass strategy", e); null }
-                    BypassManager.start(context, remote)
-                }
-                if (!started) {
-                    statusMsg = strErrorConnect
-                    isConnecting = false
-                    return
-                }
-                val config = BypassManager.buildConfig()
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    pendingConfig = config
-                    pendingServer = server
-                    pendingServerType = "bypass"
-                    launchVpnIntent?.invoke(intent)
-                } else {
-                    startSingbox(config, server)
-                }
-            } else if (server.server_type == "vless") {
-                val response = ApiClient.service.getVlessConfig("Bearer $token", server.id)
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    pendingConfig = response.config
-                    pendingServer = server
-                    pendingServerType = "vless"
-                    launchVpnIntent?.invoke(intent)
-                } else {
-                    startSingbox(response.config, server)
-                }
-            } else if (server.server_type == "hysteria") {
-                val response = ApiClient.service.getHysteriaConfig("Bearer $token", server.id)
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    pendingConfig = response.config
-                    pendingServer = server
-                    pendingServerType = "hysteria"
-                    launchVpnIntent?.invoke(intent)
-                } else {
-                    startSingbox(response.config, server)
-                }
-            } else if (server.server_type == "trojan") {
-                val response = ApiClient.service.getTrojanConfig("Bearer $token", server.id)
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    pendingConfig = response.config
-                    pendingServer = server
-                    pendingServerType = "trojan"
-                    launchVpnIntent?.invoke(intent)
-                } else {
-                    startSingbox(response.config, server)
-                }
-            } else if (server.server_type == "openvpn_cloak") {
-                var bodyBytes: ByteArray? = null
-                var lastEx: Exception? = null
-                for (attempt in 1..3) {
-                    try {
-                        if (attempt > 1) kotlinx.coroutines.delay(1500)
-                        val raw = ApiClient.bundleService.getOpenVpnCloakBundle("Bearer $token", server.id)
-                        bodyBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            raw.body()?.use { it.bytes() }
-                        }
-                        if (bodyBytes != null) break
-                    } catch (e: Exception) {
-                        lastEx = e
-                    }
-                }
-                if (bodyBytes == null) throw lastEx ?: Exception("Empty response from openvpn-cloak-bundle")
-                val parsed = org.json.JSONObject(String(bodyBytes, Charsets.UTF_8))
-                val ovpnConfig  = parsed.getString("ovpn_config").reversed()
-                val cloakConfig = parsed.getString("cloak_config")
-                val host        = parsed.getString("host")
-                val bundle = org.json.JSONObject().apply {
-                    put("hostName", host)
-                    put("openvpn_config_data", org.json.JSONObject().put("config", ovpnConfig))
-                    put("cloak_config", cloakConfig)
-                }.toString()
-                val intent = VpnService.prepare(context)
-                if (intent != null) {
-                    pendingConfig = bundle
-                    pendingServer = server
-                    pendingServerType = "openvpn_cloak"
-                    statusMsg = strConnecting
-                    launchVpnIntent?.invoke(intent)
-                } else {
-                    statusMsg = strConnecting
-                    OpenVpnService.start(context, bundle, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
-                    isConnecting = false
-                }
-            } else {
-                val cachedConfig = ConfigCache.get(context, server.id)
-                val wgConfig: String? = if (cachedConfig != null) {
-                    cachedConfig
-                } else {
-                    val response = ApiClient.service.getVpnConfig("Bearer $token", server.id)
-                    if (response.config != null) {
-                        ConfigCache.save(context, server.id, response.config)
-                        response.config
-                    } else {
-                        statusMsg = response.message ?: context.getString(R.string.home_error_connect)
-                        isConnecting = false
-                        null
-                    }
-                }
-                if (wgConfig != null) {
-                    val intent = VpnService.prepare(context)
-                    if (intent != null) {
-                        pendingConfig = wgConfig
-                        pendingServer = server
-                        pendingServerType = "wireguard"
-                        launchVpnIntent?.invoke(intent)
-                    } else {
-                        statusMsg = strConnecting
-                        val success = VpnManager.connect(context, wgConfig)
-                        if (success) {
-                            onConnected(server); statusMsg = ""
-                            scope.launch { watchdogReconnectRef?.invoke(server) }
-                        } else statusMsg = strErrorConnect
-                        isConnecting = false
-                    }
-                }
-            }
-        } catch (e: java.net.SocketTimeoutException) {
-            statusMsg = strTimeout
-            isConnecting = false
-        } catch (e: retrofit2.HttpException) {
-            // 403 бывает по разным причинам: сервер только по подписке / лимит исчерпан
-            val detail = AppErrors.readBody(e) ?: ""
-            AppErrors.log("connect ${server.server_type} HTTP ${e.code()}", e)
-            statusMsg = when {
-                e.code() == 403 && (detail.contains("подписк", true) || detail.contains("subscri", true)) ->
-                    context.getString(R.string.home_error_subscription_only)
-                e.code() == 403 && AppErrors.serverMessage(context, detail) == null ->
-                    context.getString(R.string.home_limit_reached)
-                // 503 «Настройки → Доступ» (сообщение сервера), 5xx, 401 и т.п. — фиксированные тексты
-                else -> AppErrors.httpText(context, e.code(), detail)
-            }
-            isConnecting = false
-        } catch (e: Exception) {
-            AppErrors.log("connect ${server.server_type}", e)
-            statusMsg = AppErrors.text(context, e)
-            isConnecting = false
-        }
-    }
-
-    suspend fun watchdogReconnect(server: ServerResponse) {
-        delay(20_000)
-        if (!VpnManager.isConnected()) return
-        val (rx, tx) = VpnManager.getTrafficStats()
-        if (tx > 0L && rx == 0L) {
-            ConfigCache.clear(context, server.id)
-            VpnManager.disconnect()
-            onDisconnected()
-            delay(500)
-            connectToServer(server)
-        }
-    }
-    watchdogReconnectRef = ::watchdogReconnect
-
+    // Системное окно «Разрешить VPN»: конфиг ждёт в ConnectionManager.pending (переживает
+    // пересоздание экрана — раньше после поворота кнопка зависала в «подключении»)
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val config = pendingConfig ?: return@rememberLauncherForActivityResult
-            val server = pendingServer ?: return@rememberLauncherForActivityResult
-            val serverType = pendingServerType
-            pendingConfig = null
-            pendingServer = null
-            scope.launch {
-                statusMsg = strConnecting
-                if (serverType == "vless" || serverType == "hysteria" || serverType == "trojan" || serverType == "bypass") {
-                    startSingbox(config, server)
-                } else if (serverType == "openvpn_cloak") {
-                    OpenVpnService.start(context, config, server.displayName(lang))
-                    onConnected(server)
-                    statusMsg = ""
-                } else {
-                    val success = VpnManager.connect(context, config)
-                    if (success) {
-                        onConnected(server); statusMsg = ""
-                        scope.launch { watchdogReconnect(server) }
-                    } else statusMsg = strErrorConnect
-                }
-                isConnecting = false
-            }
+        ConnectionManager.permissionRequested = false
+        ConnectionManager.onPermissionResult(result.resultCode == Activity.RESULT_OK)
+    }
+    LaunchedEffect(pending) {
+        if (pending == null || ConnectionManager.permissionRequested) return@LaunchedEffect
+        val intent = VpnService.prepare(context)
+        if (intent == null) {
+            ConnectionManager.onPermissionResult(true)
         } else {
-            statusMsg = strVpnDenied
-            BypassManager.stop()  // режим РФ: byedpi уже запущен, VPN не разрешили
-            isConnecting = false
+            ConnectionManager.permissionRequested = true
+            vpnPermissionLauncher.launch(intent)
         }
     }
-    launchVpnIntent = { vpnPermissionLauncher.launch(it) }
 
-    // Выбранный сервер в актуальном виде: список обновляется раз в минуту, и сервер
-    // мог стать недоступным (техработы, подписка) — тогда кнопка «Подключить» гаснет.
     // Сервер для кнопки «Подключить»: выбранный вручную; если не выбирали (подключались из шторки или
-    // автоподключением) — тот, к которому были подключены, иначе автовыбор. Раньше после отключения
-    // такого подключения выбора не было, и кнопка оставалась серой.
+    // автоподключением) — тот, к которому были подключены, иначе автовыбор. Берётся из свежего списка:
+    // сервер мог стать недоступным (техработы, подписка) — тогда кнопка гаснет.
     val selectedFresh = (selectedServer ?: connectedServer ?: autoSelectServer(servers, serverPings))
         ?.let { s -> servers.find { it.id == s.id } ?: s }
 
     LaunchedEffect(servers, serverPings) {
-        // Раньше выбор делался один раз — до прихода пингов (все 999) → всегда первый
-        // сервер в списке. Теперь пересчитывается, когда пинги готовы, пока
-        // пользователь не выбрал сервер вручную.
+        // Пока пользователь не выбрал сервер вручную, выбор пересчитывается по мере прихода пингов
         if (!userPickedServer && servers.isNotEmpty() && !isConnected) {
             autoSelectServer(servers, serverPings)?.let { selectedServer = it }
         }
+    }
+
+    // Открыли из уведомления «Подключить» (не было разрешения VPN) — подключаемся, когда есть список
+    LaunchedEffect(autoConnectRequested, servers) {
+        if (!autoConnectRequested || servers.isEmpty()) return@LaunchedEffect
+        autoConnectRequested = false
+        if (isConnected || isConnecting) return@LaunchedEffect
+        selectedFresh?.takeIf { it.canConnect }?.let { connect(it) }
     }
 
     LaunchedEffect(Unit) {
@@ -420,55 +195,15 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        VpnEvents.disconnectRequested.collect {
-            onDisconnected()
-            statusMsg = ""
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        VpnEvents.connectSucceeded.collect { server ->
-            onConnected(server)
-        }
-    }
-
-    // Auto-reconnect: when VPN drops unexpectedly, retry up to 3 times
-    val strReconnecting = stringResource(R.string.reconnecting)
-    val strReconnectFailed = stringResource(R.string.reconnect_failed)
-    LaunchedEffect(Unit) {
-        VpnEvents.vpnDropped.collect {
-            val serverToReconnect = connectedServer ?: run { onDisconnected(); return@collect }
-            if (!autoReconnect) { onDisconnected(); return@collect }
-            onDisconnected()
-            var reconnected = false
-            for (attempt in 1..3) {
-                statusMsg = "$strReconnecting ($attempt/3)…"
-                delay(attempt * 2000L) // 2s, 4s, 6s
-                try {
-                    connectToServer(serverToReconnect)
-                    reconnected = true
-                    break
-                } catch (e: Exception) {
-                    AppErrors.log("auto-reconnect attempt $attempt", e)
-                }
-            }
-            if (!reconnected) {
-                statusMsg = strReconnectFailed
-                isConnecting = false
-            }
-        }
-    }
-
     val displayedServers = if (serverListTab == 0) servers
-    else servers.filter { favoriteServers.contains(it.name) }
+    else servers.filter { favoriteServers.contains(it.id) }
 
-    showFavoriteDialog?.let { serverName ->
-        val isFav = favoriteServers.contains(serverName)
+    showFavoriteDialog?.let { server ->
+        val isFav = favoriteServers.contains(server.id)
         AlertDialog(
             onDismissRequest = { showFavoriteDialog = null },
             containerColor = Bg2,
-            title = { Text(serverName, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
+            title = { Text(server.displayName(lang), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
                     stringResource(if (isFav) R.string.home_remove_favorite else R.string.home_add_favorite),
@@ -477,7 +212,8 @@ fun HomeScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    favoriteServers = if (isFav) favoriteServers - serverName else favoriteServers + serverName
+                    favoriteServers = if (isFav) favoriteServers - server.id else favoriteServers + server.id
+                    Favorites.save(context, favoriteServers)
                     showFavoriteDialog = null
                 }) {
                     Text(
@@ -525,7 +261,7 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
                 }
-                if (usage != null && usage.is_limited) {
+                if (usage != null && usage.is_limited && usage.limit_bytes > 0) {
                     val used = usage.bytes_used
                     val limit = usage.limit_bytes
                     val remaining = (limit - used).coerceAtLeast(0L)
@@ -550,9 +286,12 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(bannerColor)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(stringResource(R.string.home_free_speed), color = TextMuted,
-                        fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    // Ограничение скорости бесплатных есть только на AmneziaWG
+                    if (connectedServer?.server_type == "wireguard") {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(stringResource(R.string.home_free_speed), color = TextMuted,
+                            fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    }
                 }
             }
         }
@@ -644,7 +383,7 @@ fun HomeScreen(
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(displayedServers) { server ->
+                    items(displayedServers, key = { it.id }) { server ->
                         val ping = serverPings[server.id]
                         val isThisConnected = connectedServer?.id == server.id && isConnected
                         Row(
@@ -654,36 +393,15 @@ fun HomeScreen(
                                 .combinedClickable(
                                     enabled = server.canConnect,
                                     onClick = {
-                                        if (!isConnecting) {
+                                        // Уже подключены к этому серверу — ничего не делаем (раньше переподключал);
+                                        // к другому — ConnectionManager сам отключит текущий туннель
+                                        if (!isConnecting && !isThisConnected) {
                                             selectedServer = server
                                             userPickedServer = true
-                                            if (!isConnected) {
-                                                scope.launch { connectToServer(server) }
-                                            } else {
-                                                scope.launch {
-                                                    isConnecting = true
-                                                    statusMsg = strDisconnecting
-                                                    ConfigCache.clear(context, server.id)
-                                                    if (OpenVpnService.isRunning) {
-                                                        OpenVpnService.stop(context)
-                                                        var waited = 0
-                                                        while (OpenVpnService.isRunning && waited < 5000) {
-                                                            delay(200); waited += 200
-                                                        }
-                                                        onDisconnected()
-                                                    } else if (SingboxManager.isConnected()) {
-                                                        XrayVpnService.stop(context)
-                                                        onDisconnected()
-                                                    } else {
-                                                        VpnManager.disconnect()
-                                                        onDisconnected()
-                                                    }
-                                                    connectToServer(server)
-                                                }
-                                            }
+                                            connect(server)
                                         }
                                     },
-                                    onLongClick = { showFavoriteDialog = server.name }
+                                    onLongClick = { showFavoriteDialog = server }
                                 )
                                 .background(if (isThisConnected || selectedServer?.id == server.id) Surface else BgDark)
                                 .padding(horizontal = 24.dp, vertical = 16.dp),
@@ -711,12 +429,12 @@ fun HomeScreen(
                                         "hysteria"      -> "Hysteria2"
                                         "trojan"        -> "Trojan"
                                         "openvpn_cloak" -> "OpenVPN+Cloak"
-                                        "bypass"        -> "Обход РФ · без сервера"
+                                        "bypass"        -> stringResource(R.string.home_proto_bypass)
                                         else            -> "AmneziaWG"
                                     },
                                     color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace
                                 )
-                                if (favoriteServers.contains(server.name)) {
+                                if (favoriteServers.contains(server.id)) {
                                     Text(stringResource(R.string.home_favorite_label),
                                         color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                                 }
@@ -733,43 +451,44 @@ fun HomeScreen(
                                 }
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = when {
-                                    isThisConnected      -> stringResource(R.string.home_status_connected)
-                                    server.isUnavailable -> stringResource(R.string.home_status_soon)
-                                    !server.connectable  -> when (server.status) {
-                                        "testing"     -> stringResource(R.string.home_status_test)
-                                        "maintenance" -> stringResource(R.string.home_status_maintenance)
-                                        else          -> stringResource(R.string.home_status_soon)
-                                    }
-                                    server.access_block != null -> stringResource(
-                                        if (server.access_block.code == "maintenance") R.string.home_status_maintenance
-                                        else R.string.home_status_blocked)
-                                    server.subscription_required -> stringResource(R.string.home_status_subscription)
-                                    server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
-                                    server.server_type == "bypass" -> "● РФ"  // без сервера — пинговать нечего
-                                    ping == null         -> "● ..."
-                                    ping >= 999          -> "● —"
-                                    else                 -> "● $ping$strMs"
-                                },
-                                color = when {
-                                    isThisConnected      -> Accent
-                                    server.isUnavailable -> TextMuted
-                                    !server.canConnect   -> TextMuted
-                                    server.hasWarning    -> Color(0xFFF59E0B)
-                                    ping == null || ping >= 999 -> TextMuted
-                                    ping < 100  -> Accent
-                                    ping < 200  -> Color(0xFFFFAA00)
-                                    else        -> ErrorRed
-                                },
-                                fontSize = 10.sp, fontFamily = FontFamily.Monospace
-                            )
-                            // Сервис без логов; если на доступном сервере их временно включили — видно сразу
-                            if (server.logs_enabled && (server.canConnect || isThisConnected)) {
-                                Text(stringResource(R.string.home_logs_on), color = ErrorRed,
-                                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace)
-                            }
+                                Text(
+                                    text = when {
+                                        isThisConnected      -> stringResource(R.string.home_status_connected)
+                                        server.isUnavailable -> stringResource(R.string.home_status_soon)
+                                        !server.connectable  -> when (server.status) {
+                                            "testing"     -> stringResource(R.string.home_status_test)
+                                            "maintenance" -> stringResource(R.string.home_status_maintenance)
+                                            else          -> stringResource(R.string.home_status_soon)
+                                        }
+                                        server.access_block != null -> stringResource(
+                                            if (server.access_block.code == "maintenance") R.string.home_status_maintenance
+                                            else R.string.home_status_blocked)
+                                        server.subscription_required -> stringResource(R.string.home_status_subscription)
+                                        server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
+                                        // без сервера — пинговать нечего
+                                        server.server_type == "bypass" -> stringResource(R.string.home_status_bypass)
+                                        ping == null         -> "● ..."
+                                        ping >= 999          -> "● —"
+                                        else                 -> "● $ping$strMs"
+                                    },
+                                    color = when {
+                                        isThisConnected      -> Accent
+                                        server.isUnavailable -> TextMuted
+                                        !server.canConnect   -> TextMuted
+                                        server.hasWarning    -> Color(0xFFF59E0B)
+                                        ping == null || ping >= 999 -> TextMuted
+                                        ping < 100  -> Accent
+                                        ping < 200  -> Color(0xFFFFAA00)
+                                        else        -> ErrorRed
+                                    },
+                                    fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                                )
+                                // Сервис без логов; если на доступном сервере их временно включили — видно сразу
+                                if (server.logs_enabled && (server.canConnect || isThisConnected)) {
+                                    Text(stringResource(R.string.home_logs_on), color = ErrorRed,
+                                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace)
+                                }
                             }
                         }
                         HorizontalDivider(color = Border, thickness = 1.dp)
@@ -781,34 +500,10 @@ fun HomeScreen(
         HorizontalDivider(color = Border, thickness = 1.dp)
         Button(
             onClick = {
-                scope.launch {
-                    if (isConnected) {
-                        isConnecting = true
-                        statusMsg = strDisconnecting
-                        if (OpenVpnService.isRunning) {
-                            OpenVpnService.stop(context)
-                            var waited = 0
-                            while (OpenVpnService.isRunning && waited < 8000) {
-                                delay(100); waited += 100
-                            }
-                            onDisconnected()
-                            statusMsg = ""
-                            isConnecting = false
-                        } else if (SingboxManager.isConnected()) {
-                            XrayVpnService.stop(context)
-                            onDisconnected()
-                            statusMsg = ""
-                            isConnecting = false
-                        } else {
-                            VpnManager.disconnect()
-                            onDisconnected()
-                            statusMsg = ""
-                            isConnecting = false
-                        }
-                    } else {
-                        val server = selectedFresh?.takeIf { it.canConnect } ?: return@launch
-                        connectToServer(server)
-                    }
+                if (isConnected) {
+                    ConnectionManager.scope.launch { ConnectionManager.disconnect() }
+                } else {
+                    selectedFresh?.takeIf { it.canConnect }?.let { connect(it) }
                 }
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),

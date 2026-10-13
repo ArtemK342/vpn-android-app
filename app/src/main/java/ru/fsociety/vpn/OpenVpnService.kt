@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.amnezia.vpn.protocol.ProtocolState
 import org.json.JSONObject
@@ -40,6 +42,9 @@ class OpenVpnService : VpnService() {
         @Volatile
         var isRunning: Boolean = false
             private set
+
+        /** Итог запуска: null — идёт, true — OpenVPN сообщил CONNECTED, false — не поднялся. */
+        val startResult = MutableStateFlow<Boolean?>(null)
 
         fun start(context: Context, configJson: String, serverName: String) {
             val intent = Intent(context, OpenVpnService::class.java).apply {
@@ -72,24 +77,40 @@ class OpenVpnService : VpnService() {
                     buildNotification(connectedServerName)
                 )
 
+                startResult.value = null
                 scope.launch {
                     try {
                         val ovpn = OpenVpnWithCloak()
-                        ovpn.initialize(applicationContext, state) { }
+                        ovpn.initialize(applicationContext, state) { msg -> android.util.Log.w("OpenVpnService", msg) }
                         val builder = Builder()
                         val parsedConfig = JSONObject(configJson)
+                        openVpn = ovpn
+                        isRunning = true
                         ovpn.startVpn(
                             config = parsedConfig,
                             vpnBuilder = builder,
                             protect = { sock -> protect(sock) }
                         )
-                        openVpn = ovpn
-                        isRunning = true
                         VpnManager.connectedServerName = connectedServerName
                     } catch (e: Exception) {
+                        AppErrors.log("openvpn start", e)
+                        startResult.value = false
                         stopSelf()
                         return@launch
                     }
+
+                    // «Подключено» — только когда OpenVPN сообщил CONNECTED (раньше — сразу после запуска)
+                    val connected = kotlinx.coroutines.withTimeoutOrNull(45_000) {
+                        state.first { it == ProtocolState.CONNECTED || it == ProtocolState.DISCONNECTED }
+                    } == ProtocolState.CONNECTED
+                    if (!connected) {
+                        try { openVpn?.stopVpn() } catch (e: Exception) { AppErrors.log("openvpn stop", e) }
+                        openVpn = null
+                        startResult.value = false
+                        stopSelf()
+                        return@launch
+                    }
+                    startResult.value = true
 
                     val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                     val uid = android.os.Process.myUid()
@@ -148,9 +169,22 @@ class OpenVpnService : VpnService() {
             .build()
     }
 
+    // Другое VPN-приложение забрало VPN: это не обрыв — без переподключения и Kill Switch
+    override fun onRevoke() {
+        stopping = true
+        super.onRevoke()
+    }
+
     override fun onDestroy() {
         isRunning = false
-        scope.launch { try { openVpn?.stopVpn() } catch (e: Exception) { AppErrors.log("openvpn stop", e) } }
+        val ovpn = openVpn
+        openVpn = null
+        scope.cancel()   // цикл уведомлений больше не нужен
+        if (ovpn != null) {
+            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                try { ovpn.stopVpn() } catch (e: Exception) { AppErrors.log("openvpn stop", e) }
+            }
+        }
         super.onDestroy()
     }
 }

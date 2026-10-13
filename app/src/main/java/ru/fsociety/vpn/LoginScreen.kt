@@ -44,11 +44,6 @@ private fun policyAssetUrl(name: String, lang: String): String {
     return "file:///android_asset/${name}${suffix}.html"
 }
 
-fun formatNumericCode(raw: String): String {
-    val digits = raw.filter { it.isDigit() }.take(16)
-    return digits.chunked(4).joinToString(" ")
-}
-
 private data class AnonResult(val code: String, val accessToken: String, val refreshToken: String)
 
 private fun shareText(context: Context, text: String) {

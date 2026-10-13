@@ -14,15 +14,13 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 // ── Модели запросов/ответов ──
-
-data class LoginRequest(
-    val username: String,
-    val password: String
-)
+// У всех полей есть значения по умолчанию: тогда у класса есть конструктор без аргументов, и Gson
+// подставляет эти значения, если поле не пришло. Без него Gson создаёт объект в обход конструктора,
+// и для отсутствующих полей были бы null/false/0 вместо указанных умолчаний.
 
 data class LoginResponse(
-    val access_token: String,
-    val token_type: String,
+    val access_token: String = "",
+    val token_type: String = "bearer",
     val refresh_token: String = ""
 )
 
@@ -31,33 +29,34 @@ data class RefreshRequest(
 )
 
 data class VpnConfigResponse(
-    val config: String?,
-    val client_ip: String?,
-    val public_key: String?,
-    val message: String?
+    val config: String? = null,
+    val client_ip: String? = null,
+    val public_key: String? = null,
+    val message: String? = null
 )
 
 data class UserResponse(
-    val id: String,
-    val email: String,
-    val is_active: Boolean,
+    val id: String = "",
+    // Для анонимов сервер кладёт сюда код «XXXX-XXXX-XXXX-XXXX», для логин-аккаунтов — логин
+    val email: String? = null,
+    val is_active: Boolean = true,
     val role: String = "user",
     val account_type: String = "email"
 )
 
 data class ServerResponse(
-    val id: String,
-    val name: String,
+    val id: String = "",
+    val name: String = "",
     val name_en: String? = null,
-    val country: String,
-    val is_active: Boolean,
+    val country: String = "",
+    val is_active: Boolean = false,
     val endpoint: String? = null,
     val allow_auto_connect: Boolean = true,
-    val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria" | "trojan" | "openvpn_cloak"
+    val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria" | "trojan" | "openvpn_cloak" | "bypass"
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
     val status_message: String? = null,
     val status_message_extra: String? = null,
-    val connectable: Boolean = is_active,   // computed server-side based on user role
+    val connectable: Boolean = false,       // computed server-side based on user role
     // true: сервер только по подписке, а пользователь бесплатный (allow_free=false в админке)
     val subscription_required: Boolean = false,
     // не null: подключение закрыто в «Настройки → Доступ» (техработы / протокол / тип аккаунта)
@@ -69,7 +68,7 @@ data class ServerResponse(
     val canConnect: Boolean get() = connectable && !subscription_required && access_block == null
     val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
     val hasWarning: Boolean get() = status in setOf("degraded", "attacked")
-    // VLESS, Hysteria2 and Trojan all use sing-box under the hood
+    // VLESS, Hysteria2, Trojan и «Режим РФ» работают через sing-box
     val usesSingbox: Boolean get() = server_type in setOf("vless", "hysteria", "trojan", "bypass")
     val usesOpenVpn: Boolean get() = server_type == "openvpn_cloak"
     // English name when the app language is English (falls back to the default name).
@@ -78,31 +77,24 @@ data class ServerResponse(
 }
 
 data class VlessConfigResponse(
-    val config: String,
-    val server_type: String
+    val config: String = "",
+    val server_type: String = ""
 )
 
 data class HysteriaConfigResponse(
-    val config: String,
-    val server_type: String
+    val config: String = "",
+    val server_type: String = ""
 )
 
 data class TrojanConfigResponse(
-    val config: String,
-    val server_type: String
-)
-
-data class OpenVpnCloakConfigResponse(
-    val ovpn_config: String,
-    val cloak_config: String,
-    val host: String,
-    val server_type: String
+    val config: String = "",
+    val server_type: String = ""
 )
 
 data class SubscriptionResponse(
-    val is_active: Boolean,
-    val plan: String?,
-    val expires_at: String?
+    val is_active: Boolean = false,
+    val plan: String? = null,
+    val expires_at: String? = null
 )
 
 data class ForgotPasswordRequest(val email: String)
@@ -115,24 +107,24 @@ data class RegisterRequest(
 data class NumericLoginRequest(val code: String)
 
 data class TicketResponse(
-    val id: String,
-    val subject: String,
-    val status: String,
-    val created_at: String,
-    val updated_at: String
+    val id: String = "",
+    val subject: String = "",
+    val status: String = "open",
+    val created_at: String = "",
+    val updated_at: String = ""
 )
 
 data class TicketMessageResponse(
-    val id: String,
-    val ticket_id: String,
-    val sender: String,
-    val message: String,
-    val created_at: String
+    val id: String = "",
+    val ticket_id: String = "",
+    val sender: String = "",
+    val message: String = "",
+    val created_at: String = ""
 )
 
 data class TicketDetailResponse(
-    val ticket: TicketResponse,
-    val messages: List<TicketMessageResponse>
+    val ticket: TicketResponse = TicketResponse(),
+    val messages: List<TicketMessageResponse> = emptyList()
 )
 
 data class TicketCreateRequest(val subject: String)
@@ -140,15 +132,15 @@ data class MessageCreateRequest(val message: String)
 data class ChangePasswordRequest(val old_password: String, val new_password: String)
 
 data class UsageResponse(
-    val is_limited: Boolean,
-    val bytes_used: Long,
-    val limit_bytes: Long,
-    val resets_at: String?
+    val is_limited: Boolean = false,
+    val bytes_used: Long = 0L,
+    val limit_bytes: Long = 0L,
+    val resets_at: String? = null
 )
 
 data class AppConfigResponse(
-    val android_min_version: Int,
-    val update_url: String,
+    val android_min_version: Int = 0,
+    val update_url: String = "",
     val access: AccessStatus? = null
 )
 
@@ -189,10 +181,10 @@ data class AccessCheckResponse(
 }
 
 data class GenerateNumericResponse(
-    val code: String,
-    val access_token: String,
-    val refresh_token: String,
-    val token_type: String
+    val code: String = "",
+    val access_token: String = "",
+    val refresh_token: String = "",
+    val token_type: String = "bearer"
 )
 
 // ── Интерфейс API ──
@@ -322,12 +314,6 @@ interface ApiService {
         @Query("server_id") serverId: String
     ): TrojanConfigResponse
 
-    @GET("vpn/openvpn-cloak-config")
-    suspend fun getOpenVpnCloakConfig(
-        @Header("Authorization") token: String,
-        @Query("server_id") serverId: String
-    ): OpenVpnCloakConfigResponse
-
     @Streaming
     @GET("vpn/openvpn-cloak-bundle")
     suspend fun getOpenVpnCloakBundle(
@@ -343,7 +329,11 @@ interface ApiService {
 
 }
 
-
+/** Синхронные вызовы для OkHttp Authenticator (без suspend: он работает в потоке запроса). */
+interface AuthCalls {
+    @POST("refresh")
+    fun refresh(@Body body: RefreshRequest): retrofit2.Call<LoginResponse>
+}
 
 
 // ── Retrofit клиент (singleton) ──
@@ -353,11 +343,21 @@ object ApiClient {
     // Тот же API напрямую на Финляндию, без Cloudflare
     private const val DIRECT_HOST = "api.fsociety-vpn.org"
 
+    /** Ошибка до отправки запроса на сервер (соединение не установлено) — повтор безопасен. */
+    private fun java.io.IOException.beforeSend(): Boolean =
+        this is java.net.ConnectException || this is java.net.UnknownHostException ||
+            this is java.net.NoRouteToHostException || this is javax.net.ssl.SSLHandshakeException ||
+            (this is java.net.SocketTimeoutException && message?.contains("connect", ignoreCase = true) == true)
+
     /**
      * Cloudflare из РФ часто режется (соединение замирает после первых КБ),
      * поэтому при сетевой ошибке запрос повторяется напрямую через DIRECT_HOST.
      * Тело ответа вычитывается здесь же, чтобы зависание на чтении тоже
      * ловилось и уходило в fallback, а не падало позже в конвертере.
+     *
+     * Повторяем только то, что безопасно повторить: GET или запрос, который точно не дошёл до
+     * сервера. POST, на который не дочитали ответ, мог уже выполниться — его повтор создавал второй
+     * анонимный аккаунт (и 429 вместо кода), второе письмо сброса пароля, дубли сообщений в тикетах.
      */
     private val directFallback = okhttp3.Interceptor { chain ->
         val req = chain.request()
@@ -372,36 +372,62 @@ object ApiClient {
             resp.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
         } catch (e: java.io.IOException) {
             if (chain.call().isCanceled()) throw e
+            val idempotent = req.method == "GET" || req.method == "HEAD"
+            if (!idempotent && !e.beforeSend()) throw e
             android.util.Log.w("ApiClient", "${req.url.encodedPath} via Cloudflare failed (${e.message}), retry direct")
             chain.proceed(req.newBuilder().url(req.url.newBuilder().host(DIRECT_HOST).build()).build())
         }
     }
 
-    private fun buildOkHttp(readTimeoutSec: Long) = okhttp3.OkHttpClient.Builder()
+    /** Экраны передают токен, полученный при своём открытии; если он уже обновлён — подставляем свежий. */
+    private val currentToken = okhttp3.Interceptor { chain ->
+        val req = chain.request()
+        val auth = req.header("Authorization")
+        val current = TokenStore.access.value
+        if (auth != null && auth.startsWith("Bearer ") && current.isNotEmpty() && auth != "Bearer $current") {
+            chain.proceed(req.newBuilder().header("Authorization", "Bearer $current").build())
+        } else chain.proceed(req)
+    }
+
+    /** 401 на запросе с токеном → один раз обновляем токен по refresh и повторяем запрос. */
+    private val refreshAuthenticator = okhttp3.Authenticator { _, response ->
+        val req = response.request
+        val auth = req.header("Authorization") ?: return@Authenticator null
+        if (!auth.startsWith("Bearer ") || response.priorResponse != null) return@Authenticator null
+        val fresh = TokenStore.refreshBlocking(auth.removePrefix("Bearer ")) ?: return@Authenticator null
+        req.newBuilder().header("Authorization", "Bearer $fresh").build()
+    }
+
+    private val appVersion = okhttp3.Interceptor { chain ->
+        val resp = chain.proceed(
+            chain.request().newBuilder()
+                .addHeader("X-App-Version", BuildConfig.VERSION_CODE.toString())
+                .build()
+        )
+        // 426 = версия ниже минимальной (задаётся в админке) → блокирующий диалог
+        if (resp.code == 426) {
+            val url = try {
+                org.json.JSONObject(resp.peekBody(4096).string()).optString("update_url")
+            } catch (_: Exception) { "" }
+            updateRequired.value = url.ifEmpty { UPDATE_URL }
+        }
+        resp
+    }
+
+    private fun buildOkHttp(readTimeoutSec: Long, withAuth: Boolean = true) = okhttp3.OkHttpClient.Builder()
         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(readTimeoutSec, java.util.concurrent.TimeUnit.SECONDS)
         .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
         // запас на попытку через Cloudflare (до ~20с) + повтор напрямую
         .callTimeout(readTimeoutSec + 30, java.util.concurrent.TimeUnit.SECONDS)
         .retryOnConnectionFailure(false)
+        // Без пула и HTTP/2 осознанно: соединения переживают включение/выключение VPN и «зависают»
         .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
         .connectionPool(okhttp3.ConnectionPool(0, 1, java.util.concurrent.TimeUnit.SECONDS))
         .addInterceptor(directFallback)
-        .addInterceptor { chain ->
-            val resp = chain.proceed(
-                chain.request().newBuilder()
-                    .addHeader("X-App-Version", BuildConfig.VERSION_CODE.toString())
-                    .build()
-            )
-            // 426 = версия ниже минимальной (задаётся в админке) → блокирующий диалог
-            if (resp.code == 426) {
-                val url = try {
-                    org.json.JSONObject(resp.peekBody(4096).string()).optString("update_url")
-                } catch (_: Exception) { "" }
-                updateRequired.value = url.ifEmpty { UPDATE_URL }
-            }
-            resp
-        }
+        .apply { if (withAuth) addInterceptor(currentToken) }
+        .addInterceptor(appVersion)
+        .apply { if (withAuth) authenticator(refreshAuthenticator) }
         .build()
 
     private const val UPDATE_URL = "https://fsociety-vpn.org/download"
@@ -419,6 +445,16 @@ object ApiClient {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
+    }
+
+    /** Для обновления токена: без authenticator (иначе 401 на /refresh зациклился бы). */
+    val authCalls: AuthCalls by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(buildOkHttp(20, withAuth = false))
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(AuthCalls::class.java)
     }
 
     // Direct endpoint (no Cloudflare) for the bundle — bypasses DLP entirely.

@@ -2,8 +2,6 @@ package ru.fsociety.vpn
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.withContext
 import org.amnezia.awg.backend.GoBackend
 import org.amnezia.awg.backend.Tunnel
@@ -16,13 +14,6 @@ object VpnManager {
     private var backend: GoBackend? = null
     private var currentTunnel: WgTunnel? = null
     var connectedServerName: String = ""
-    var killSwitchEnabled: Boolean = false
-
-    // Эмитит когда туннель упал неожиданно (не через disconnect())
-    val tunnelDropped = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
 
     fun isConnected(): Boolean {
         val tunnel = currentTunnel ?: return false
@@ -45,18 +36,21 @@ object VpnManager {
     suspend fun connect(context: Context, configString: String): Boolean = withContext(Dispatchers.IO) {
         try {
             init(context)
-            currentTunnel?.let { t ->
-                runCatching { backend?.setState(t, Tunnel.State.DOWN, null) }
-            }
+            // Старый туннель гасим как намеренное отключение: обнуляем ДО setState(DOWN),
+            // иначе его колбэк принимал это за обрыв и запускал переподключение
+            val old = currentTunnel
+            currentTunnel = null
+            old?.let { t -> runCatching { backend?.setState(t, Tunnel.State.DOWN, null) } }
             // Применяем раздельное туннелирование для сайтов
             val effectiveConfig = splitSettings?.let {
                 SplitTunnelingManager.applyToConfig(configString, it)
             } ?: configString
             val config = Config.parse(BufferedReader(StringReader(effectiveConfig)))
-            val tunnel = WgTunnel("fsociety") { state ->
-                // currentTunnel is nulled before setState(DOWN) in disconnect(),
-                // so a non-null check here means it was an unexpected drop.
-                if (state == Tunnel.State.DOWN && currentTunnel != null) {
+            lateinit var tunnel: WgTunnel
+            tunnel = WgTunnel("fsociety") { state ->
+                // disconnect()/новое подключение обнуляют currentTunnel ДО setState(DOWN): обрыв —
+                // только если упал именно текущий туннель
+                if (state == Tunnel.State.DOWN && currentTunnel === tunnel) {
                     currentTunnel = null
                     connectedServerName = ""
                     VpnEvents.vpnDropped.tryEmit(Unit)
