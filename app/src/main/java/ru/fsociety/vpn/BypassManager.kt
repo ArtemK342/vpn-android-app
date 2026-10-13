@@ -52,9 +52,17 @@ object BypassManager {
         return s.split(Regex("\\s+"))
     }
 
-    /** Запустить byedpi; false — бинарника нет или он сразу упал. [remoteStrategy] — из админки. */
+    /** Запустить byedpi; false — бинарника нет или он сразу упал. [remoteStrategy] — из админки;
+     *  если с ней byedpi не стартует (опечатка в параметрах), откатываемся на встроенную. */
     @Synchronized
     fun start(context: Context, remoteStrategy: String? = null): Boolean {
+        if (startWith(context, remoteStrategy)) return true
+        if (remoteStrategy.isNullOrBlank()) return false
+        Log.w(TAG, "remote strategy rejected, falling back to the built-in one")
+        return startWith(context, null)
+    }
+
+    private fun startWith(context: Context, remoteStrategy: String?): Boolean {
         stop()
         val bin = File(context.applicationInfo.nativeLibraryDir, "libciadpi.so")
         if (!bin.exists()) {
