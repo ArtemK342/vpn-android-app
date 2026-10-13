@@ -18,10 +18,11 @@ object BypassManager {
     private const val TAG = "BypassManager"
     const val SOCKS_PORT = 10808
 
-    // Встроенная стратегия — без TCP-фейков: фейк с малым TTL долетает до кэш-серверов Google внутри
-    // сети провайдера (2–4 хопа) и ломает соединение (видео YouTube, DoH). Подбор — через админку.
+    // Встроенная стратегия (проверена 2026-10-14: YouTube работает): дробление TLS-записи + OOB-байт,
+    // который сбивает ТСПУ, а сервер отбрасывает. TTL-фейки ломают видео (кэши Google внутри сети
+    // провайдера) и DoH, --md5sig ядро Android не поддерживает. Подбор других — через админку.
     private val STRATEGY = listOf(
-        "--split", "1", "--disorder", "3",
+        "--tlsrec", "3", "--split", "1", "--oob", "3", "--disorder", "5",
         "--udp-fake", "6",  // без позиций «+s»: SNI часто дальше первых 1500 байт (Kyber ClientHello)
     )
 
@@ -117,9 +118,13 @@ object BypassManager {
                     .put(JSONObject().put("action", "sniff"))
                     .put(JSONObject().put("protocol", "dns").put("action", "hijack-dns"))
                     .put(JSONObject().put("ip_is_private", true).put("outbound", "direct"))
-                    // QUIC YouTube режем — плеер перейдёт на TCP, где обход работает надёжнее
-                    .put(JSONObject().put("domain_suffix", JSONArray(YOUTUBE))
+                    // QUIC YouTube и Discord режем — приложения перейдут на TCP, где обход работает
+                    .put(JSONObject().put("domain_suffix", all)
                         .put("network", "udp").put("port", 443).put("action", "reject"))
+                    // Голос Discord: UDP на IP без домена (порты как в zapret) — тоже через byedpi (UDP-фейки)
+                    .put(JSONObject().put("network", "udp")
+                        .put("port_range", JSONArray().put("19294:19344").put("50000:50100"))
+                        .put("outbound", "bypass"))
                     .put(JSONObject().put("domain_suffix", all).put("outbound", "bypass")))
                 .put("final", "direct"))
         return config.toString()
