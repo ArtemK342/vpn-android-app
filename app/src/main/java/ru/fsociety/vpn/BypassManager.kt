@@ -18,10 +18,10 @@ object BypassManager {
     private const val TAG = "BypassManager"
     const val SOCKS_PORT = 10808
 
-    // Одна тестовая стратегия (подбирается по провайдерам РФ): фейковый пакет с малым TTL,
-    // перестановка и дробление TLS ClientHello, фейки для UDP (голос Discord).
+    // Встроенная стратегия — без TCP-фейков: фейк с малым TTL долетает до кэш-серверов Google внутри
+    // сети провайдера (2–4 хопа) и ломает соединение (видео YouTube, DoH). Подбор — через админку.
     private val STRATEGY = listOf(
-        "--disorder", "1", "--fake", "-1", "--ttl", "8",
+        "--split", "1", "--disorder", "3",
         "--udp-fake", "6",  // без позиций «+s»: SNI часто дальше первых 1500 байт (Kyber ClientHello)
     )
 
@@ -98,9 +98,9 @@ object BypassManager {
         val config = JSONObject()
             .put("log", JSONObject().put("level", "warn"))
             .put("dns", JSONObject().put("servers", JSONArray().put(
-                // DoH через byedpi: DNS провайдера может подменять ответы для Discord
+                // DoH напрямую, НЕ через byedpi: обход ломал DNS (фейк долетал до ближнего Cloudflare)
                 JSONObject().put("tag", "doh").put("address", "https://1.1.1.1/dns-query")
-                    .put("strategy", "ipv4_only").put("detour", "bypass")
+                    .put("strategy", "ipv4_only").put("detour", "direct")
             )))
             .put("inbounds", JSONArray().put(JSONObject()
                 .put("type", "tun").put("tag", "tun-in")
