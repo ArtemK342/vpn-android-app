@@ -48,7 +48,8 @@ object BypassManager {
     /** Стратегия из админки (/app-config → access.bypass_strategy), если она безопасна, иначе встроенная. */
     private fun strategyArgs(remote: String?): List<String> {
         val s = remote?.trim().orEmpty()
-        if (s.isEmpty() || !Regex("[A-Za-z0-9 +\\-,.:=_]+").matches(s)) return STRATEGY
+        // «/» — подсети в -j :1.2.3.0/24 (аргументы идут в byedpi напрямую, без shell)
+        if (s.isEmpty() || !Regex("[A-Za-z0-9 +\\-,.:=_/]+").matches(s)) return STRATEGY
         return s.split(Regex("\\s+"))
     }
 
