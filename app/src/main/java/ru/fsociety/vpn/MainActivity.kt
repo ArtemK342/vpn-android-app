@@ -461,6 +461,7 @@ fun App(context: android.content.Context) {
             onLogout = {
                 prefs.edit().remove("token").remove("refresh_token").apply()
                 ProfileCache.clear(context)  // профиль старого аккаунта не показывать следующему
+                HomeUiState.reset()
                 token = ""
                 // Туннель и кэш WG-конфигов принадлежат старому аккаунту: иначе следующий
                 // аккаунт подключится чужим ключом в обход API (лимиты, учёт, блокировки)

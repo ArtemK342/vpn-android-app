@@ -70,6 +70,27 @@ suspend fun measurePing(serverId: String, servers: List<ServerResponse>): Int =
     }
 
 /**
+ * Состояние подключения главного экрана живёт дольше самого экрана: вкладки переключаются через
+ * `when (selectedTab)`, и HomeScreen при переходе в настройки уничтожается. Раньше вместе с ним
+ * отменялось идущее подключение (rememberCoroutineScope) — теперь процесс доходит до конца.
+ */
+object HomeUiState {
+    val isConnecting = mutableStateOf(false)
+    val statusMsg = mutableStateOf("")
+    val selectedServer = mutableStateOf<ServerResponse?>(null)
+    val userPickedServer = mutableStateOf(false)
+    val scope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate
+    )
+
+    /** Выход из аккаунта: выбор сервера и статусы прошлого аккаунта не переносим. */
+    fun reset() {
+        isConnecting.value = false; statusMsg.value = ""
+        selectedServer.value = null; userPickedServer.value = false
+    }
+}
+
+/**
  * Автовыбор сервера: доступный, с разрешённым авто-подключением (флаги из админки)
  * и не «только по подписке» для бесплатного пользователя; среди них — с минимальным пингом.
  * [wireguardOnly] — для фонового автоподключения, которое умеет только WireGuard.
@@ -108,18 +129,19 @@ fun HomeScreen(
     onConnected: (ServerResponse) -> Unit,
     onDisconnected: () -> Unit
 ) {
-    var selectedServer by remember { mutableStateOf<ServerResponse?>(null) }
+    // Состояние подключения — в HomeUiState (переживает переход на другую вкладку)
+    var selectedServer by HomeUiState.selectedServer
     // Пока пользователь сам не выбрал сервер, автовыбор пересчитывается по мере прихода пингов
-    var userPickedServer by remember { mutableStateOf(false) }
+    var userPickedServer by HomeUiState.userPickedServer
     var serverListTab by remember { mutableStateOf(0) }
     var favoriteServers by remember { mutableStateOf(setOf<String>()) }
     var showFavoriteDialog by remember { mutableStateOf<String?>(null) }
-    var isConnecting by remember { mutableStateOf(false) }
-    var statusMsg by remember { mutableStateOf("") }
+    var isConnecting by HomeUiState.isConnecting
+    var statusMsg by HomeUiState.statusMsg
     var pendingConfig by remember { mutableStateOf<String?>(null) }
     var pendingServer by remember { mutableStateOf<ServerResponse?>(null) }
     var pendingServerType by remember { mutableStateOf("wireguard") }
-    val scope = rememberCoroutineScope()
+    val scope = HomeUiState.scope  // не rememberCoroutineScope: подключение не отменяется при смене вкладки
     val context = LocalContext.current
     val lang = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
         .getString("language", "ru") ?: "ru"
