@@ -68,6 +68,13 @@
     <string name="login_subtitle_email">// SIGN IN</string>
     <string name="login_field_password">PASSWORD</string>
     <string name="login_forgot_password">Forgot password?</string>
+    <string name="forgot_title">Password recovery</string>
+    <string name="forgot_desc">Enter your account email — we will send a password reset link. The link is valid for 1 hour.</string>
+    <string name="forgot_send">Send</string>
+    <string name="forgot_close">Close</string>
+    <string name="forgot_sent">If this email is registered, a reset link has been sent. Check your inbox and the Spam folder.</string>
+    <string name="forgot_rate_limit">You can request this once a day. Please try again tomorrow.</string>
+    <string name="forgot_bad_email">Enter a valid email</string>
     <string name="login_field_code">16-DIGIT CODE</string>
     <string name="login_code_hint">The 16-digit code is your only way to sign in</string>
     <string name="login_btn">SIGN IN →</string>

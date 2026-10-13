@@ -68,6 +68,13 @@
     <string name="login_subtitle_email">// ВХОД В АККАУНТ</string>
     <string name="login_field_password">ПАРОЛЬ</string>
     <string name="login_forgot_password">Забыл пароль?</string>
+    <string name="forgot_title">Восстановление пароля</string>
+    <string name="forgot_desc">Введите email аккаунта — пришлём ссылку для сброса пароля. Ссылка действует 1 час.</string>
+    <string name="forgot_send">Отправить</string>
+    <string name="forgot_close">Закрыть</string>
+    <string name="forgot_sent">Если такой email зарегистрирован, письмо со ссылкой уже отправлено. Проверьте почту и папку «Спам».</string>
+    <string name="forgot_rate_limit">Запрос можно отправлять раз в сутки. Попробуйте завтра.</string>
+    <string name="forgot_bad_email">Введите корректный email</string>
     <string name="login_field_code">16-ЗНАЧНЫЙ КОД</string>
     <string name="login_code_hint">Код из 16 цифр — ваш единственный способ войти</string>
     <string name="login_btn">ВОЙТИ →</string>

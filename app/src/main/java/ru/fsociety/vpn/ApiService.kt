@@ -105,6 +105,8 @@ data class SubscriptionResponse(
     val expires_at: String?
 )
 
+data class ForgotPasswordRequest(val email: String)
+
 data class RegisterRequest(
     val email: String,
     val password: String
@@ -233,6 +235,12 @@ interface ApiService {
     suspend fun loginNumeric(
         @Body body: NumericLoginRequest
     ): LoginResponse
+
+    // Ссылка для сброса пароля на почту (как на сайте /forgot); лимит сервера — 1 раз в сутки
+    @POST("forgot-password")
+    suspend fun forgotPassword(
+        @Body body: ForgotPasswordRequest
+    ): Map<String, Any?>
 
     @POST("register")
     suspend fun register(

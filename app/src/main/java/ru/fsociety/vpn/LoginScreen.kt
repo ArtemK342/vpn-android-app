@@ -372,6 +372,12 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var showPolicyUrl by remember { mutableStateOf<String?>(null) }
     var showPolicyTitle by remember { mutableStateOf("") }
     var showLangMenu by remember { mutableStateOf(false) }
+    // «Забыл пароль?» — ссылка на сброс приходит на почту (тот же /forgot-password, что на сайте)
+    var showForgot by remember { mutableStateOf(false) }
+    var forgotEmail by remember { mutableStateOf("") }
+    var forgotMsg by remember { mutableStateOf("") }
+    var forgotSent by remember { mutableStateOf(false) }
+    var forgotSending by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("fsociety", Context.MODE_PRIVATE) }
     var language by remember { mutableStateOf(prefs.getString("language", "ru") ?: "ru") }
@@ -406,6 +412,68 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
         return
     }
 
+    if (showForgot) {
+        val strForgotSent = stringResource(R.string.forgot_sent)
+        val strForgotRate = stringResource(R.string.forgot_rate_limit)
+        val strForgotBadEmail = stringResource(R.string.forgot_bad_email)
+        AlertDialog(
+            onDismissRequest = { if (!forgotSending) { showForgot = false; forgotMsg = ""; forgotSent = false } },
+            containerColor = Bg2,
+            title = { Text(stringResource(R.string.forgot_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.forgot_desc), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (!forgotSent) {
+                        OutlinedTextField(
+                            value = forgotEmail, onValueChange = { forgotEmail = it; forgotMsg = "" },
+                            label = { Text("EMAIL", fontFamily = FontFamily.Monospace, fontSize = 11.sp) },
+                            singleLine = true, enabled = !forgotSending,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                                focusedLabelColor = Accent, unfocusedLabelColor = TextMuted,
+                                focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+                        )
+                    }
+                    if (forgotMsg.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(forgotMsg, color = if (forgotSent) Accent else ErrorRed, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    }
+                }
+            },
+            confirmButton = {
+                if (!forgotSent) {
+                    TextButton(enabled = !forgotSending, onClick = {
+                        val mail = forgotEmail.trim()
+                        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(mail).matches()) {
+                            forgotMsg = strForgotBadEmail; return@TextButton
+                        }
+                        scope.launch {
+                            forgotSending = true; forgotMsg = ""
+                            try {
+                                ApiClient.service.forgotPassword(ForgotPasswordRequest(mail))
+                                forgotSent = true; forgotMsg = strForgotSent
+                            } catch (e: retrofit2.HttpException) {
+                                AppErrors.log("forgot password HTTP ${e.code()}", e)
+                                forgotMsg = if (e.code() == 429) strForgotRate else AppErrors.text(context, e)
+                            } catch (e: Exception) {
+                                AppErrors.log("forgot password", e)
+                                forgotMsg = AppErrors.text(context, e)
+                            } finally { forgotSending = false }
+                        }
+                    }) { Text(stringResource(R.string.forgot_send), color = Accent, fontFamily = FontFamily.Monospace) }
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !forgotSending, onClick = { showForgot = false; forgotMsg = ""; forgotSent = false }) {
+                    Text(stringResource(R.string.forgot_close), color = TextMuted, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
+    }
+
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark),
         contentAlignment = Alignment.Center
@@ -430,6 +498,9 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
 
             Spacer(modifier = Modifier.height(40.dp))
 
+            // Одинаковая высота блока полей в обоих режимах: при переключении email ↔ код
+            // логотип и первое поле не прыгают (форма email выше — два поля и «Забыл пароль?»)
+            Column(modifier = Modifier.fillMaxWidth().heightIn(min = 184.dp)) {  // > высоты формы email (~172dp) — оба режима ровно 184dp
             if (!isAnonymousMode) {
                 OutlinedTextField(
                     value = email, onValueChange = { email = it },
@@ -459,7 +530,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 Text(
                     stringResource(R.string.login_forgot_password), color = TextMuted, fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace, textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.fillMaxWidth().clickable { }
+                    modifier = Modifier.fillMaxWidth().clickable { forgotEmail = email.trim(); showForgot = true }
                 )
             } else {
                 OutlinedTextField(
@@ -488,6 +559,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                     stringResource(R.string.login_code_hint), color = TextMuted, fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                 )
+            }
             }
 
             if (errorMsg.isNotEmpty()) {
