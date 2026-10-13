@@ -49,6 +49,16 @@ object SingboxManager {
 
     private var commandServer: CommandServer? = null
     private var setupDone = false
+    @Volatile private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    /** StringIterator для libbox из обычного списка. */
+    private class StringList(items: List<String>) : StringIterator {
+        private val list = items
+        private var i = 0
+        override fun hasNext() = i < list.size
+        override fun len() = list.size
+        override fun next() = list[i++]
+    }
     var connectedServerName: String = ""
 
     // Трафик: baseline при подключении
@@ -76,6 +86,15 @@ object SingboxManager {
                 Libbox.setup(opts)
                 setupDone = true
             }
+
+            // auto_detect_interface: sing-box следит за основной сетью (монитор выше) и при смене
+            // Wi-Fi ↔ мобильный перестраивает соединения; сокеты защищаются через protect()
+            val configJson = try {
+                val root = JSONObject(configJson)
+                val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
+                if (!route.has("auto_detect_interface")) route.put("auto_detect_interface", true)
+                root.toString()
+            } catch (_: Exception) { configJson }
 
             // Проверяем конфиг до запуска
             try {
@@ -242,16 +261,87 @@ object SingboxManager {
             destAddress: String, destPort: Int
         ): ConnectionOwner = ConnectionOwner()
 
-        override fun getInterfaces(): NetworkInterfaceIterator =
-            object : NetworkInterfaceIterator {
-                override fun hasNext() = false
-                override fun next() = throw NoSuchElementException()
+        /** Сетевые интерфейсы устройства (раньше — пустой список). */
+        override fun getInterfaces(): NetworkInterfaceIterator {
+            val cm = service.getSystemService(android.net.ConnectivityManager::class.java)
+            val javaIfaces = try { java.net.NetworkInterface.getNetworkInterfaces()?.toList().orEmpty() } catch (_: Exception) { emptyList() }
+            val result = mutableListOf<io.nekohasekai.libbox.NetworkInterface>()
+            @Suppress("DEPRECATION")
+            for (network in cm?.allNetworks.orEmpty()) {
+                val lp = cm?.getLinkProperties(network) ?: continue
+                val caps = cm.getNetworkCapabilities(network) ?: continue
+                if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) continue
+                val name = lp.interfaceName ?: continue
+                val ji = javaIfaces.firstOrNull { it.name == name } ?: continue
+                val box = io.nekohasekai.libbox.NetworkInterface()
+                box.name = name
+                box.index = ji.index
+                try { box.mtu = ji.mtu } catch (_: Exception) {}
+                box.addresses = StringList(ji.interfaceAddresses.mapNotNull { a ->
+                    a.address?.hostAddress?.substringBefore('%')?.let { "$it/${a.networkPrefixLength}" }
+                })
+                box.dnsServer = StringList(lp.dnsServers.mapNotNull { it.hostAddress })
+                box.type = when {
+                    caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> Libbox.InterfaceTypeWIFI
+                    caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> Libbox.InterfaceTypeCellular
+                    caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> Libbox.InterfaceTypeEthernet
+                    else -> Libbox.InterfaceTypeOther
+                }
+                var flags = 0
+                if (caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET))
+                    flags = android.system.OsConstants.IFF_UP or android.system.OsConstants.IFF_RUNNING
+                if (ji.isLoopback) flags = flags or android.system.OsConstants.IFF_LOOPBACK
+                if (ji.isPointToPoint) flags = flags or android.system.OsConstants.IFF_POINTOPOINT
+                if (ji.supportsMulticast()) flags = flags or android.system.OsConstants.IFF_MULTICAST
+                box.flags = flags
+                box.metered = !caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+                result.add(box)
             }
+            val it = result.iterator()
+            return object : NetworkInterfaceIterator {
+                override fun hasNext() = it.hasNext()
+                override fun next() = it.next()
+            }
+        }
 
         override fun readWIFIState(): WIFIState = Libbox.newWIFIState("", "")
 
-        override fun startDefaultInterfaceMonitor(l: InterfaceUpdateListener) {}
-        override fun closeDefaultInterfaceMonitor(l: InterfaceUpdateListener) {}
+        /**
+         * Основная сеть устройства: при смене Wi-Fi ↔ мобильный интернет sing-box узнаёт новый
+         * интерфейс. Раньше монитор был пустым — после смены сети туннель мог «замереть».
+         * Приложение исключено из своего VPN, поэтому default network для него — физическая сеть.
+         */
+        override fun startDefaultInterfaceMonitor(l: InterfaceUpdateListener) {
+            val cm = service.getSystemService(android.net.ConnectivityManager::class.java) ?: return
+            fun report(network: android.net.Network?) {
+                val name = network?.let { cm.getLinkProperties(it)?.interfaceName }
+                if (name == null) {
+                    try { l.updateDefaultInterface("", -1, false, false) } catch (_: Exception) {}
+                    return
+                }
+                val index = try { java.net.NetworkInterface.getByName(name)?.index ?: -1 } catch (_: Exception) { -1 }
+                val caps = cm.getNetworkCapabilities(network)
+                val expensive = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == false
+                try { l.updateDefaultInterface(name, index, expensive, false) } catch (e: Exception) {
+                    Log.w(TAG, "updateDefaultInterface: ${e.message}")
+                }
+            }
+            val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) = report(network)
+                override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) = report(network)
+                override fun onLost(network: android.net.Network) = report(null)
+            }
+            networkCallback?.let { runCatching { cm.unregisterNetworkCallback(it) } }
+            networkCallback = cb
+            try { cm.registerDefaultNetworkCallback(cb) } catch (e: Exception) { Log.w(TAG, "network callback: ${e.message}") }
+            report(cm.activeNetwork)
+        }
+
+        override fun closeDefaultInterfaceMonitor(l: InterfaceUpdateListener) {
+            val cm = service.getSystemService(android.net.ConnectivityManager::class.java) ?: return
+            networkCallback?.let { runCatching { cm.unregisterNetworkCallback(it) } }
+            networkCallback = null
+        }
         override fun clearDNSCache() {}
 
         override fun localDNSTransport(): LocalDNSTransport =
