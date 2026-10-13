@@ -41,6 +41,10 @@ object BypassManager {
         "discord-activities.com", "discordactivities.com", "discordsays.com", "discordstatus.com",
         "discordmerch.com", "discordpartygames.com", "discordsez.com",
         "discord-attachments-uploads-prd.storage.googleapis.com",
+        // Капча входа (hCaptcha во встроенном браузере)
+        "hcaptcha.com",
+        // ECH: браузер шифрует имя сайта, наружу видно cloudflare-ech.com — его в РФ режут (как в zapret)
+        "cloudflare-ech.com", "encryptedsni.com",
     )
 
     private var process: Process? = null
