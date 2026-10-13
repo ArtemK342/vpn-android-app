@@ -83,8 +83,8 @@
     <string name="login_error_code_not_found">Code not found</string>
     <string name="login_error_credentials">Incorrect email or password</string>
     <string name="login_telegram_support">Support in Telegram</string>
-    <string name="login_btn_email">← SIGN IN WITH EMAIL</string>
-    <string name="login_btn_anon">SIGN IN ANONYMOUSLY</string>
+    <string name="login_btn_email">← I HAVE EMAIL AND PASSWORD</string>
+    <string name="login_btn_anon">I HAVE AN ANONYMOUS CODE →</string>
     <string name="login_no_account">No account?</string>
     <string name="login_btn_register">REGISTER →</string>
 

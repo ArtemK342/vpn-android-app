@@ -83,8 +83,8 @@
     <string name="login_error_code_not_found">Код не найден</string>
     <string name="login_error_credentials">Неверный email или пароль</string>
     <string name="login_telegram_support">Поддержка в Telegram</string>
-    <string name="login_btn_email">← ВОЙТИ ПО EMAIL</string>
-    <string name="login_btn_anon">ВОЙТИ АНОНИМНО</string>
+    <string name="login_btn_email">← У МЕНЯ EMAIL И ПАРОЛЬ</string>
+    <string name="login_btn_anon">У МЕНЯ АНОНИМНЫЙ КОД →</string>
     <string name="login_no_account">Нет аккаунта?</string>
     <string name="login_btn_register">ЗАРЕГИСТРИРОВАТЬСЯ →</string>
 
