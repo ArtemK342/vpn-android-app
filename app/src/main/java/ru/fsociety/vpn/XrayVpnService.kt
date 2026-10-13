@@ -164,6 +164,7 @@ class XrayVpnService : VpnService() {
     }
 
     private fun buildNotification(serverName: String, rx: Long = 0L, tx: Long = 0L): android.app.Notification {
+        val ctx = appStrings(this)  // язык приложения на момент обновления, а не запуска службы
         val openPi = PendingIntent.getActivity(
             this, 11,
             Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP },
@@ -178,15 +179,15 @@ class XrayVpnService : VpnService() {
         )
         return androidx.core.app.NotificationCompat.Builder(this, VpnNotificationHelper.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_secure)
-            .setContentTitle(getString(R.string.notification_title_connected))
+            .setContentTitle(ctx.getString(R.string.notification_title_connected))
             .setContentText(
                 if (rx == 0L && tx == 0L) serverName
-                else "$serverName · ↓ ${VpnNotificationHelper.formatBytes(this, rx)} ↑ ${VpnNotificationHelper.formatBytes(this, tx)}"
+                else "$serverName · ↓ ${VpnNotificationHelper.formatBytes(ctx, rx)} ↑ ${VpnNotificationHelper.formatBytes(ctx, tx)}"
             )
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(openPi)
-            .addAction(0, getString(R.string.notification_disconnect), disconnectPi)
+            .addAction(0, ctx.getString(R.string.notification_disconnect), disconnectPi)
             .build()
     }
 

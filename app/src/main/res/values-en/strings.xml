@@ -321,4 +321,5 @@
     <string name="logout_confirm_title">Sign out?</string>
     <string name="logout_confirm_text">You will need your email and password to sign in again. The active VPN connection will be closed.</string>
     <string name="logout_confirm_anon">You can sign in again only with this code — save it. The code cannot be recovered.</string>
+    <string name="rules_wg_only">// Currently works only for AmneziaWG and applies on the next connection</string>
 </resources>

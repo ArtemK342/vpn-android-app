@@ -12,12 +12,24 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Контекст с языком приложения (строки для служб, ресиверов и фоновых сценариев). */
+/** Контекст с языком приложения (для attachBaseContext экранов и служб). */
 fun localized(context: Context): Context {
     val lang = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru"
     val config = android.content.res.Configuration(context.resources.configuration)
     config.setLocale(java.util.Locale(lang))
     return context.createConfigurationContext(config)
+}
+
+private var stringsLang: String? = null
+private var stringsCtx: Context? = null
+
+/** Контекст для текстов на текущем языке приложения — кэшируется до смены языка (уведомления каждую секунду). */
+@Synchronized
+fun appStrings(context: Context): Context {
+    val app = context.applicationContext ?: context
+    val lang = app.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru"
+    stringsCtx?.let { if (lang == stringsLang) return it }
+    return localized(app).also { stringsCtx = it; stringsLang = lang }
 }
 
 /**
@@ -48,7 +60,7 @@ object ConnectionManager {
     @Volatile private var lastServer: ServerResponse? = null
     @Volatile private var userDisconnected = false
 
-    private fun str(id: Int, vararg args: Any): String = localized(app).getString(id, *args)
+    private fun str(id: Int, vararg args: Any): String = appStrings(app).getString(id, *args)
     private fun prefs() = app.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
     private fun lang() = prefs().getString("language", "ru") ?: "ru"
     private fun bearer() = "Bearer ${TokenStore.access.value}"

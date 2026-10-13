@@ -322,4 +322,5 @@
     <string name="logout_confirm_title">Выйти из аккаунта?</string>
     <string name="logout_confirm_text">Чтобы снова войти, понадобятся email и пароль. Активное VPN-подключение будет разорвано.</string>
     <string name="logout_confirm_anon">Войти снова можно только по этому коду — сохраните его. Восстановить код нельзя.</string>
+    <string name="rules_wg_only">// Пока работает только для AmneziaWG и применяется при следующем подключении</string>
 </resources>

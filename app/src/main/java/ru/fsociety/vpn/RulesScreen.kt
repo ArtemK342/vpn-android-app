@@ -333,6 +333,12 @@ fun SitesRulesScreen(
                 color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
+            // Честно: правила сайтов пока применяются только к AmneziaWG (остальные протоколы — в 0.0.3.8)
+            Text(
+                stringResource(R.string.rules_wg_only),
+                color = Color(0xFFF59E0B), fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+            )
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = Border)
 

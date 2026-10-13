@@ -31,9 +31,17 @@ class VpnForegroundService : Service() {
         if (!loopStarted) {
             loopStarted = true
             scope.launch {
+                var lastState = ""
                 while (true) {
-                    val nm = getSystemService(android.app.NotificationManager::class.java)
-                    nm.notify(VpnNotificationHelper.NOTIFICATION_ID, buildNotification())
+                    // Трафик меняется только при подключении; в остальных состояниях уведомление
+                    // перерисовываем лишь при смене состояния (раньше — каждые 3 с всегда)
+                    val connected = VpnManager.isConnected()
+                    val state = "$connected/${VpnEvents.isConnecting}/${VpnManager.connectedServerName}"
+                    if (connected || state != lastState) {
+                        val nm = getSystemService(android.app.NotificationManager::class.java)
+                        nm.notify(VpnNotificationHelper.NOTIFICATION_ID, buildNotification())
+                        lastState = state
+                    }
                     delay(3000)
                 }
             }
@@ -42,6 +50,7 @@ class VpnForegroundService : Service() {
     }
 
     private fun buildNotification(): android.app.Notification {
+        val ctx = appStrings(this)  // язык приложения на момент обновления, а не запуска службы
         val isConnected = VpnManager.isConnected()
         val isConnecting = VpnEvents.isConnecting
         val (rx, tx) = VpnManager.getTrafficStats()
@@ -78,22 +87,22 @@ class VpnForegroundService : Service() {
 
         if (isConnected) {
             builder
-                .setContentTitle(getString(R.string.notification_title_connected))
+                .setContentTitle(ctx.getString(R.string.notification_title_connected))
                 .setContentText(
-                    "${VpnManager.connectedServerName} · ↓ ${VpnNotificationHelper.formatBytes(this, rx)} ↑ ${VpnNotificationHelper.formatBytes(this, tx)}"
+                    "${VpnManager.connectedServerName} · ↓ ${VpnNotificationHelper.formatBytes(ctx, rx)} ↑ ${VpnNotificationHelper.formatBytes(ctx, tx)}"
                 )
-                .addAction(0, getString(R.string.notification_disconnect), disconnectPi)
+                .addAction(0, ctx.getString(R.string.notification_disconnect), disconnectPi)
         } else if (isConnecting) {
             builder
-                .setContentTitle(getString(R.string.notification_title_connecting))
-                .setContentText(getString(R.string.notification_text_connecting))
+                .setContentTitle(ctx.getString(R.string.notification_title_connecting))
+                .setContentText(ctx.getString(R.string.notification_text_connecting))
                 .setProgress(0, 0, true)
         } else {
             builder
-                .setContentTitle(getString(R.string.notification_title_disconnected))
-                .setContentText(getString(R.string.notification_text_disconnected))
+                .setContentTitle(ctx.getString(R.string.notification_title_disconnected))
+                .setContentText(ctx.getString(R.string.notification_text_disconnected))
                 .setContentIntent(connectPi)
-                .addAction(0, getString(R.string.notification_connect), connectPi)
+                .addAction(0, ctx.getString(R.string.notification_connect), connectPi)
         }
 
         return builder.build()
