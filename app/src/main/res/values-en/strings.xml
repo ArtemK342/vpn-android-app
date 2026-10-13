@@ -38,7 +38,6 @@
     <string name="err_unknown">Something went wrong</string>
     <string name="login_error_not_verified">Email not verified — check your inbox</string>
     <string name="login_error_blocked">Account is blocked</string>
-    <string name="register_error_email_taken">Email is already registered</string>
     <string name="home_tab_all">ALL</string>
     <string name="home_tab_favorites">FAVORITES</string>
     <string name="home_disconnected">○ Disconnected</string>
@@ -93,7 +92,6 @@
     <string name="register_field_password_repeat">REPEAT PASSWORD</string>
     <string name="register_error_passwords_mismatch">Passwords do not match</string>
     <string name="register_error_password_length">Password must be at least 8 characters</string>
-    <string name="register_success">Email sent to %s — confirm your account</string>
     <string name="register_back">← Already have an account? Sign in</string>
 
     <!-- Rules -->
@@ -168,7 +166,7 @@
     <string name="tickets_telegram_urgent">Urgent question?</string>
     <string name="tickets_telegram_link">Write in Telegram</string>
     <string name="tickets_limit_title">Ticket limit</string>
-    <string name="tickets_limit_msg">You already have 3 open tickets. Close or delete one before creating a new one.</string>
+    <string name="tickets_limit_msg">You can create up to 2 tickets per day. Please try again later or message us on Telegram.</string>
     <string name="tickets_limit_ok">GOT IT</string>
     <string name="tickets_delete_title">Delete ticket?</string>
     <string name="tickets_delete_msg">\"%s\" will be permanently deleted.</string>
@@ -310,4 +308,17 @@
     <!-- RF mode -->
     <string name="home_proto_bypass">RF bypass · no server</string>
     <string name="home_status_bypass">● RF</string>
+    <!-- Sign-in / account -->
+    <string name="anon_back_title">Did you save the code?</string>
+    <string name="anon_back_text">Without this code you will not be able to sign in — it cannot be recovered.</string>
+    <string name="anon_back_stay">BACK TO THE CODE</string>
+    <string name="register_success_neutral">If this email is not registered yet, we have sent a confirmation email to it.</string>
+    <string name="account_label_email">Email</string>
+    <string name="account_label_login">Username</string>
+    <string name="account_label_code">Account code</string>
+    <string name="plan_month">month</string>
+    <string name="plan_year">year</string>
+    <string name="logout_confirm_title">Sign out?</string>
+    <string name="logout_confirm_text">You will need your email and password to sign in again. The active VPN connection will be closed.</string>
+    <string name="logout_confirm_anon">You can sign in again only with this code — save it. The code cannot be recovered.</string>
 </resources>

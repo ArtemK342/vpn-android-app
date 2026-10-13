@@ -38,7 +38,6 @@
     <string name="err_unknown">Что-то пошло не так</string>
     <string name="login_error_not_verified">Email не подтверждён — проверьте почту</string>
     <string name="login_error_blocked">Аккаунт заблокирован</string>
-    <string name="register_error_email_taken">Email уже зарегистрирован</string>
     <string name="home_tab_all">ВСЕ</string>
     <string name="home_tab_favorites">ИЗБРАННЫЕ</string>
     <string name="home_disconnected">○ Отключён</string>
@@ -93,7 +92,6 @@
     <string name="register_field_password_repeat">ПОВТОРИТЕ ПАРОЛЬ</string>
     <string name="register_error_passwords_mismatch">Пароли не совпадают</string>
     <string name="register_error_password_length">Пароль минимум 8 символов</string>
-    <string name="register_success">Письмо отправлено на %s — подтвердите аккаунт</string>
     <string name="register_back">← Уже есть аккаунт? Войти</string>
 
     <!-- Rules -->
@@ -168,7 +166,7 @@
     <string name="tickets_telegram_urgent">Срочный вопрос?</string>
     <string name="tickets_telegram_link">Написать в Telegram</string>
     <string name="tickets_limit_title">Лимит тикетов</string>
-    <string name="tickets_limit_msg">У вас уже 3 открытых тикета. Закройте или удалите один из них перед созданием нового.</string>
+    <string name="tickets_limit_msg">Можно создать не больше 2 обращений за сутки. Попробуйте позже или напишите в Telegram.</string>
     <string name="tickets_limit_ok">ПОНЯТНО</string>
     <string name="tickets_delete_title">Удалить тикет?</string>
     <string name="tickets_delete_msg">«%s» будет удалён без возможности восстановления.</string>
@@ -311,4 +309,17 @@
     <!-- «Режим РФ» -->
     <string name="home_proto_bypass">Обход РФ · без сервера</string>
     <string name="home_status_bypass">● РФ</string>
+    <!-- Вход / аккаунт -->
+    <string name="anon_back_title">Вы сохранили код?</string>
+    <string name="anon_back_text">Без этого кода войти в аккаунт будет невозможно — восстановить его нельзя.</string>
+    <string name="anon_back_stay">НАЗАД К КОДУ</string>
+    <string name="register_success_neutral">Если этот email ещё не зарегистрирован — мы отправили на него письмо для подтверждения.</string>
+    <string name="account_label_email">Email</string>
+    <string name="account_label_login">Логин</string>
+    <string name="account_label_code">Код аккаунта</string>
+    <string name="plan_month">месяц</string>
+    <string name="plan_year">год</string>
+    <string name="logout_confirm_title">Выйти из аккаунта?</string>
+    <string name="logout_confirm_text">Чтобы снова войти, понадобятся email и пароль. Активное VPN-подключение будет разорвано.</string>
+    <string name="logout_confirm_anon">Войти снова можно только по этому коду — сохраните его. Восстановить код нельзя.</string>
 </resources>

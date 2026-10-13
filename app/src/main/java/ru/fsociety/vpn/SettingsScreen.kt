@@ -202,7 +202,44 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
     var pwError by remember { mutableStateOf("") }
     var pwSuccess by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
+    var confirmLogout by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // Выход — с подтверждением. Анониму показываем его код: без него войти в аккаунт больше нельзя
+    if (confirmLogout) {
+        val isAnon = user?.account_type == "numeric"
+        val code = user?.email.orEmpty()
+        var copied by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { confirmLogout = false },
+            containerColor = Bg2,
+            title = { Text(stringResource(R.string.logout_confirm_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(stringResource(if (isAnon) R.string.logout_confirm_anon else R.string.logout_confirm_text),
+                        color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    if (isAnon && code.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(code, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.clickable { copySecret(errCtx, "fsociety code", code); copied = true })
+                        Text(stringResource(if (copied) R.string.anon_code_copied else R.string.anon_code_tap_to_copy),
+                            color = if (copied) Accent else TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmLogout = false; onLogout() }) {
+                    Text(stringResource(R.string.account_btn_logout), color = ErrorRed, fontFamily = FontFamily.Monospace)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmLogout = false }) {
+                    Text(stringResource(R.string.tickets_cancel), color = TextMuted, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
+    }
 
     val strErrorEmpty    = stringResource(R.string.account_error_empty)
     val strErrorMismatch = stringResource(R.string.account_error_mismatch)
@@ -223,11 +260,25 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                     CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
                 }
             } else {
-                SettingsRow(label = "Email", value = user?.email ?: "—")
+                // Для анонимов в поле лежит 16-значный код, для логин-аккаунтов — логин (раньше всё «Email»)
+                SettingsRow(
+                    label = stringResource(when (user?.account_type) {
+                        "numeric"  -> R.string.account_label_code
+                        "username" -> R.string.account_label_login
+                        else       -> R.string.account_label_email
+                    }),
+                    value = user?.email ?: "—"
+                )
                 SettingsRow(
                     label = stringResource(R.string.account_label_subscription),
                     value = if (subscription?.is_active == true)
-                        stringResource(R.string.account_sub_active, subscription.plan ?: "", subscription.expires_at?.take(10) ?: "")
+                        stringResource(R.string.account_sub_active,
+                            when (subscription.plan) {
+                                "month" -> stringResource(R.string.plan_month)
+                                "year"  -> stringResource(R.string.plan_year)
+                                else    -> subscription.plan ?: ""
+                            },
+                            subscription.expires_at?.take(10) ?: "")
                     else stringResource(R.string.account_sub_none)
                 )
                 if (user?.role != "user" && user?.role != null) {
@@ -305,11 +356,16 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                                         "Bearer $token",
                                         ChangePasswordRequest(oldPassword, newPassword)
                                     )
-                                    if (resp.isSuccessful) {
-                                        pwSuccess = strPasswordChanged
-                                        oldPassword = ""; newPassword = ""; newPassword2 = ""
-                                    } else {
-                                        pwError = strErrorWrongPw
+                                    when {
+                                        resp.isSuccessful -> {
+                                            pwSuccess = strPasswordChanged
+                                            oldPassword = ""; newPassword = ""; newPassword2 = ""
+                                        }
+                                        // 400 — неверный текущий пароль; остальное (сессия, лимит, сервер)
+                                        // раньше тоже показывалось как «неверный пароль»
+                                        resp.code() == 400 -> pwError = strErrorWrongPw
+                                        else -> pwError = AppErrors.httpText(errCtx, resp.code(),
+                                            try { resp.errorBody()?.string() } catch (_: Exception) { null })
                                     }
                                 } catch (e: Exception) {
                                     AppErrors.log("change password", e)
@@ -331,7 +387,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
 
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
-                    onClick = onLogout,
+                    onClick = { confirmLogout = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = ErrorRed),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
@@ -344,8 +400,17 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
     }
 }
 
-fun formatMsgTime(raw: String): String {
-    return try { raw.replace("T", " ").take(16) } catch (_: Exception) { raw.take(16) }
+/** Время с сервера (UTC, ISO) → местное «гггг-ММ-дд ЧЧ:мм» (раньше показывалось UTC как есть). */
+fun formatMsgTime(raw: String): String = try {
+    val zone = java.time.ZoneId.systemDefault()
+    val local = try {
+        java.time.OffsetDateTime.parse(raw).atZoneSameInstant(zone)
+    } catch (_: Exception) {
+        java.time.LocalDateTime.parse(raw).atZone(java.time.ZoneOffset.UTC).withZoneSameInstant(zone)
+    }
+    local.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+} catch (_: Exception) {
+    raw.replace("T", " ").take(16)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -361,11 +426,25 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
     var newMessage by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
     var ticketToDelete by remember { mutableStateOf<TicketResponse?>(null) }
+    var limitText by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     BackHandler {
         if (selectedTicket != null) selectedTicket = null
         else onBack()
+    }
+
+    // Открытый тикет сам подгружает новые ответы поддержки (раньше — только после повторного открытия)
+    val openTicketId = selectedTicket?.ticket?.id
+    LaunchedEffect(openTicketId) {
+        if (openTicketId == null) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(20_000)
+            try {
+                val fresh = ApiClient.service.getTicket("Bearer $token", openTicketId)
+                if (selectedTicket?.ticket?.id == openTicketId) selectedTicket = fresh
+            } catch (e: Exception) { AppErrors.log("refresh ticket", e) }
+        }
     }
 
     LaunchedEffect(token) {
@@ -399,6 +478,17 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                             val t = ApiClient.service.createTicket("Bearer $token", TicketCreateRequest(newSubject))
                             tickets = listOf(t) + tickets
                             showCreateDialog = false; newSubject = ""
+                        } catch (e: retrofit2.HttpException) {
+                            if (e.code() == 429) {
+                                // Лимит сервера — 2 тикета в сутки; он сам пишет, когда можно следующий (по-русски)
+                                val detail = AppErrors.readBody(e)?.let {
+                                    try { org.json.JSONObject(it).optString("detail") } catch (_: Exception) { null }
+                                }
+                                val isEn = errCtx.resources.configuration.locales[0].language == "en"
+                                limitText = detail?.takeIf { !isEn && it.isNotBlank() }
+                                showCreateDialog = false
+                                showLimitDialog = true
+                            } else AppErrors.toast(errCtx, "create ticket", e)
                         } catch (e: Exception) { AppErrors.toast(errCtx, "create ticket", e) }
                         finally { isSending = false }
                     }
@@ -417,7 +507,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
             onDismissRequest = { showLimitDialog = false },
             containerColor = Bg2,
             title = { Text(stringResource(R.string.tickets_limit_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
-            text = { Text(stringResource(R.string.tickets_limit_msg), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            text = { Text(limitText ?: stringResource(R.string.tickets_limit_msg), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
             confirmButton = {
                 TextButton(onClick = { showLimitDialog = false }) {
                     Text(stringResource(R.string.tickets_limit_ok), color = Accent, fontFamily = FontFamily.Monospace)
@@ -580,7 +670,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(ticket.subject, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(ticket.updated_at.take(10), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                            Text(formatMsgTime(ticket.updated_at).take(10), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                         }
                         Text(
                             stringResource(if (ticket.status == "open") R.string.tickets_open else R.string.tickets_closed),
@@ -614,9 +704,8 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
         HorizontalDivider(color = Border)
         Button(
             onClick = {
-                val openCount = tickets.count { it.status == "open" }
-                if (openCount >= 3) showLimitDialog = true
-                else showCreateDialog = true
+                // Лимит проверяет сервер (2 в сутки); раньше приложение само запрещало при «3 открытых»
+                showCreateDialog = true
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),

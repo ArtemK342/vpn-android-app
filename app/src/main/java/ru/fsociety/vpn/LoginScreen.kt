@@ -46,6 +46,37 @@ private fun policyAssetUrl(name: String, lang: String): String {
 
 private data class AnonResult(val code: String, val accessToken: String, val refreshToken: String)
 
+/**
+ * Созданный анонимный аккаунт хранится до нажатия «Войти»: раньше код жил только в памяти экрана, и
+ * «Назад» или выгрузка приложения теряли его навсегда (а новый аккаунт — только раз в сутки).
+ */
+private object PendingAnon {
+    private const val KEY = "pending_anon"
+    fun save(context: Context, r: AnonResult) =
+        context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).edit()
+            .putString(KEY, org.json.JSONObject()
+                .put("code", r.code).put("access", r.accessToken).put("refresh", r.refreshToken).toString())
+            .apply()
+    fun load(context: Context): AnonResult? = try {
+        context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString(KEY, null)?.let {
+            val o = org.json.JSONObject(it)
+            AnonResult(o.getString("code"), o.getString("access"), o.getString("refresh"))
+        }
+    } catch (_: Exception) { null }
+    fun clear(context: Context) =
+        context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).edit().remove(KEY).apply()
+}
+
+/** Скопировать секрет: на Android 13+ он не показывается в превью буфера обмена и истории клавиатуры. */
+fun copySecret(context: Context, label: String, text: String) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText(label, text)
+    clip.description.extras = android.os.PersistableBundle().apply {
+        putBoolean("android.content.extra.IS_SENSITIVE", true)
+    }
+    cm.setPrimaryClip(clip)
+}
+
 private fun shareText(context: Context, text: String) {
     context.startActivity(Intent.createChooser(
         Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) },
@@ -100,12 +131,21 @@ fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
                         }
                     }
                     webViewClient = object : WebViewClient() {
+                        // Внешние ссылки — в браузере, а не внутри приложения
                         override fun shouldOverrideUrlLoading(
                             view: WebView?, request: android.webkit.WebResourceRequest?
-                        ) = false
+                        ): Boolean {
+                            val uri = request?.url ?: return false
+                            if (uri.scheme == "http" || uri.scheme == "https") {
+                                try { ctx.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                                catch (e: Exception) { AppErrors.log("open link", e) }
+                                return true
+                            }
+                            return false
+                        }
                     }
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
+                    // Статичные страницы политики: JavaScript не нужен
+                    settings.javaScriptEnabled = false
                     settings.useWideViewPort = true
                     settings.loadWithOverviewMode = true
                     loadUrl(url)
@@ -164,13 +204,34 @@ private fun AnonCodeResultScreen(result: AnonResult, onLogin: (String, String) -
     val formatted = result.code.chunked(4).joinToString(" ")
     val shareText = stringResource(R.string.anon_share_text, formatted)
     var copied by remember { mutableStateOf(false) }
+    var confirmLeave by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun copyCode() {
-        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("fsociety code", formatted))
+        copySecret(context, "fsociety code", formatted)
         copied = true
         scope.launch { delay(2000); copied = false }
+    }
+
+    // «Назад» раньше закрывал приложение, и код пропадал — теперь спрашиваем, сохранён ли код
+    BackHandler { confirmLeave = true }
+    if (confirmLeave) {
+        AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            containerColor = Bg2,
+            title = { Text(stringResource(R.string.anon_back_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.anon_back_text), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) },
+            confirmButton = {
+                TextButton(onClick = { confirmLeave = false; onLogin(result.accessToken, result.refreshToken) }) {
+                    Text(stringResource(R.string.anon_code_login_btn), color = Accent, fontFamily = FontFamily.Monospace)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmLeave = false }) {
+                    Text(stringResource(R.string.anon_back_stay), color = TextMuted, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
     }
 
     Box(
@@ -272,6 +333,8 @@ private fun AnonRegisterScreen(
     val strTermsTitle     = stringResource(R.string.terms_screen_title)
     val strErrorRateLimit = stringResource(R.string.anon_register_error_rate_limit)
 
+    BackHandler { onBack() }   // раньше «Назад» закрывал приложение вместо возврата ко входу
+
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
         contentAlignment = Alignment.Center
@@ -363,7 +426,9 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     var numericCode by remember { mutableStateOf("") }
     var numericFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var showAnonRegister by remember { mutableStateOf(false) }
-    var anonResult by remember { mutableStateOf<AnonResult?>(null) }
+    // Созданный, но ещё не «вошедший» анонимный аккаунт — с прошлого раза (код не теряется)
+    val pendingCtx = LocalContext.current
+    var anonResult by remember { mutableStateOf(PendingAnon.load(pendingCtx)) }
     var showPolicyUrl by remember { mutableStateOf<String?>(null) }
     var showPolicyTitle by remember { mutableStateOf("") }
     var showLangMenu by remember { mutableStateOf(false) }
@@ -393,7 +458,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
 
     // Экран с кодом
     if (anonResult != null) {
-        AnonCodeResultScreen(result = anonResult!!, onLogin = onLogin)
+        AnonCodeResultScreen(result = anonResult!!, onLogin = { a, r -> PendingAnon.clear(context); onLogin(a, r) })
         return
     }
 
@@ -401,7 +466,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     if (showAnonRegister) {
         AnonRegisterScreen(
             onBack = { showAnonRegister = false },
-            onSuccess = { result -> anonResult = result },
+            onSuccess = { result -> PendingAnon.save(context, result); anonResult = result },
             onOpenPolicy = { url, title -> showPolicyUrl = url; showPolicyTitle = title }
         )
         return
@@ -574,8 +639,9 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                                 if (digits.length != 16) { errorMsg = strErrorCodeLength; return@launch }
                                 ApiClient.service.loginNumeric(NumericLoginRequest(digits))
                             } else {
-                                if (email.isEmpty() || password.isEmpty()) { errorMsg = strErrorEmpty; return@launch }
-                                ApiClient.service.login(email, password)
+                                // пробел в конце от клавиатуры давал «неверный email или пароль»
+                                if (email.isBlank() || password.isEmpty()) { errorMsg = strErrorEmpty; return@launch }
+                                ApiClient.service.login(email.trim(), password)
                             }
                             onLogin(response.access_token, response.refresh_token)
                         } catch (e: retrofit2.HttpException) {
@@ -703,8 +769,9 @@ fun RegisterScreen(onBack: () -> Unit) {
     val strErrorEmpty    = stringResource(R.string.login_error_empty)
     val strErrorMismatch = stringResource(R.string.register_error_passwords_mismatch)
     val strErrorLength   = stringResource(R.string.register_error_password_length)
-    val strErrorEmailTaken = stringResource(R.string.register_error_email_taken)
-    val strSuccess       = stringResource(R.string.register_success, email)
+
+    // Одинаковый ответ, есть такой email или нет (как на сайте) — не выдаём, кто зарегистрирован
+    val strSuccess       = stringResource(R.string.register_success_neutral)
     val strPrivacyTitle  = stringResource(R.string.privacy_screen_title)
     val strTermsTitle    = stringResource(R.string.terms_screen_title)
 
@@ -712,6 +779,8 @@ fun RegisterScreen(onBack: () -> Unit) {
         PolicyViewerScreen(url = showPolicyUrl!!, title = showPolicyTitle, onBack = { showPolicyUrl = null })
         return
     }
+
+    BackHandler { onBack() }   // раньше «Назад» закрывал приложение вместо возврата ко входу
 
     Box(
         modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
@@ -800,14 +869,14 @@ fun RegisterScreen(onBack: () -> Unit) {
                     scope.launch {
                         isLoading = true; errorMsg = ""
                         try {
-                            ApiClient.service.register(RegisterRequest(email, password))
+                            ApiClient.service.register(RegisterRequest(email.trim(), password))
                             successMsg = strSuccess
                         } catch (e: retrofit2.HttpException) {
                             AppErrors.log("register HTTP ${e.code()}", e)
                             val body = AppErrors.readBody(e) ?: ""
                             // 400 «Email уже зарегистрирован»; 403 «Регистрация временно закрыта» — текст сервера
-                            errorMsg = if (e.code() == 400 && body.contains("зарегистр")) strErrorEmailTaken
-                                       else AppErrors.httpText(context2, e.code(), body)
+                            if (e.code() == 400 && body.contains("зарегистр")) successMsg = strSuccess
+                            else errorMsg = AppErrors.httpText(context2, e.code(), body)
                         } catch (e: Exception) {
                             AppErrors.log("register", e)
                             errorMsg = AppErrors.text(context2, e)
