@@ -46,8 +46,8 @@ import kotlinx.coroutines.withContext
 import ru.fsociety.vpn.ui.theme.*
 
 // Значки разделов — одним цветом, темнее основного (раньше эмодзи выбивались по цвету и стилю)
-private val RulesIconGreen = Color(0xFF8DB51E)
-private val RulesIconBg = Color(0xFF161C0A)
+private val RulesIconGreen: Color get() = themed(0xFF8DB51E, 0xFF5E8A10)
+private val RulesIconBg: Color get() = themed(0xFF161C0A, 0xFFE3EDCC)
 
 data class AppInfo(
     val packageName: String,

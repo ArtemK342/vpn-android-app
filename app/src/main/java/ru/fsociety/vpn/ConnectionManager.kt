@@ -128,6 +128,25 @@ object ConnectionManager {
         scope.launch { onAlwaysOn() }
     }
 
+    /**
+     * «Запуск при включении телефона» (BootReceiver): подключение к последнему серверу, когда появится
+     * сеть. Без согласия на VPN не подключаемся — системное окно после загрузки не показать.
+     */
+    fun onBootCompleted() {
+        if (TokenStore.access.value.isEmpty()) return
+        val server = try {
+            com.google.gson.Gson().fromJson(prefs().getString(PREF_LAST_SERVER, null), ServerResponse::class.java)
+        } catch (_: Exception) { null } ?: return
+        if (VpnService.prepare(app) != null) return
+        AppLog.i("запуск при включении телефона: ${server.server_type} ${server.id}")
+        // Уведомление держит процесс, пока ждём сеть
+        try { VpnForegroundService.start(app) } catch (e: Exception) { AppErrors.log("boot notification", e) }
+        scope.launch {
+            withTimeoutOrNull(90_000) { while (!hasInternet()) delay(2_000) }
+            if (connectedServer.value == null && op?.isActive != true) requestConnect(server) else syncNotification()
+        }
+    }
+
     /** Подключиться к последнему серверу, если пользователь не отключался сам. */
     private fun onAlwaysOn() {
         val p = prefs()
@@ -339,9 +358,9 @@ object ConnectionManager {
         val ok = try {
             when (p.type) {
                 "bypass" -> startSingbox(p, p.config)
-                "vless", "hysteria", "trojan" -> startSingbox(p,
+                "vless", "hysteria", "trojan" -> startSingbox(p, VpnOptions.patchSingbox(app,
                     if (p.rules.sitesActive) SplitTunnelingManager.applySiteRules(p.config, p.rules, BypassManager.directDns(app))
-                    else p.config)
+                    else p.config))
                 "wireguard_proxy" -> startWireGuardProxy(p)
                 "openvpn_cloak" -> startOpenVpn(p)
                 else -> startWireGuard(p)
@@ -418,7 +437,7 @@ object ConnectionManager {
             val config = SplitTunnelingManager.applyAppRulesToWg(p.config, p.rules) {
                 SplitTunnelingManager.isInstalled(app, it)
             }
-            ok = VpnManager.connect(app, config)
+            ok = VpnManager.connect(app, VpnOptions.patchWg(app, config))   // DNS и локальная сеть из настроек
         } finally {
             // Отменили, пока туннель поднимался, — не оставляем его висеть
             if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }
@@ -441,8 +460,9 @@ object ConnectionManager {
         val pass = java.util.UUID.randomUUID().toString()
         var ok = false
         try {
-            if (!VpnManager.connectProxy(app, p.config, port, user, pass)) return false
-            val config = SplitTunnelingManager.awgProxyConfig(port, user, pass, p.rules, BypassManager.directDns(app))
+            if (!VpnManager.connectProxy(app, VpnOptions.patchWg(app, p.config), port, user, pass)) return false
+            val config = VpnOptions.patchSingbox(app,
+                SplitTunnelingManager.awgProxyConfig(port, user, pass, p.rules, BypassManager.directDns(app)))
             ok = startSingbox(p, config)
         } finally {
             if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }

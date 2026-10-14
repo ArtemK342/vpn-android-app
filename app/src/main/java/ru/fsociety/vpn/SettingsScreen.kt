@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.BackHandler
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,6 +32,10 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -78,7 +83,8 @@ fun SettingsScreen(
             onBackground = { currentScreen = "background" },
             onLanguage = { currentScreen = "language" },
             onProtocols = { currentScreen = "protocols" },
-            onLogging = { currentScreen = "logging" }
+            onLogging = { currentScreen = "logging" },
+            onOpen = { currentScreen = it }
         )
         "background" -> BackgroundModeTab(
             backgroundMode = backgroundMode,
@@ -106,6 +112,12 @@ fun SettingsScreen(
         )
         "protocol_hysteria2" -> Hysteria2SettingsTab(onBack = { currentScreen = "protocols" })
         "logging" -> LoggingTab(onBack = { currentScreen = "app_settings" })
+        "theme" -> ThemeTab(onBack = { currentScreen = "app_settings" })
+        "dns" -> DnsTab(onBack = { currentScreen = "app_settings" })
+        "lan" -> SwitchOptionTab(VpnOptions.PREF_LAN, R.string.lan_title, R.string.lan_desc, R.string.lan_on_desc, R.string.lan_off_desc,
+            R.string.lan_note, onBack = { currentScreen = "app_settings" })
+        "autostart" -> SwitchOptionTab(VpnOptions.PREF_AUTOSTART, R.string.autostart_title, R.string.autostart_desc,
+            R.string.autostart_on_desc, R.string.autostart_off_desc, R.string.autostart_note, onBack = { currentScreen = "app_settings" })
         "update" -> UpdateTab(onBack = { currentScreen = "main" })
         "subscription" -> ComingSoonTab(title = stringResource(R.string.settings_subscription), onBack = { currentScreen = "main" })
         "payments" -> ComingSoonTab(title = stringResource(R.string.settings_payments), onBack = { currentScreen = "main" })
@@ -767,7 +779,8 @@ fun AppSettingsTab(
     onLanguage: () -> Unit,
     onAutoReconnect: () -> Unit = {},
     onProtocols: () -> Unit = {},
-    onLogging: () -> Unit = {}
+    onLogging: () -> Unit = {},
+    onOpen: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val logMode = AppLog.mode(LocalContext.current)
@@ -802,6 +815,35 @@ fun AppSettingsTab(
             title = stringResource(R.string.background_title).removeSuffix("."),
             subtitle = stringResource(if (backgroundMode) R.string.background_enabled_sub else R.string.background_disabled_sub),
             onClick = onBackground
+        )
+        val optCtx = LocalContext.current
+        val optPrefs = optCtx.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.Palette, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.theme_title),
+            subtitle = stringResource(when (optPrefs.getString(ru.fsociety.vpn.ui.theme.AppTheme.PREF, "dark")) {
+                "light" -> R.string.theme_light; "system" -> R.string.theme_system; else -> R.string.theme_dark }),
+            onClick = { onOpen("theme") }
+        )
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.Dns, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.dns_title),
+            subtitle = stringResource(when (VpnOptions.dnsKey(optCtx)) {
+                "google" -> R.string.dns_google; "quad9" -> R.string.dns_quad9; "adguard" -> R.string.dns_adguard
+                else -> R.string.dns_cloudflare }),
+            onClick = { onOpen("dns") }
+        )
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.Router, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.lan_title),
+            subtitle = stringResource(if (VpnOptions.allowLan(optCtx)) R.string.opt_on else R.string.opt_off),
+            onClick = { onOpen("lan") }
+        )
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.RestartAlt, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.autostart_title),
+            subtitle = stringResource(if (VpnOptions.autostart(optCtx)) R.string.opt_on else R.string.opt_off),
+            onClick = { onOpen("autostart") }
         )
         SettingsMenuItem(
             icon = { Icon(Icons.Filled.Tune, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
@@ -1519,4 +1561,104 @@ fun LoggingTab(onBack: () -> Unit) {
             Text(stringResource(R.string.log_note), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         }
     }
+}
+
+/** Экран выбора одного варианта (тема, DNS, вкл/выкл); сохраняет вызывающий код в [onSelect]. */
+@Composable
+fun OptionsTab(
+    titleRes: Int, descRes: Int, noteRes: Int?,
+    options: List<Triple<String, Int, Int>>,
+    initial: String,
+    onSelect: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    var selected by remember { mutableStateOf(initial) }
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(stringResource(titleRes), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
+            Text(stringResource(descRes), color = TextMuted, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+            options.forEach { (key, title, desc) ->
+                CcModeOption(stringResource(title), stringResource(desc), selected == key) {
+                    selected = key
+                    onSelect(key)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            noteRes?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(stringResource(it), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+/** DNS внутри VPN: Cloudflare / Google / Quad9 / AdGuard. */
+@Composable
+fun DnsTab(onBack: () -> Unit) {
+    val context = LocalContext.current
+    OptionsTab(
+        titleRes = R.string.dns_title, descRes = R.string.dns_desc, noteRes = R.string.dns_note,
+        options = listOf(
+            Triple("cloudflare", R.string.dns_cloudflare, R.string.dns_cloudflare_desc),
+            Triple("google", R.string.dns_google, R.string.dns_google_desc),
+            Triple("quad9", R.string.dns_quad9, R.string.dns_quad9_desc),
+            Triple("adguard", R.string.dns_adguard, R.string.dns_adguard_desc),
+        ),
+        initial = VpnOptions.dnsKey(context),
+        onSelect = { key ->
+            context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE).edit()
+                .putString(VpnOptions.PREF_DNS, key).apply()
+        },
+        onBack = onBack
+    )
+}
+
+/** Вкл / выкл булевой настройки [prefKey]. */
+@Composable
+fun SwitchOptionTab(prefKey: String, titleRes: Int, descRes: Int, onDescRes: Int, offDescRes: Int, noteRes: Int?, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE) }
+    OptionsTab(
+        titleRes = titleRes, descRes = descRes, noteRes = noteRes,
+        options = listOf(Triple("on", R.string.opt_on, onDescRes), Triple("off", R.string.opt_off, offDescRes)),
+        initial = if (prefs.getBoolean(prefKey, false)) "on" else "off",
+        onSelect = { prefs.edit().putBoolean(prefKey, it == "on").apply() },
+        onBack = onBack
+    )
+}
+
+/** Тема: тёмная / светлая / как в системе — меняется сразу, без перезапуска. */
+@Composable
+fun ThemeTab(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE) }
+    OptionsTab(
+        titleRes = R.string.theme_title, descRes = R.string.theme_desc, noteRes = null,
+        options = listOf(
+            Triple("dark", R.string.theme_dark, R.string.theme_dark_desc),
+            Triple("light", R.string.theme_light, R.string.theme_light_desc),
+            Triple("system", R.string.theme_system, R.string.theme_system_desc),
+        ),
+        initial = prefs.getString(ru.fsociety.vpn.ui.theme.AppTheme.PREF, "dark") ?: "dark",
+        onSelect = { mode ->
+            prefs.edit().putString(ru.fsociety.vpn.ui.theme.AppTheme.PREF, mode).apply()
+            ru.fsociety.vpn.ui.theme.AppTheme.mode.value = mode
+            // Значки строки состояния и навигации — под тему
+            (context as? androidx.activity.ComponentActivity)?.let { activity ->
+                val t = android.graphics.Color.TRANSPARENT
+                val bars = if (ru.fsociety.vpn.ui.theme.AppTheme.dark) androidx.activity.SystemBarStyle.dark(t)
+                           else androidx.activity.SystemBarStyle.light(t, t)
+                activity.enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+            }
+        },
+        onBack = onBack
+    )
 }

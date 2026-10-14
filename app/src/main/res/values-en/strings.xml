@@ -369,4 +369,36 @@
     <string name="log_send">SEND LOG</string>
     <string name="log_clear">Clear</string>
     <string name="log_note">// The log stays on the phone and is sent only if you share it yourself. Keys, passwords, tokens, emails and account codes are removed from the file. Turning the log off deletes it.</string>
+    <!-- Settings → App: theme, DNS, local network, start on boot (VpnOptions.kt) -->
+    <string name="opt_on">On</string>
+    <string name="opt_off">Off</string>
+    <string name="theme_title">Theme</string>
+    <string name="theme_desc">App appearance.</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_dark_desc">Signature look, as before</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_light_desc">For bright light</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_system_desc">Follows Android dark theme</string>
+    <string name="dns_title">DNS in VPN</string>
+    <string name="dns_desc">Which DNS server the VPN uses to look up websites. Applies only to traffic through the VPN.</string>
+    <string name="dns_cloudflare">Cloudflare · 1.1.1.1</string>
+    <string name="dns_cloudflare_desc">Fast, default</string>
+    <string name="dns_google">Google · 8.8.8.8</string>
+    <string name="dns_google_desc">Reliable, popular</string>
+    <string name="dns_quad9">Quad9 · 9.9.9.9</string>
+    <string name="dns_quad9_desc">Blocks malicious and phishing websites</string>
+    <string name="dns_adguard">AdGuard · 94.140.14.14</string>
+    <string name="dns_adguard_desc">Blocks ads and trackers</string>
+    <string name="dns_note">// Applies from the next connection. For AmneziaWG, VLESS, Trojan and Hysteria2; OpenVPN uses the server\'s DNS.</string>
+    <string name="lan_title">Local network</string>
+    <string name="lan_desc">Printers, TVs (Chromecast), the router and other devices on your Wi-Fi stay reachable while the VPN is on.</string>
+    <string name="lan_on_desc">10.x, 172.16–31.x and 192.168.x go around the VPN</string>
+    <string name="lan_off_desc">All traffic through the VPN</string>
+    <string name="lan_note">// Applies from the next AmneziaWG connection. With VLESS, Trojan and Hysteria2 the local network is always reachable.</string>
+    <string name="autostart_title">Start on boot</string>
+    <string name="autostart_desc">After a reboot the app connects to the last server by itself — after the first unlock.</string>
+    <string name="autostart_on_desc">Connect after reboot</string>
+    <string name="autostart_off_desc">Connect manually</string>
+    <string name="autostart_note">// The VPN must have been connected manually at least once: otherwise Android won\'t allow connecting in the background. For protection when Android closes the app there is Always-on VPN in Android settings (Kill Switch screen).</string>
 </resources>

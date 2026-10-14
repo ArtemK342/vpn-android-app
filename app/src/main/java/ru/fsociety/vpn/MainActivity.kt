@@ -38,7 +38,14 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(VpnNotificationHelper.EXTRA_AUTO_CONNECT, false) == true) {
             HomeUiState.autoConnectRequested.value = true
         }
-        enableEdgeToEdge()
+        // Тема: из настроек; «как в системе» — по текущему режиму системы (при его смене экран пересоздаётся)
+        AppTheme.mode.value = getSharedPreferences("fsociety", MODE_PRIVATE).getString(AppTheme.PREF, "dark") ?: "dark"
+        AppTheme.systemDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val transparent = android.graphics.Color.TRANSPARENT
+        val bars = if (AppTheme.dark) androidx.activity.SystemBarStyle.dark(transparent)
+                   else androidx.activity.SystemBarStyle.light(transparent, transparent)
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         setContent {
             VpnappTheme {
                 App(context = this)

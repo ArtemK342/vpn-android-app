@@ -175,8 +175,8 @@ class XrayVpnService : VpnService() {
         builder.addRoute("0.0.0.0", 0)
 
         // DNS
-        builder.addDnsServer("1.1.1.1")
-        builder.addDnsServer("8.8.8.8")
+        // DNS из настроек (Cloudflare / Google / Quad9 / AdGuard)
+        builder.addDnsServer(VpnOptions.dnsIp(this))
 
         // Приложения: «только эти» / «все, кроме этих». Само приложение — всегда вне туннеля:
         // sing-box (и AmneziaWG в режиме прокси) подключаются к серверу напрямую.
