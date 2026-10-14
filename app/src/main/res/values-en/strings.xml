@@ -210,8 +210,8 @@
     <string name="killswitch_description">If the VPN connection unexpectedly drops — all internet is blocked until reconnection. Protects against real IP leaks.</string>
     <string name="killswitch_switch_enabled">Enabled</string>
     <string name="killswitch_switch_disabled">Disabled</string>
-    <string name="killswitch_note">// If the connection drops, internet is blocked until the app reconnects or you tap “Unblock” in the notification.
-// For protection even when Android closes the app, enable “Always-on VPN” and “Block connections without VPN” in Android settings.</string>
+    <string name="killswitch_note">// If the connection drops, internet is blocked until the app reconnects or you tap “Unblock”.
+// For protection even when Android closes the app, enable “Always-on VPN” and “Block connections without VPN” in Android settings: after a reboot the app reconnects to the last server by itself (unless you disconnected).</string>
 
     <!-- Background Mode tab -->
     <string name="background_title">Background Mode.</string>

@@ -74,6 +74,9 @@ object ConnectionManager {
 
     /** Пользователь хоть раз разрешил VPN (уведомление выбирает, как подключать). */
     const val PREF_VPN_CONSENT = "vpn_consent"
+    /** Последний подключённый сервер и «пользователь хочет быть подключён» — для «Постоянной VPN». */
+    private const val PREF_LAST_SERVER = "last_server"
+    private const val PREF_WANT_CONNECTED = "want_connected"
 
     // Непойманная ошибка не должна ронять приложение — а вместе с ним и туннель
     private val errors = CoroutineExceptionHandler { _, e ->
@@ -104,6 +107,27 @@ object ConnectionManager {
         app = context.applicationContext
         scope.launch { VpnEvents.vpnDropped.collect { onDrop() } }
         scope.launch { VpnEvents.vpnStopped.collect { onExternalStop() } }
+        // Android запустил VPN сам: «Постоянная VPN» после перезагрузки или перезапуск службы после
+        // выгрузки процесса. Раньше ничего не происходило — с «Блокировать без VPN» интернета не было,
+        // пока не откроешь приложение.
+        org.amnezia.awg.backend.AbstractBackend.setAlwaysOnCallback { scope.launch { onAlwaysOn() } }
+    }
+
+    /** Подключиться к последнему серверу, если пользователь не отключался сам. */
+    private fun onAlwaysOn() {
+        val p = prefs()
+        if (!p.getBoolean(PREF_WANT_CONNECTED, false) || TokenStore.access.value.isEmpty()) return
+        if (op?.isActive == true || connectedServer.value != null) return
+        val server = try {
+            com.google.gson.Gson().fromJson(p.getString(PREF_LAST_SERVER, null), ServerResponse::class.java)
+        } catch (e: Exception) { null } ?: return
+        AppErrors.log("always-on", IllegalStateException("connecting to ${server.id}"))
+        requestConnect(server)
+    }
+
+    /** Пользователь сам отключился / вышел / VPN выключили снаружи — «Постоянная VPN» не переподключает. */
+    private fun setWantConnected(want: Boolean) {
+        prefs().edit().putBoolean(PREF_WANT_CONNECTED, want).apply()
     }
 
     /** Есть ли сейчас любой туннель (WireGuard / sing-box / OpenVPN). */
@@ -142,6 +166,8 @@ object ConnectionManager {
 
     /** Выход из аккаунта / заблокированная версия: туннель и кэш принадлежат старому аккаунту. */
     fun requestLogoutReset(): Job = launchOp {
+        setWantConnected(false)
+        prefs().edit().remove(PREF_LAST_SERVER).apply()
         ConfigCache.clearAll(app)
         pending.value = null
         permissionRequested = false
@@ -553,6 +579,7 @@ object ConnectionManager {
     // ── Отключение ───────────────────────────────────────────────────────────
 
     private suspend fun disconnect() {
+        setWantConnected(false)
         sessionVerified = false
         pending.value = null
         isConnecting.value = false
@@ -600,8 +627,13 @@ object ConnectionManager {
     private fun onConnected(server: ServerResponse) {
         connectedServer.value = server
         lastServer = server
-        // Разрешение VPN есть — «Подключить» в уведомлении может подключать без открытия приложения
-        prefs().edit().putBoolean(PREF_VPN_CONSENT, true).apply()
+        // Разрешение VPN есть — «Подключить» в уведомлении может подключать без открытия приложения;
+        // сервер запоминаем для «Постоянной VPN»
+        prefs().edit()
+            .putBoolean(PREF_VPN_CONSENT, true)
+            .putBoolean(PREF_WANT_CONNECTED, true)
+            .putString(PREF_LAST_SERVER, com.google.gson.Gson().toJson(server))
+            .apply()
         VpnManager.connectedServerName = server.displayName(lang())
         KillSwitch.release(app)
         idle("")
@@ -670,6 +702,7 @@ object ConnectionManager {
      */
     private fun onExternalStop() {
         val wasActive = connectedServer.value != null || isConnecting.value || KillSwitch.engaged
+        setWantConnected(false)
         launchOp {
             stopTunnels()
             KillSwitch.release(app)
