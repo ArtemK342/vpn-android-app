@@ -365,7 +365,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                     } catch (e: Exception) { AppErrors.log("refresh maintenance", e) }
                     try {
                         if (user == null) {
-                            user = ApiClient.service.getMe("Bearer $token")
+                            user = TokenStore.withAnonCode(ApiClient.service.getMe("Bearer $token"))
                             subscription = ApiClient.service.getSubscription("Bearer $token")
                             ProfileCache.save(appContext, user, subscription)
                         }
@@ -400,7 +400,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
         }
         scope.launch {
             try {
-                user = withRetry { ApiClient.service.getMe("Bearer $token") }
+                user = TokenStore.withAnonCode(withRetry { ApiClient.service.getMe("Bearer $token") })
                 subscription = withRetry { ApiClient.service.getSubscription("Bearer $token") }
                 ProfileCache.save(appContext, user, subscription)
                 try { usage = ApiClient.service.getUsage("Bearer $token") } catch (e: Exception) { AppErrors.log("load usage", e) }

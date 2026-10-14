@@ -46,8 +46,25 @@ object TokenStore {
     @Synchronized
     fun clear() {
         epoch++
-        prefs.edit().remove("token").remove("refresh_token").apply()
+        prefs.edit().remove("token").remove("refresh_token").remove("anon_code").apply()
         access.value = ""
+    }
+
+    /**
+     * 16-значный код анонимного аккаунта. На сервере он хранится только хэшем, поэтому
+     * показать его в настройках может лишь телефон: сохраняем при создании аккаунта и входе.
+     */
+    var anonCode: String
+        get() = prefs.getString("anon_code", "") ?: ""
+        set(value) { prefs.edit().putString("anon_code", value.filter { it.isDigit() }).apply() }
+
+    /** Для анонима подставить код в [UserResponse.email] (там его ждут экраны); старый сервер присылал его сам. */
+    fun withAnonCode(user: UserResponse): UserResponse {
+        if (user.account_type != "numeric") return user
+        val fromServer = user.email.orEmpty().filter { it.isDigit() }
+        if (fromServer.length == 16) { anonCode = fromServer; return user }
+        val code = anonCode
+        return if (code.length == 16) user.copy(email = code.chunked(4).joinToString("-")) else user
     }
 
     /** Сетевое обновление — под своей блокировкой: выход из аккаунта не ждёт его на главном потоке. */

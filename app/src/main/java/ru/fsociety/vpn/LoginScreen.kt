@@ -383,6 +383,7 @@ private fun AnonRegisterScreen(
                         errorMsg = ""
                         try {
                             val resp = ApiClient.service.generateNumericAccount()
+                            TokenStore.anonCode = resp.code
                             onSuccess(AnonResult(resp.code, resp.access_token, resp.refresh_token))
                         } catch (e: retrofit2.HttpException) {
                             AppErrors.log("create anonymous account HTTP ${e.code()}", e)
@@ -642,6 +643,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                                 val digits = numericCode.filter { it.isDigit() }
                                 if (digits.length != 16) { errorMsg = strErrorCodeLength; return@launch }
                                 ApiClient.service.loginNumeric(NumericLoginRequest(digits))
+                                    .also { TokenStore.anonCode = digits }
                             } else {
                                 // пробел в конце от клавиатуры давал «неверный email или пароль»
                                 if (email.isBlank() || password.isEmpty()) { errorMsg = strErrorEmpty; return@launch }
