@@ -218,6 +218,8 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
     var pwSuccess by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
     var confirmLogout by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Выход — с подтверждением. Анониму показываем его код: без него войти в аккаунт больше нельзя
@@ -410,8 +412,46 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                 ) {
                     Text(stringResource(R.string.account_btn_logout), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(onClick = { confirmDelete = true }, enabled = !isDeleting, modifier = Modifier.fillMaxWidth()) {
+                    if (isDeleting) CircularProgressIndicator(color = ErrorRed, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    else Text(stringResource(R.string.account_btn_delete), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
             }
         }
+    }
+
+    // Удаление — сразу на сервере, без писем и ожидания; подтверждение одним нажатием
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = Bg2,
+            title = { Text(stringResource(R.string.account_delete_title), color = TextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.account_delete_text), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    isDeleting = true
+                    scope.launch {
+                        try {
+                            val resp = ApiClient.service.deleteMe("Bearer $token")
+                            if (resp.isSuccessful) onLogout()
+                            else AppErrors.toast(errCtx, "delete account", retrofit2.HttpException(resp))
+                        } catch (e: Exception) {
+                            AppErrors.toast(errCtx, "delete account", e)
+                        } finally { isDeleting = false }
+                    }
+                }) {
+                    Text(stringResource(R.string.account_delete_confirm), color = ErrorRed, fontFamily = FontFamily.Monospace)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.tickets_cancel), color = TextMuted, fontFamily = FontFamily.Monospace)
+                }
+            }
+        )
     }
 }
 

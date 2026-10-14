@@ -273,6 +273,12 @@ interface ApiService {
         @retrofit2.http.Path("id") id: String
     ): TicketResponse
 
+    /** Удалить аккаунт со всеми ключами, подпиской и тикетами (Google Play: удаление внутри приложения). */
+    @DELETE("me")
+    suspend fun deleteMe(
+        @Header("Authorization") token: String
+    ): retrofit2.Response<okhttp3.ResponseBody?>
+
     @DELETE("tickets/{id}")
     suspend fun deleteTicket(
         @Header("Authorization") token: String,

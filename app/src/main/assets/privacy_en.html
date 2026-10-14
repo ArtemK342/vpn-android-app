@@ -30,12 +30,13 @@
 
 <div class="tag">// Legal documents</div>
   <h1>Privacy Policy.</h1>
-  <p class="meta">Last updated: October 14, 2026 · Version 1.2</p>
+  <p class="meta">Last updated: October 15, 2026 · Version 1.3</p>
 <div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General</h2>
   <p>This Policy describes what data the fsociety VPN service (website, API, VPN servers and apps) collects, how long it keeps it and why.</p>
   <p>By using the Service, you agree to this Policy. The same text is published on the website and in the app.</p>
+  <p>The Service is intended for people aged 16 and over. We do not knowingly collect children's data; an anonymous account contains no personal data at all.</p>
 </div>
 
 <div class="section" id="en-nologs">
@@ -58,7 +59,7 @@
   <p>To run the service, our database (Switzerland) stores:</p>
   <ul>
     <li><strong>Email account:</strong> email, password hash (bcrypt, never the password itself), subscription status, sign-up date — until the account is deleted.</li>
-    <li><strong>Anonymous account:</strong> the 16-digit access code, subscription status, sign-up date. No email, name or phone number.</li>
+    <li><strong>Anonymous account:</strong> a hash of the 16-digit access code (HMAC-SHA256 — we don't keep the code itself; only you have it: in the app, your browser or written down), subscription status, sign-up date. No email, name or phone number.</li>
     <li><strong>Last activity date</strong> (sign-in or connection, day precision) — to delete inactive anonymous accounts and count active users.</li>
     <li><strong>IP hash on anonymous sign-up:</strong> the IP itself is not saved, only its HMAC-SHA256 — to limit account creation (1 per day per IP). The hash is deleted after <strong>24 hours</strong>.</li>
     <li><strong>Connection keys:</strong> for AmneziaWG — public key, server, internal tunnel address and issue date; for VLESS, Trojan, Hysteria2 and OpenVPN — a personal connection ID. The AmneziaWG private key is generated on our server when the config is issued, sent only to you and never stored. After you disconnect, the key record (with the traffic volume of that session) is deleted within <strong>7 days</strong>.</li>
@@ -81,6 +82,7 @@
   <h2>Website, API and email</h2>
   <p>The website and API run behind Cloudflare. Cloudflare sees your IP address and processes it under its own privacy policy. If Cloudflare is unreachable, the app contacts our API directly.</p>
   <p>Our web server keeps no request log (access log): IP addresses and page addresses are not recorded.</p>
+  <p>The website sets no cookies and uses no analytics, ads or third-party counters; fonts are served from our server. The country used to show prices in your currency comes from Cloudflare and is not stored. Your browser keeps only sign-in, language and theme — see the <a href="https://fsociety-vpn.org/cookies">Cookie Policy</a>.</p>
   <p>Emails (address confirmation, password reset, a copy of a ticket conversation on your request) are sent via Resend — it receives only the recipient address and the email text.</p>
 </div>
 

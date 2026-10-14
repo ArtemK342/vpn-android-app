@@ -136,6 +136,10 @@
     <string name="account_error_wrong_password">Неверный текущий пароль</string>
     <string name="account_btn_change_password">СМЕНИТЬ ПАРОЛЬ →</string>
     <string name="account_btn_logout">ВЫЙТИ →</string>
+    <string name="account_btn_delete">Удалить аккаунт</string>
+    <string name="account_delete_title">Удалить аккаунт?</string>
+    <string name="account_delete_text">Аккаунт, VPN-ключи, подписка и тикеты удалятся сразу и навсегда. Восстановить их будет нельзя.</string>
+    <string name="account_delete_confirm">Удалить</string>
 
     <!-- Support / Tickets -->
     <string name="support_title">Поддержка.</string>

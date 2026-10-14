@@ -136,6 +136,10 @@
     <string name="account_error_wrong_password">Incorrect current password</string>
     <string name="account_btn_change_password">CHANGE PASSWORD →</string>
     <string name="account_btn_logout">SIGN OUT →</string>
+    <string name="account_btn_delete">Delete account</string>
+    <string name="account_delete_title">Delete account?</string>
+    <string name="account_delete_text">Your account, VPN keys, subscription and tickets will be deleted immediately and permanently. They cannot be restored.</string>
+    <string name="account_delete_confirm">Delete</string>
 
     <!-- Support / Tickets -->
     <string name="support_title">Support.</string>
