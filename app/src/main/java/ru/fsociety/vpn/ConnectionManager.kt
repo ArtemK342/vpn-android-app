@@ -222,10 +222,11 @@ object ConnectionManager {
                 "trojan" -> Pending(server, "trojan", ApiClient.service.getTrojanConfig(bearer(), server.id).config)
                 "openvpn_cloak" -> Pending(server, "openvpn_cloak", fetchCloakBundle(server))
                 else -> {
-                    val config = ConfigCache.get(app, server.id) ?: run {
+                    // Кэш зашифрован ключом Keystore — расшифровка не на главном потоке
+                    val config = withContext(Dispatchers.IO) { ConfigCache.get(app, server.id) } ?: run {
                         val response = ApiClient.service.getVpnConfig(bearer(), server.id)
                         val cfg = response.config ?: return fail(response.message ?: str(R.string.home_error_connect))
-                        ConfigCache.save(app, server.id, cfg)
+                        withContext(Dispatchers.IO) { ConfigCache.save(app, server.id, cfg) }
                         cfg
                     }
                     Pending(server, "wireguard", config)
