@@ -23,9 +23,9 @@ object AppTheme {
 /** Цвет для тёмной / светлой темы. */
 fun themed(dark: Long, light: Long): Color = Color(if (AppTheme.dark) dark else light)
 
-// В светлой теме фирменный лаймовый — темнее: на белом светлый лайм не читается
-val Accent: Color get() = themed(0xFFC8F135, 0xFF4E7A00)
-val Accent2: Color get() = themed(0xFFA8D420, 0xFF5F8F0A)
+// В светлой теме лаймовый темнее (светлый на белом не читается), но насыщенный — иначе выглядел серым
+val Accent: Color get() = themed(0xFFC8F135, 0xFF5BA300)
+val Accent2: Color get() = themed(0xFFA8D420, 0xFF6DB80C)
 val BgDark: Color get() = themed(0xFF0D0D0D, 0xFFF4F5F7)
 val Bg2: Color get() = themed(0xFF111111, 0xFFFFFFFF)
 val Surface: Color get() = themed(0xFF161616, 0xFFE9EBEF)
