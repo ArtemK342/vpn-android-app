@@ -12,8 +12,8 @@ import java.io.StringReader
 
 object VpnManager {
     private var backend: GoBackend? = null
-    private var currentTunnel: WgTunnel? = null
-    var connectedServerName: String = ""
+    @Volatile private var currentTunnel: WgTunnel? = null
+    @Volatile var connectedServerName: String = ""
 
     fun isConnected(): Boolean {
         val tunnel = currentTunnel ?: return false
@@ -48,12 +48,15 @@ object VpnManager {
             val config = Config.parse(BufferedReader(StringReader(effectiveConfig)))
             lateinit var tunnel: WgTunnel
             tunnel = WgTunnel("fsociety") { state ->
-                // disconnect()/новое подключение обнуляют currentTunnel ДО setState(DOWN): обрыв —
-                // только если упал именно текущий туннель
+                // disconnect()/новое подключение обнуляют currentTunnel ДО setState(DOWN), так что
+                // сюда попадает только чужое выключение: служба WireGuard остановлена системой —
+                // VPN забрало другое приложение или его выключили в настройках Android. Это не
+                // обрыв связи (тогда туннель остаётся «поднят» — его ловит сторож по рукопожатию):
+                // без переподключения, иначе приложение отбирало бы VPN обратно.
                 if (state == Tunnel.State.DOWN && currentTunnel === tunnel) {
                     currentTunnel = null
                     connectedServerName = ""
-                    VpnEvents.vpnDropped.tryEmit(Unit)
+                    VpnEvents.vpnStopped.tryEmit(Unit)
                 }
             }
             currentTunnel = tunnel
@@ -74,6 +77,17 @@ object VpnManager {
             true
         } catch (e: Exception) {
             false
+        }
+    }
+
+    /** Время последнего рукопожатия с сервером (мс, 0 — не было) — для сторожа ConnectionManager. */
+    fun lastHandshakeMillis(): Long {
+        val tunnel = currentTunnel ?: return 0L
+        return try {
+            val stats = backend?.getStatistics(tunnel) ?: return 0L
+            stats.peers().maxOfOrNull { stats.peer(it)?.latestHandshakeEpochMillis() ?: 0L } ?: 0L
+        } catch (_: Exception) {
+            0L
         }
     }
 

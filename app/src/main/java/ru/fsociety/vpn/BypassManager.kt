@@ -5,6 +5,8 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 /**
  * «Режим РФ» (server_type = "bypass"): обход блокировок YouTube/Discord БЕЗ нашего сервера.
@@ -144,14 +146,69 @@ object BypassManager {
         }
     }
 
-    /** Конфиг sing-box для режима обхода (тот же формат, что у серверных конфигов). [port] — byedpi. */
-    fun buildConfig(port: Int): String {
+    // DoH по порядку предпочтения; адрес — IP (в сертификатах этих серверов есть IP), без своего DNS
+    private val DOH_SERVERS = listOf("1.1.1.1", "8.8.8.8", "9.9.9.9")
+
+    /** DNS-запрос «youtube.com A» в формате DoH GET (RFC 8484, base64url без «=»). */
+    private val DOH_PROBE: String by lazy {
+        val q = byteArrayOf(0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0) +
+            byteArrayOf(7) + "youtube".toByteArray() + byteArrayOf(3) + "com".toByteArray() +
+            byteArrayOf(0, 0, 1, 0, 1)
+        android.util.Base64.encodeToString(q, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP)
+    }
+
+    /**
+     * DNS для конфига: первый DoH, который отвечает с этой сети напрямую; если все режутся — DNS
+     * провайдера (лучше, чем ничего: YouTube в РФ режут не через DNS). Раньше был только DoH 1.1.1.1 —
+     * если провайдер его резал, режим не запускался.
+     */
+    suspend fun pickDns(context: Context): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val ok = kotlinx.coroutines.coroutineScope {
+            DOH_SERVERS.map { ip -> async { ip to dohWorks(ip) } }.awaitAll()
+        }
+        ok.firstOrNull { it.second }?.let { return@withContext "https://${it.first}/dns-query" }
+        val isp = ispDns(context)
+        Log.w(TAG, "DoH unreachable, falling back to ${isp ?: "1.1.1.1"}")
+        if (isp != null) "udp://$isp" else "https://1.1.1.1/dns-query"
+    }
+
+    private fun dohWorks(ip: String): Boolean = try {
+        val client = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
+        val request = okhttp3.Request.Builder()
+            .url("https://$ip/dns-query?dns=$DOH_PROBE")
+            .header("accept", "application/dns-message")
+            .build()
+        client.newCall(request).execute().use { resp ->
+            resp.isSuccessful && (resp.body?.bytes()?.size ?: 0) > 12   // заголовок DNS — 12 байт
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "DoH $ip: ${e.message}")
+        false
+    }
+
+    /** IPv4-адрес DNS провайдера из текущей сети (приложение исключено из своего VPN — сеть физическая). */
+    private fun ispDns(context: Context): String? = try {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        cm?.getLinkProperties(cm.activeNetwork)?.dnsServers
+            ?.firstOrNull { it is java.net.Inet4Address }?.hostAddress
+    } catch (_: Exception) { null }
+
+    /**
+     * Конфиг sing-box для режима обхода (тот же формат, что у серверных конфигов).
+     * [port] — byedpi, [dns] — из [pickDns].
+     */
+    fun buildConfig(port: Int, dns: String = "https://1.1.1.1/dns-query"): String {
         val all = JSONArray(YOUTUBE + DISCORD)
         val config = JSONObject()
             .put("log", JSONObject().put("level", "warn"))
             .put("dns", JSONObject().put("servers", JSONArray().put(
-                // DoH напрямую, НЕ через byedpi: обход ломал DNS (фейк долетал до ближнего Cloudflare)
-                JSONObject().put("tag", "doh").put("address", "https://1.1.1.1/dns-query")
+                // DNS напрямую, НЕ через byedpi: обход ломал DNS (фейк долетал до ближнего Cloudflare)
+                JSONObject().put("tag", "doh").put("address", dns)
                     .put("strategy", "ipv4_only").put("detour", "direct")
             )))
             .put("inbounds", JSONArray().put(JSONObject()

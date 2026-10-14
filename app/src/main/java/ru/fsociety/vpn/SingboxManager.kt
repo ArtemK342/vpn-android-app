@@ -47,7 +47,14 @@ object SingboxManager {
     /** Результат последнего запуска из XrayVpnService: null — ещё идёт, true/false — итог. */
     val startResult = MutableStateFlow<Boolean?>(null)
 
-    private var commandServer: CommandServer? = null
+    @Volatile private var commandServer: CommandServer? = null
+    /** Служба, чей sing-box сейчас работает (onDestroy старого экземпляра не гасит новый). */
+    @Volatile private var owner: XrayVpnService? = null
+    private val stateLock = Any()
+
+    /** Локальный прокси рабочего sing-box для сторожа «сервер перестал отвечать». */
+    private class ProbeProxy(val port: Int, val user: String, val pass: String)
+    @Volatile private var monitorProxy: ProbeProxy? = null
     private var setupDone = false
     @Volatile private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
 
@@ -107,7 +114,10 @@ object SingboxManager {
             val server = CommandServer(makeServerHandler(), makePlatformInterface(service))
             server.startOrReloadService(configJson, OverrideOptions())
 
-            commandServer = server
+            synchronized(stateLock) {
+                commandServer = server
+                owner = service
+            }
             connectedServerName = serverName
             // Сохраняем baseline трафика в момент подключения
             val uid = Process.myUid()
@@ -130,24 +140,25 @@ object SingboxManager {
         context: Context,
         service: XrayVpnService,
         configJson: String,
-        serverName: String
+        serverName: String,
+        cancelled: () -> Boolean = { false }
     ): Boolean = synchronized(startLock) {
         // Параллельные запуски убивали друг другу sing-box, а одновременные
         // вызовы в libbox роняли Go-рантайм ("fatal error: unknown caller pc").
-        val port = try {
-            ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { it.localPort }
-        } catch (_: Exception) { 0 }
+        val port = freeLocalPort()
         val user = UUID.randomUUID().toString()
         val pass = UUID.randomUUID().toString()
-        val probeConfig = if (port > 0) buildProbeConfig(configJson, port, user, pass) else null
+        val probeConfig = if (port > 0) withProxyInbound(configJson, port, user, pass, onlyProxy = true) else null
         if (probeConfig != null) {
             // Две попытки, каждая с новым экземпляром sing-box (новое соединение):
             // первый QUIC-хендшейк Hysteria2 из РФ иногда теряется целиком, сервер
             // его даже не видит, а повторная попытка проходит сразу.
             var works = false
             for (attempt in 1..2) {
+                // «Отмена» / новый запуск: не доводим до TUN — иначе он заменил бы чужой туннель
+                if (cancelled()) return@synchronized false
                 if (!connect(context, service, probeConfig, serverName)) return@synchronized false
-                works = probeThroughProxy(port, user, pass)
+                works = probeThroughProxy(port, user, pass, cancelled)
                 disconnect()
                 if (works) break
                 Log.w(TAG, "probe attempt $attempt failed")
@@ -157,13 +168,26 @@ object SingboxManager {
                 return@synchronized false
             }
         }
-        connect(context, service, configJson, serverName)
+        if (cancelled()) return@synchronized false
+        // Рабочий конфиг + тот же локальный прокси (127.0.0.1, случайный порт и пароль) для сторожа
+        val livePort = freeLocalPort()
+        val live = if (livePort > 0) withProxyInbound(configJson, livePort, user, pass, onlyProxy = false) else null
+        val ok = connect(context, service, live ?: configJson, serverName)
+        if (ok && live != null) monitorProxy = ProbeProxy(livePort, user, pass)
+        ok
     }
 
     private val startLock = Any()
 
-    /** Тот же конфиг, но вместо TUN — локальный mixed-прокси с авторизацией. */
-    private fun buildProbeConfig(configJson: String, port: Int, user: String, pass: String): String? =
+    private fun freeLocalPort(): Int = try {
+        ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+    } catch (_: Exception) { 0 }
+
+    /**
+     * Конфиг с локальным mixed-прокси с авторизацией: [onlyProxy] — вместо TUN (проверка до
+     * запуска), иначе — рядом с TUN (сторож проверяет через него, что сервер отвечает).
+     */
+    private fun withProxyInbound(configJson: String, port: Int, user: String, pass: String, onlyProxy: Boolean): String? =
         try {
             val root = JSONObject(configJson)
             val inbound = JSONObject()
@@ -172,14 +196,25 @@ object SingboxManager {
                 .put("listen", "127.0.0.1")
                 .put("listen_port", port)
                 .put("users", JSONArray().put(JSONObject().put("username", user).put("password", pass)))
-            root.put("inbounds", JSONArray().put(inbound))
+            val inbounds = if (onlyProxy) JSONArray() else (root.optJSONArray("inbounds") ?: JSONArray())
+            root.put("inbounds", inbounds.put(inbound))
             root.toString()
         } catch (e: Exception) {
-            Log.e(TAG, "buildProbeConfig: ${e.message}")
+            Log.e(TAG, "withProxyInbound: ${e.message}")
             null
         }
 
-    private fun probeThroughProxy(port: Int, user: String, pass: String): Boolean {
+    /**
+     * Сторож: проходит ли сейчас запрос через сервер (через локальный прокси работающего sing-box).
+     * Нет прокси или sing-box уже остановлен — проверять нечего, считаем живым.
+     */
+    fun probeAlive(): Boolean {
+        val m = monitorProxy ?: return true
+        if (commandServer == null) return true
+        return probeThroughProxy(m.port, m.user, m.pass) { false }
+    }
+
+    private fun probeThroughProxy(port: Int, user: String, pass: String, cancelled: () -> Boolean): Boolean {
         val auth = Credentials.basic(user, pass)
         val client = OkHttpClient.Builder()
             .proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", port)))
@@ -193,6 +228,7 @@ object SingboxManager {
             .retryOnConnectionFailure(false)
             .build()
         for (url in PROBE_URLS) {
+            if (cancelled()) return false
             try {
                 // Авторизацию для CONNECT добавляет proxyAuthenticator (OkHttp зовёт его превентивно)
                 val request = Request.Builder().url(url).build()
@@ -208,13 +244,25 @@ object SingboxManager {
     }
 
     fun disconnect() {
-        try {
-            commandServer?.closeService()
-        } catch (e: Exception) {
-            Log.e(TAG, "closeService error: ${e.message}")
+        synchronized(stateLock) {
+            try {
+                commandServer?.closeService()
+            } catch (e: Exception) {
+                Log.e(TAG, "closeService error: ${e.message}")
+            }
+            commandServer = null
+            owner = null
+            monitorProxy = null
+            connectedServerName = ""
         }
-        commandServer = null
-        connectedServerName = ""
+    }
+
+    /** Из onDestroy службы: гасим, только если работает её sing-box, а не уже нового экземпляра. */
+    fun disconnectIfOwner(service: XrayVpnService) {
+        synchronized(stateLock) {
+            if (owner !== service) return
+            disconnect()
+        }
     }
 
     // Трафик-статистика — дельта от момента подключения
@@ -232,7 +280,8 @@ object SingboxManager {
         override fun getSystemProxyStatus(): SystemProxyStatus =
             SystemProxyStatus().also { it.setAvailable(false); it.setEnabled(false) }
         override fun serviceReload() {}
-        override fun serviceStop() { disconnect() }
+        // Не в потоке libbox: disconnect() ждёт closeService(), который может ждать этот колбэк
+        override fun serviceStop() { Thread { disconnect() }.start() }
         override fun setSystemProxyEnabled(enabled: Boolean) {}
         override fun writeDebugMessage(msg: String) {}
     }

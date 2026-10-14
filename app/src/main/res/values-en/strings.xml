@@ -304,7 +304,13 @@
     <string name="ks_notif_text">VPN dropped — traffic is blocked until reconnection</string>
     <string name="ks_unblock">UNBLOCK</string>
     <string name="ks_android_settings">Android VPN settings →</string>
-    <string name="reconnect_failed_killswitch">Failed to reconnect. Internet is blocked by Kill Switch — connect again or tap “Unblock” in the notification.</string>
+    <string name="reconnect_failed_killswitch">Failed to reconnect. Internet is blocked by Kill Switch — connect again or tap “Unblock”.</string>
+    <string name="ks_unblock_internet">UNBLOCK INTERNET</string>
+    <string name="vpn_connection_lost">VPN connection lost</string>
+    <string name="vpn_stopped_externally">VPN was turned off in Android settings or by another VPN app</string>
+    <string name="bypass_error_start">Couldn\'t start RF mode</string>
+    <string name="notif_open_app">Open the app and connect — VPN permission is needed</string>
+    <string name="notif_sign_in">Sign in to your account in the app</string>
     <!-- RF mode -->
     <string name="home_proto_bypass">RF bypass · no server</string>
     <string name="home_status_bypass">● RF</string>

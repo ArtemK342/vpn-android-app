@@ -305,7 +305,13 @@
     <string name="ks_notif_text">VPN оборвался — трафик заблокирован до переподключения</string>
     <string name="ks_unblock">РАЗБЛОКИРОВАТЬ</string>
     <string name="ks_android_settings">Настройки VPN Android →</string>
-    <string name="reconnect_failed_killswitch">Не удалось переподключиться. Интернет заблокирован Kill Switch — подключитесь снова или нажмите «Разблокировать» в уведомлении.</string>
+    <string name="reconnect_failed_killswitch">Не удалось переподключиться. Интернет заблокирован Kill Switch — подключитесь снова или нажмите «Разблокировать».</string>
+    <string name="ks_unblock_internet">РАЗБЛОКИРОВАТЬ ИНТЕРНЕТ</string>
+    <string name="vpn_connection_lost">VPN-соединение оборвалось</string>
+    <string name="vpn_stopped_externally">VPN выключен в настройках Android или другим VPN-приложением</string>
+    <string name="bypass_error_start">Не удалось запустить режим РФ</string>
+    <string name="notif_open_app">Откройте приложение и подключитесь — нужно разрешить VPN</string>
+    <string name="notif_sign_in">Войдите в аккаунт в приложении</string>
     <!-- «Режим РФ» -->
     <string name="home_proto_bypass">Обход РФ · без сервера</string>
     <string name="home_status_bypass">● РФ</string>

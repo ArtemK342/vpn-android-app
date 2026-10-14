@@ -77,153 +77,59 @@ suspend fun <T> withRetry(attempts: Int = 3, block: suspend () -> T): T {
     throw last ?: IllegalStateException("withRetry: no attempts")
 }
 
-// ── VPN Events (службы и ресиверы → ConnectionManager) ──
+// ── VPN Events (службы → ConnectionManager) ──
 
 object VpnEvents {
-    val disconnectRequested = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val connectSucceeded = MutableSharedFlow<ServerResponse>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    // Emitted when VPN drops unexpectedly (not by user action)
+    /** Туннель упал сам (служба остановилась / сервер перестал отвечать) — Kill Switch и переподключение. */
     val vpnDropped = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    @Volatile var isConnecting: Boolean = false
+    /** VPN выключили снаружи (другое VPN-приложение, настройки Android) — только обновить состояние. */
+    val vpnStopped = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
 }
 
+/** Держать ресивер «живым», пока идёт действие, но не дольше 9 с (лимит системы на ресивер). */
+private fun BroadcastReceiver.finishWhenDone(job: kotlinx.coroutines.Job) {
+    val pending = goAsync()
+    val done = java.util.concurrent.atomic.AtomicBoolean(false)
+    val finish = { if (done.compareAndSet(false, true)) pending.finish() }
+    job.invokeOnCompletion { finish() }
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ finish() }, 9_000)
+}
+
+/** «Отключить» / «Отмена» в уведомлении — то же, что кнопка в приложении. */
 class VpnDisconnectReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == VpnNotificationHelper.ACTION_DISCONNECT) {
-            val pending = goAsync()
-            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    when {
-                        OpenVpnService.isRunning  -> OpenVpnService.stop(context)
-                        SingboxManager.isConnected() -> XrayVpnService.stop(context)
-                        else                      -> VpnManager.disconnect()
-                    }
-                    VpnEvents.disconnectRequested.tryEmit(Unit)
-                } finally {
-                    pending.finish()
-                }
-            }
-        }
+        if (intent.action != VpnNotificationHelper.ACTION_DISCONNECT) return
+        finishWhenDone(ConnectionManager.requestDisconnect())
     }
 }
 
+/**
+ * «Подключить» в уведомлении (фоновый режим): подключение без открытия приложения. Уведомление
+ * шлёт сюда, только если VPN уже разрешали; иначе оно само открывает приложение — из ресивера
+ * Android 12+ открыть его не даёт («трамплин» уведомлений), поэтому здесь — только подсказка.
+ */
 class VpnConnectReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != VpnNotificationHelper.ACTION_CONNECT) return
-
-        // Если разрешение ещё не выдано — открываем приложение (оно само подключится)
-        val vpnIntent = VpnService.prepare(context)
-        if (vpnIntent != null) {
-            val openApp = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(VpnNotificationHelper.EXTRA_AUTO_CONNECT, true)
-            }
-            context.startActivity(openApp)
-            return
-        }
-
+        val ctx = localized(context)   // тексты — на языке приложения, а не системы
         if (TokenStore.access.value.isEmpty()) {
-            // Вышли из аккаунта — подключаться нечем, открываем экран входа
-            context.startActivity(Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            })
+            android.widget.Toast.makeText(context, ctx.getString(R.string.notif_sign_in), android.widget.Toast.LENGTH_LONG).show()
             return
         }
-
-        // Тексты — на языке приложения, а не системы
-        val ctx = localized(context)
-
-        // Разрешение есть — подключаем без открытия приложения
-        val pending = goAsync()
-        VpnEvents.isConnecting = true
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                connectInBackground(context, ctx)
-            } catch (e: Exception) {
-                AppErrors.log("notification connect", e)
-                toast(context, AppErrors.text(ctx, e))
-            } finally {
-                VpnEvents.isConnecting = false
-                pending.finish()
-            }
-        }
-    }
-
-    /** [ctx] — контекст с языком приложения для текстов. Токен при 401 обновляется сам (ApiClient). */
-    private suspend fun connectInBackground(context: Context, ctx: Context) {
-        val bearer = "Bearer ${TokenStore.access.value}"
-        val lang = context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru"
-        val servers = ApiClient.service.getServers(bearer)
-        // Фоновое автоподключение умеет только WireGuard (getVpnConfig); пингуем только кандидатов
-        val candidates = servers.filter { it.server_type == "wireguard" && it.canConnect && it.allow_auto_connect }
-        val best = autoSelectServer(candidates, measureAllPings(candidates), wireguardOnly = true)
-        if (best == null) {
-            toast(context, ctx.getString(R.string.notif_no_server))
+        // Пользователь сам нажал «Подключить» — prepare() можно (он и выключит чужой VPN, как любое подключение)
+        if (VpnService.prepare(context) != null) {
+            context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).edit()
+                .putBoolean(ConnectionManager.PREF_VPN_CONSENT, false).apply()
+            android.widget.Toast.makeText(context, ctx.getString(R.string.notif_open_app), android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        // Как в приложении: сначала «Настройки → Доступ» (кэш обходит API), сеть недоступна — не мешаем
-        val access = try {
-            ApiClient.service.checkAccess(bearer, best.server_type)
-        } catch (e: java.io.IOException) {
-            AppErrors.log("notification access pre-check (fail-open)", e)
-            null
-        }
-        if (access != null && !access.allowed) {
-            toast(context, access.text(lang) ?: ctx.getString(R.string.home_error_connect))
-            return
-        }
-        // Сохранённый конфиг, как в приложении. Раньше здесь каждый раз выдавался новый ключ:
-        // на сервере это 3–6 SSH-команд (секунды), а при лимите подключений он ещё и снимал
-        // ключ, которым пользуется приложение.
-        val cached = ConfigCache.get(context, best.id)
-        val config = cached ?: fetchWgConfig(context, ctx, best) ?: return
-        if (!VpnManager.connect(context, config)) {
-            toast(context, ctx.getString(R.string.home_error_connect))
-            return
-        }
-        VpnEvents.connectSucceeded.tryEmit(best)
-        VpnEvents.isConnecting = false  // проверка ниже идёт уже на подключённом туннеле
-        if (cached != null) {
-            // Ключ мог быть снят (лимит, «Разорвать подключения»): трафик уходит, ответа нет →
-            // берём свежий конфиг (тот же критерий, что у сторожа в приложении)
-            kotlinx.coroutines.delay(8_000)
-            val (rx, tx) = VpnManager.getTrafficStats()
-            if (VpnManager.isConnected() && tx > 0L && rx == 0L) {
-                AppErrors.log("notification connect", IllegalStateException("stale cached config"))
-                ConfigCache.clear(context, best.id)
-                VpnManager.disconnect()
-                val fresh = fetchWgConfig(context, ctx, best) ?: return
-                if (VpnManager.connect(context, fresh)) VpnEvents.connectSucceeded.tryEmit(best)
-                else toast(context, ctx.getString(R.string.home_error_connect))
-            }
-        }
-    }
-
-    /** Новый WG-конфиг с сервера (и в кэш); null + тост, если сервер отказал. */
-    private suspend fun fetchWgConfig(context: Context, ctx: Context, server: ServerResponse): String? {
-        val response = ApiClient.service.getVpnConfig("Bearer ${TokenStore.access.value}", server.id)
-        val config = response.config
-        if (config == null) {
-            toast(context, response.message ?: ctx.getString(R.string.home_error_connect))
-            return null
-        }
-        ConfigCache.save(context, server.id, config)
-        return config
-    }
-
-    private fun toast(context: Context, text: String) {
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_LONG).show()
-        }
+        finishWhenDone(ConnectionManager.requestNotificationConnect())
     }
 }
 
@@ -269,7 +175,7 @@ fun App(context: android.content.Context) {
         TokenStore.clear()
         ProfileCache.clear(context)
         HomeUiState.reset()
-        scope.launch { ConnectionManager.resetForLogout() }
+        ConnectionManager.requestLogoutReset()
     }
 
     // Сервер отклонил refresh (сессия кончилась / аккаунт заблокирован) — на экран входа
@@ -281,7 +187,7 @@ fun App(context: android.content.Context) {
         ApiClient.updateRequired.collect { url ->
             if (url != null) {
                 forceUpdateUrl = url
-                ConnectionManager.resetForLogout()
+                ConnectionManager.requestLogoutReset()
             }
         }
     }
@@ -579,7 +485,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                     onKillSwitchChange = { enabled ->
                         killSwitch = enabled
                         prefs.edit().putBoolean("kill_switch", enabled).apply()
-                        if (!enabled) KillSwitch.release(context)  // выключили — снять блокировку
+                        if (!enabled) ConnectionManager.unblockKillSwitch()  // выключили — снять блокировку
                     },
                     autoReconnect = autoReconnect,
                     onAutoReconnectChange = { enabled ->

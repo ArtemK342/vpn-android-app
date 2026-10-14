@@ -1,11 +1,20 @@
 package ru.fsociety.vpn
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.VpnService
+import android.os.Build
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -39,12 +48,20 @@ fun appStrings(context: Context): Context {
  * настройки, авто-переподключение видело устаревшее состояние экрана и не срабатывало, события из
  * шторки на других вкладках терялись, после смены языка приложение «забывало» туннели sing-box и
  * OpenVPN. Здесь всё это обрабатывается независимо от того, какой экран открыт.
+ *
+ * Действия (подключение, переподключение после обрыва, отключение) идут строго по одному: новое
+ * отменяет текущее и ждёт, пока оно погасит то, что успело запустить. Поэтому «Отмена» во время
+ * подключения и «Отключить» во время переподключения срабатывают, а два подключения не идут разом.
  */
 object ConnectionManager {
 
     /** Сервер, к которому подключены (null — не подключены). */
     val connectedServer = mutableStateOf<ServerResponse?>(null)
+    /** Сервер, к которому сейчас подключаемся. */
+    val connectingTo = mutableStateOf<ServerResponse?>(null)
+    /** Идёт подключение / переподключение — кнопка работает как «Отмена». */
     val isConnecting = mutableStateOf(false)
+    val isDisconnecting = mutableStateOf(false)
     val statusMsg = mutableStateOf("")
 
     /** Конфиг ждёт системного разрешения VPN — главный экран показывает системное окно. */
@@ -55,10 +72,27 @@ object ConnectionManager {
 
     enum class Outcome { CONNECTED, NEEDS_PERMISSION, FAILED }
 
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    /** Пользователь хоть раз разрешил VPN (уведомление выбирает, как подключать). */
+    const val PREF_VPN_CONSENT = "vpn_consent"
+
+    // Непойманная ошибка не должна ронять приложение — а вместе с ним и туннель
+    private val errors = CoroutineExceptionHandler { _, e ->
+        AppErrors.log("connection", e)
+        idle(str(R.string.home_error_connect))
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + errors)
     private lateinit var app: Context
     @Volatile private var lastServer: ServerResponse? = null
-    @Volatile private var userDisconnected = false
+    /** Текущее действие; следующее отменяет его и дожидается завершения ([launchOp]). */
+    private var op: Job? = null
+    /** Сторож подключённого туннеля (ключ WireGuard, «сервер перестал отвечать»). */
+    private var monitor: Job? = null
+    /**
+     * Подключение реально работало (трафик через сервер шёл). Kill Switch включается только при обрыве
+     * такой сессии: если сервер не ответил с самого начала, защищать нечего, а блокировка интернета
+     * после неудачной попытки только запутала бы.
+     */
+    @Volatile private var sessionVerified = false
 
     private fun str(id: Int, vararg args: Any): String = appStrings(app).getString(id, *args)
     private fun prefs() = app.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
@@ -68,31 +102,96 @@ object ConnectionManager {
     fun init(context: Context) {
         if (::app.isInitialized) return
         app = context.applicationContext
-        // «Отключить» в шторке / остановка OpenVPN / заблокированная версия — намеренное отключение
-        scope.launch {
-            VpnEvents.disconnectRequested.collect { userDisconnected = true; onDisconnected(userInitiated = true) }
-        }
-        scope.launch { VpnEvents.connectSucceeded.collect { onConnected(it) } }
-        scope.launch { VpnEvents.vpnDropped.collect { handleDrop() } }
+        scope.launch { VpnEvents.vpnDropped.collect { onDrop() } }
+        scope.launch { VpnEvents.vpnStopped.collect { onExternalStop() } }
     }
 
     /** Есть ли сейчас любой туннель (WireGuard / sing-box / OpenVPN). */
     fun anyTunnelUp(): Boolean =
         VpnManager.isConnected() || SingboxManager.isConnected() || OpenVpnService.isRunning
 
+    // ── Действия ─────────────────────────────────────────────────────────────
+
+    private fun launchOp(block: suspend () -> Unit): Job {
+        // Состояние меняется — сторож прежнего туннеля больше не нужен и не должен вмешаться
+        stopMonitor()
+        val prev = op
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            prev?.cancelAndJoin()
+            block()
+        }
+        op = job
+        job.start()
+        return job
+    }
+
+    /** Подключиться к серверу (кнопка, список, автоподключение). Идущее действие отменяется. */
+    fun requestConnect(server: ServerResponse): Job = launchOp {
+        sessionVerified = false
+        connect(server)
+    }
+
+    /** «Отключить» и «Отмена» — в приложении и в уведомлении. */
+    fun requestDisconnect(): Job = launchOp { disconnect() }
+
+    /** «Подключить» в уведомлении: лучший по пингу WireGuard-сервер, без открытия приложения. */
+    fun requestNotificationConnect(): Job = launchOp {
+        sessionVerified = false
+        connectFromNotification()
+    }
+
+    /** Выход из аккаунта / заблокированная версия: туннель и кэш принадлежат старому аккаунту. */
+    fun requestLogoutReset(): Job = launchOp {
+        ConfigCache.clearAll(app)
+        pending.value = null
+        permissionRequested = false
+        stopTunnels()
+        KillSwitch.release(app)
+        lastServer = null
+        sessionVerified = false
+        setDisconnected()
+        idle("")
+    }
+
+    /** «Разблокировать» (уведомление Kill Switch / кнопка на главном экране). */
+    fun unblockKillSwitch() {
+        KillSwitch.release(app)
+        if (statusMsg.value == str(R.string.reconnect_failed_killswitch)) {
+            val autoReconnect = prefs().getBoolean("auto_reconnect", true)
+            statusMsg.value = str(if (autoReconnect) R.string.reconnect_failed else R.string.vpn_connection_lost)
+        }
+    }
+
+    /** Ответ на системное окно «Разрешить VPN». */
+    fun onPermissionResult(granted: Boolean) {
+        val p = pending.value
+        pending.value = null
+        launchOp {
+            if (granted && p != null) {
+                start(p, freshKey = false, auto = false)
+            } else {
+                stopBypass()   // «Режим РФ»: byedpi уже запущен
+                idle(if (!granted) str(R.string.home_vpn_denied) else "")
+            }
+        }
+    }
+
     // ── Подключение ──────────────────────────────────────────────────────────
 
     /**
-     * Получить конфиг и подключиться. Не бросает исключений: ошибки — в [statusMsg].
-     * [freshKey] — повтор сторожа WireGuard с новым ключом (второго повтора не будет).
+     * Получить конфиг и подключиться. Не бросает исключений (кроме отмены): ошибки — в [statusMsg].
+     * [freshKey] — повтор сторожа WireGuard с новым ключом (второго не будет).
+     * [auto] — без участия пользователя (переподключение): системное окно VPN не показываем.
      */
-    suspend fun connect(server: ServerResponse, freshKey: Boolean = false): Outcome {
+    private suspend fun connect(server: ServerResponse, freshKey: Boolean = false, auto: Boolean = false): Outcome {
+        connectingTo.value = server
         isConnecting.value = true
         statusMsg.value = str(R.string.home_getting_config)
-        userDisconnected = false
         try {
-            // Уже подключены к другому серверу — сначала отключаемся (кэш нового сервера не трогаем)
-            if (anyTunnelUp()) stopTunnels()
+            // Уже подключены (к этому или другому серверу) — сначала гасим туннель; кэш нового
+            // сервера не трогаем. Раньше при неудачном переключении на экране оставался старый сервер.
+            stopTunnels()
+            connectedServer.value = null
 
             // «Настройки → Доступ» (техработы / протокол / тип аккаунта / лимит): до подключения —
             // так блокируется и WireGuard из кэша. API недоступен — не мешаем, решит сервер.
@@ -110,10 +209,13 @@ object ConnectionManager {
                     // «Режим РФ»: конфиг локальный — запускаем byedpi и собираем конфиг sing-box
                     val remote = try {
                         ApiClient.service.getAppConfig().access?.bypass_strategy
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) { AppErrors.log("bypass strategy", e); null }
+                    val dns = BypassManager.pickDns(app)
                     val port = withContext(Dispatchers.IO) { BypassManager.start(app, remote) }
-                        ?: return fail(str(R.string.home_error_connect))
-                    Pending(server, "bypass", BypassManager.buildConfig(port))
+                        ?: return fail(str(R.string.bypass_error_start))
+                    Pending(server, "bypass", BypassManager.buildConfig(port, dns))
                 }
                 "vless" -> Pending(server, "vless", ApiClient.service.getVlessConfig(bearer(), server.id).config)
                 "hysteria" -> Pending(server, "hysteria", ApiClient.service.getHysteriaConfig(bearer(), server.id).config)
@@ -130,11 +232,15 @@ object ConnectionManager {
                 }
             }
 
+            // Без участия пользователя системное окно не показываем
             if (VpnService.prepare(app) != null) {
+                if (auto) return fail(str(R.string.reconnect_failed))
                 pending.value = p
                 return Outcome.NEEDS_PERMISSION
             }
-            return start(p, freshKey)
+            return start(p, freshKey, auto)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: java.net.SocketTimeoutException) {
             return fail(str(R.string.home_error_timeout))
         } catch (e: retrofit2.HttpException) {
@@ -152,52 +258,86 @@ object ConnectionManager {
         } catch (e: Exception) {
             AppErrors.log("connect ${server.server_type}", e)
             return fail(AppErrors.text(localized(app), e))
+        } finally {
+            // byedpi работает, только пока «Режим РФ» подключён или ждёт разрешения VPN
+            if (server.server_type == "bypass" && connectedServer.value?.id != server.id && pending.value == null) {
+                stopBypass()
+            }
         }
     }
 
-    /** Ответ на системное окно «Разрешить VPN». */
-    fun onPermissionResult(granted: Boolean) {
-        val p = pending.value
-        pending.value = null
-        if (!granted || p == null) {
-            if (!granted) statusMsg.value = str(R.string.home_vpn_denied)
-            BypassManager.stop()   // «Режим РФ»: byedpi уже запущен
-            isConnecting.value = false
-            return
-        }
-        scope.launch { start(p, freshKey = false) }
-    }
-
-    private suspend fun start(p: Pending, freshKey: Boolean): Outcome {
-        statusMsg.value = str(R.string.home_connecting)
+    private suspend fun start(p: Pending, freshKey: Boolean, auto: Boolean): Outcome {
         val server = p.server
-        val ok = when (p.type) {
-            "vless", "hysteria", "trojan", "bypass" -> {
-                // «подключено» — только после проверки, что трафик идёт через сервер (probe)
-                SingboxManager.startResult.value = null
-                XrayVpnService.start(app, p.config, server.displayName(lang()))
-                val r = withTimeoutOrNull(60_000) { SingboxManager.startResult.first { it != null } }
-                if (r == null) XrayVpnService.stop(app)
-                r == true
+        connectingTo.value = server
+        isConnecting.value = true
+        statusMsg.value = str(R.string.home_connecting)
+        val startedAt = System.currentTimeMillis()
+        val ok = try {
+            when (p.type) {
+                "vless", "hysteria", "trojan", "bypass" -> startSingbox(p)
+                "openvpn_cloak" -> startOpenVpn(p)
+                else -> startWireGuard(p)
             }
-            "openvpn_cloak" -> {
-                // Раньше «подключено» ставилось сразу после запуска службы
-                OpenVpnService.startResult.value = null
-                OpenVpnService.start(app, p.config, server.displayName(lang()))
-                val r = withTimeoutOrNull(60_000) { OpenVpnService.startResult.first { it != null } }
-                if (r != true) OpenVpnService.stop(app)
-                r == true
-            }
-            else -> VpnManager.connect(app, p.config)
+        } catch (e: CancellationException) {
+            if (p.type == "bypass") stopBypass()
+            throw e
+        } catch (e: Exception) {
+            // напр. Android запретил запуск службы из фона
+            AppErrors.log("start ${p.type}", e); false
         }
         if (!ok) {
-            if (p.type == "bypass") BypassManager.stop()
-            return fail(str(if (p.type == "wireguard") R.string.home_error_connect else R.string.home_error_server_unreachable))
+            if (p.type == "bypass") stopBypass()
+            return fail(str(when (p.type) {
+                "wireguard" -> R.string.home_error_connect
+                "bypass" -> R.string.bypass_error_start
+                else -> R.string.home_error_server_unreachable
+            }))
         }
+        // sing-box и OpenVPN проверены при запуске (запрос через сервер / CONNECTED); WireGuard проверит
+        // сторож по рукопожатию. «Режим РФ» — без сервера: IP и так свой, Kill Switch ему не нужен.
+        if (p.type != "wireguard" && p.type != "bypass") sessionVerified = true
         onConnected(server)
-        isConnecting.value = false
-        if (p.type == "wireguard") startWatchdog(server, freshKey)
+        startMonitor(server, p.type, freshKey, startedAt)
+        if (auto) AppErrors.log("auto-reconnect", IllegalStateException("reconnected to ${server.id}"))
         return Outcome.CONNECTED
+    }
+
+    /** sing-box: «подключено» — только после проверки, что трафик идёт через сервер (probe). */
+    private suspend fun startSingbox(p: Pending): Boolean {
+        SingboxManager.startResult.value = null
+        XrayVpnService.start(app, p.config, p.server.displayName(lang()))
+        var result: Boolean? = null
+        try {
+            result = withTimeoutOrNull(60_000) { SingboxManager.startResult.first { it != null } }
+        } finally {
+            // Таймаут или «Отмена»: служба ещё поднимает туннель — гасим, иначе он поднялся бы сам
+            if (result == null) withContext(NonCancellable) { stopXray() }
+        }
+        return result == true
+    }
+
+    /** OpenVPN: «подключено» — только когда OpenVPN сообщил CONNECTED (раньше — сразу после запуска). */
+    private suspend fun startOpenVpn(p: Pending): Boolean {
+        OpenVpnService.startResult.value = null
+        OpenVpnService.start(app, p.config, p.server.displayName(lang()))
+        var result: Boolean? = null
+        try {
+            result = withTimeoutOrNull(60_000) { OpenVpnService.startResult.first { it != null } }
+        } finally {
+            if (result == null) withContext(NonCancellable) { stopOpenVpn() }
+        }
+        return result == true
+    }
+
+    private suspend fun startWireGuard(p: Pending): Boolean {
+        var ok = false
+        try {
+            ok = VpnManager.connect(app, p.config)
+        } finally {
+            // Отменили, пока туннель поднимался, — не оставляем его висеть
+            if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }
+        }
+        return ok
     }
 
     private suspend fun fetchCloakBundle(server: ServerResponse): String {
@@ -210,6 +350,8 @@ object ConnectionManager {
                 if (!raw.isSuccessful) throw retrofit2.HttpException(raw)
                 bodyBytes = withContext(Dispatchers.IO) { raw.body()?.use { it.bytes() } }
                 if (bodyBytes != null) break
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: retrofit2.HttpException) {
                 throw e   // 403/503 повтор не исправит
             } catch (e: Exception) {
@@ -225,58 +367,231 @@ object ConnectionManager {
         }.toString()
     }
 
+    /** «Подключить» из уведомления: как раньше — лучший по пингу WireGuard с авто-подключением. */
+    private suspend fun connectFromNotification() {
+        connectingTo.value = null
+        isConnecting.value = true
+        statusMsg.value = str(R.string.home_getting_config)
+        val best = try {
+            val servers = ApiClient.service.getServers(bearer())
+            val candidates = servers.filter { it.server_type == "wireguard" && it.canConnect && it.allow_auto_connect }
+            autoSelectServer(candidates, measureAllPings(candidates), wireguardOnly = true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppErrors.log("notification connect", e)
+            val text = AppErrors.text(localized(app), e)
+            fail(text); toast(text)
+            return
+        }
+        if (best == null) {
+            val text = str(R.string.notif_no_server)
+            fail(text); toast(text)
+            return
+        }
+        when (connect(best)) {
+            Outcome.FAILED -> toast(statusMsg.value)
+            Outcome.NEEDS_PERMISSION -> {
+                // Разрешение VPN отозвали: системное окно из уведомления не показать (Android 12+
+                // не даёт открыть приложение из ресивера) — просим открыть приложение
+                pending.value = null
+                prefs().edit().putBoolean(PREF_VPN_CONSENT, false).apply()
+                idle("")
+                syncNotification()
+                toast(str(R.string.notif_open_app))
+            }
+            Outcome.CONNECTED -> {}
+        }
+    }
+
+    private fun toast(text: String) {
+        if (text.isNotEmpty()) android.widget.Toast.makeText(app, text, android.widget.Toast.LENGTH_LONG).show()
+    }
+
     private fun fail(message: String): Outcome {
-        statusMsg.value = message
-        isConnecting.value = false
+        idle(message)
+        // Переключались между серверами: старый туннель уже погашен — уведомление «Отключено»
+        if (connectedServer.value == null) syncNotification()
         return Outcome.FAILED
     }
 
-    /**
-     * Сторож WireGuard: через 20 с трафик ушёл, а ответа нет → ключ мог быть снят → один раз берём
-     * новый. Раньше повторял бесконечно (если провайдер режет UDP — новый ключ каждые ~20 с).
-     */
-    private fun startWatchdog(server: ServerResponse, freshKey: Boolean) = scope.launch {
-        delay(20_000)
-        if (connectedServer.value?.id != server.id || !VpnManager.isConnected()) return@launch
-        val (rx, tx) = VpnManager.getTrafficStats()
-        if (tx == 0L || rx > 0L) return@launch
-        ConfigCache.clear(app, server.id)
-        VpnManager.disconnect()
-        onDisconnected(userInitiated = true)
-        if (!freshKey) {
-            connect(server, freshKey = true)
-        } else {
-            statusMsg.value = str(R.string.home_error_server_unreachable)
+    /** Ничего не делаем: кнопка снова «Подключить» / «Отключить». */
+    private fun idle(message: String) {
+        statusMsg.value = message
+        isConnecting.value = false
+        isDisconnecting.value = false
+        connectingTo.value = null
+    }
+
+    // ── Сторож ───────────────────────────────────────────────────────────────
+
+    private fun startMonitor(server: ServerResponse, type: String, freshKey: Boolean, startedAt: Long) {
+        stopMonitor()
+        monitor = when (type) {
+            "wireguard" -> scope.launch { watchWireGuard(server, freshKey, startedAt) }
+            "vless", "hysteria", "trojan" -> scope.launch { watchSingbox() }
+            else -> null   // OpenVPN следит сам (OpenVpnService); «Режим РФ» — без сервера
         }
     }
+
+    private fun stopMonitor() {
+        monitor?.cancel()
+        monitor = null
+    }
+
+    /**
+     * Сторож WireGuard.
+     * 1) Через 20 с: пакеты уходят, а рукопожатия с сервером так и не было — ключ сняли (лимит
+     *    подключений, «Разорвать подключения») или провайдер режет UDP. Один раз берём новый ключ,
+     *    потом — ошибка. Раньше повторял бесконечно: новый ключ каждые ~20 с.
+     * 2) Дальше раз в 30 с: при keepalive 25 с рукопожатие идёт каждые 2 мин; если оно старше ~3 мин
+     *    три проверки подряд (минута без сна телефона: после глубокого сна WireGuard переподключается
+     *    сам за секунды) при рабочей сети — сервер перестал отвечать. Раньше такой обрыв не замечался
+     *    вовсе: «Подключено», а интернета нет. Теперь — Kill Switch и переподключение.
+     */
+    private suspend fun watchWireGuard(server: ServerResponse, freshKey: Boolean, startedAt: Long) {
+        delay(20_000)
+        if (!VpnManager.isConnected()) return
+        val (rx, tx) = VpnManager.getTrafficStats()
+        if (VpnManager.lastHandshakeMillis() >= startedAt - 5_000 || rx > 0L) {
+            sessionVerified = true
+        } else if (tx > 0L) {
+            rekeyOrGiveUp(server, freshKey)
+            return
+        }
+        var strikes = 0
+        while (true) {
+            delay(30_000)
+            if (!VpnManager.isConnected()) return
+            val handshake = VpnManager.lastHandshakeMillis()
+            if (handshake >= startedAt - 5_000) sessionVerified = true
+            val stale = System.currentTimeMillis() - handshake > 200_000
+            strikes = if (stale && hasInternet()) strikes + 1 else 0
+            if (strikes >= 3) {
+                AppErrors.log("wireguard watchdog", IllegalStateException("no handshake since $handshake"))
+                VpnEvents.vpnDropped.tryEmit(Unit)
+                return
+            }
+        }
+    }
+
+    private fun rekeyOrGiveUp(server: ServerResponse, freshKey: Boolean) {
+        AppErrors.log("wireguard watchdog", IllegalStateException("no handshake in 20 s, freshKey=$freshKey"))
+        launchOp {
+            // Переподключение после обрыва рабочей сессии — интернет не течёт, пока берём новый ключ
+            if (sessionVerified) KillSwitch.engage(app)
+            ConfigCache.clear(app, server.id)
+            if (!freshKey) {
+                connect(server, freshKey = true, auto = true)
+            } else {
+                stopTunnels()
+                setDisconnected()
+                idle(str(if (KillSwitch.engaged) R.string.reconnect_failed_killswitch else R.string.home_error_server_unreachable))
+            }
+        }
+    }
+
+    /**
+     * Сторож sing-box (VLESS / Trojan / Hysteria2): раз в 30 с смотрим трафик. Пакеты уходят, а в
+     * ответ ничего — проверяем запросом через сервер; два провала подряд при рабочей сети — сервер
+     * перестал отвечать. Без трафика ничего не проверяем (не тратим батарею).
+     */
+    private suspend fun watchSingbox() {
+        var (lastRx, lastTx) = SingboxManager.getTrafficStats()
+        while (true) {
+            delay(30_000)
+            if (!SingboxManager.isConnected()) return
+            val (rx, tx) = SingboxManager.getTrafficStats()
+            val silent = tx > lastTx && rx == lastRx
+            lastRx = rx; lastTx = tx
+            if (!silent) continue
+            var dead = !withContext(Dispatchers.IO) { SingboxManager.probeAlive() }
+            if (dead) {
+                delay(10_000)
+                dead = !withContext(Dispatchers.IO) { SingboxManager.probeAlive() } && hasInternet()
+            }
+            SingboxManager.getTrafficStats().let { (r, t) -> lastRx = r; lastTx = t }
+            if (dead && SingboxManager.isConnected()) {
+                AppErrors.log("sing-box watchdog", IllegalStateException("server stopped answering"))
+                VpnEvents.vpnDropped.tryEmit(Unit)
+                return
+            }
+        }
+    }
+
+    /** Рабочая сеть телефона (не VPN): без неё «сервер молчит» — не повод переподключаться. */
+    private fun hasInternet(): Boolean = try {
+        val cm = app.getSystemService(ConnectivityManager::class.java)
+        @Suppress("DEPRECATION")
+        cm?.allNetworks?.any { n ->
+            val c = cm.getNetworkCapabilities(n)
+            c != null && !c.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                c.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } ?: true
+    } catch (_: Exception) { true }
+
+    /**
+     * Включён VPN другого приложения. Наши туннели исключают само приложение (а WireGuard к этому
+     * моменту погашен), так что VPN в его сети — чужой; на Android 10+ видно и владельца сети.
+     */
+    private fun otherVpnActive(): Boolean = try {
+        val cm = app.getSystemService(ConnectivityManager::class.java)
+        if (cm == null) false
+        else {
+            val activeIsVpn = cm.getNetworkCapabilities(cm.activeNetwork)
+                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            @Suppress("DEPRECATION")
+            activeIsVpn || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cm.allNetworks.any { n ->
+                val c = cm.getNetworkCapabilities(n)
+                c != null && c.hasTransport(NetworkCapabilities.TRANSPORT_VPN) && c.ownerUid != android.os.Process.myUid()
+            })
+        }
+    } catch (_: Exception) { false }
 
     // ── Отключение ───────────────────────────────────────────────────────────
 
-    /** Пользователь сам отключается. */
-    suspend fun disconnect() {
-        isConnecting.value = true
-        statusMsg.value = str(R.string.home_disconnecting)
-        userDisconnected = true
-        stopTunnels()
-        onDisconnected(userInitiated = true)
-        statusMsg.value = ""
+    private suspend fun disconnect() {
+        sessionVerified = false
+        pending.value = null
         isConnecting.value = false
+        connectingTo.value = null
+        isDisconnecting.value = true
+        statusMsg.value = str(R.string.home_disconnecting)
+        try {
+            stopTunnels()
+        } finally {
+            KillSwitch.release(app)
+            setDisconnected()
+            idle("")
+        }
     }
 
+    /** Погасить всё, что запущено (туннели, byedpi, сторож). Kill Switch не трогает. */
     private suspend fun stopTunnels() {
-        if (OpenVpnService.isRunning) {
-            OpenVpnService.stop(app)
-            var waited = 0
-            while (OpenVpnService.isRunning && waited < 8000) { delay(100); waited += 100 }
-        }
-        if (SingboxManager.isConnected()) {
-            XrayVpnService.stop(app)
-            // Ждём реальной остановки: иначе «стоп» старого туннеля догонял запуск нового
-            var waited = 0
-            while (SingboxManager.isConnected() && waited < 5000) { delay(100); waited += 100 }
-        }
+        stopMonitor()
+        if (OpenVpnService.isRunning) stopOpenVpn()
+        if (XrayVpnService.isRunning || SingboxManager.isConnected()) stopXray()
         if (VpnManager.isConnected()) VpnManager.disconnect()
-        BypassManager.stop()
+        stopBypass()
+    }
+
+    private suspend fun stopXray() {
+        try { XrayVpnService.stop(app) } catch (e: Exception) { AppErrors.log("sing-box stop", e) }
+        // Ждём реальной остановки: иначе «стоп» старого туннеля догонял запуск нового
+        waitUntil(15_000) { !XrayVpnService.isRunning }
+    }
+
+    private suspend fun stopOpenVpn() {
+        try { OpenVpnService.stop(app) } catch (e: Exception) { AppErrors.log("openvpn stop", e) }
+        waitUntil(10_000) { !OpenVpnService.isRunning }
+    }
+
+    /** byedpi останавливается с ожиданием процесса — не на главном потоке. */
+    private suspend fun stopBypass() = withContext(NonCancellable + Dispatchers.IO) { BypassManager.stop() }
+
+    private suspend fun waitUntil(timeoutMs: Long, done: () -> Boolean) {
+        withTimeoutOrNull(timeoutMs) { while (!done()) delay(100) }
     }
 
     // ── Состояние ────────────────────────────────────────────────────────────
@@ -284,61 +599,83 @@ object ConnectionManager {
     private fun onConnected(server: ServerResponse) {
         connectedServer.value = server
         lastServer = server
-        userDisconnected = false
-        statusMsg.value = ""
+        // Разрешение VPN есть — «Подключить» в уведомлении может подключать без открытия приложения
+        prefs().edit().putBoolean(PREF_VPN_CONSENT, true).apply()
         VpnManager.connectedServerName = server.displayName(lang())
         KillSwitch.release(app)
-        // WireGuard: уведомление — VpnForegroundService; у sing-box / OpenVPN своё уведомление с трафиком
-        if (!server.usesSingbox && !server.usesOpenVpn) VpnForegroundService.start(app)
-        else VpnForegroundService.stop(app)
+        idle("")
+        syncNotification()
     }
 
-    private fun onDisconnected(userInitiated: Boolean) {
+    private fun setDisconnected() {
         connectedServer.value = null
-        if (userInitiated) KillSwitch.release(app)
-        // Фоновый режим: вернуть уведомление «Отключено / Подключить»
-        if (prefs().getBoolean("background_mode", false)) VpnForegroundService.start(app)
-        else VpnForegroundService.stop(app)
+        syncNotification()
+    }
+
+    /** WireGuard — уведомление VpnForegroundService (у sing-box / OpenVPN своё); без VPN — фоновый режим. */
+    private fun syncNotification() {
+        val s = connectedServer.value
+        try {
+            when {
+                s != null && (s.usesSingbox || s.usesOpenVpn) -> VpnForegroundService.stop(app)
+                s != null || prefs().getBoolean("background_mode", false) -> VpnForegroundService.start(app)
+                else -> VpnForegroundService.stop(app)
+            }
+        } catch (e: Exception) {
+            AppErrors.log("status notification", e)   // Android 12+ может запретить запуск из фона
+        }
+    }
+
+    /** Туннель упал сам: служба остановилась или сторож решил, что сервер перестал отвечать. */
+    private fun onDrop() {
+        if (op?.isActive == true) return   // идёт подключение/отключение — оно само наведёт порядок
+        val server = connectedServer.value ?: lastServer ?: return
+        launchOp { recover(server) }
     }
 
     /**
-     * Туннель упал сам. Если VPN забрало другое приложение — ничего не делаем. Иначе Kill Switch
-     * блокирует трафик и (если включено) до 3 попыток переподключения.
+     * Kill Switch (если сессия была рабочей) и до 3 попыток переподключения. Если VPN тем временем
+     * включили в другом приложении — не отбираем его.
      */
-    private suspend fun handleDrop() {
-        val server = connectedServer.value ?: lastServer
-        onDisconnected(userInitiated = false)
-        if (userDisconnected) return
-        if (VpnService.prepare(app) != null) { statusMsg.value = ""; return }
-        KillSwitch.engage(app)
-        if (server == null || !prefs().getBoolean("auto_reconnect", true)) {
-            if (KillSwitch.engaged) statusMsg.value = str(R.string.reconnect_failed_killswitch)
+    private suspend fun recover(server: ServerResponse) {
+        if (sessionVerified) KillSwitch.engage(app)
+        stopTunnels()   // WireGuard после сторожа ещё «поднят», хотя сервер молчит
+        setDisconnected()
+        if (!prefs().getBoolean("auto_reconnect", true)) {
+            idle(str(if (KillSwitch.engaged) R.string.reconnect_failed_killswitch else R.string.vpn_connection_lost))
             return
         }
         for (attempt in 1..3) {
+            connectingTo.value = server
+            isConnecting.value = true
             statusMsg.value = "${str(R.string.reconnecting)} ($attempt/3)…"
             delay(attempt * 2000L)   // 2, 4, 6 с
-            if (userDisconnected || connectedServer.value != null) return
-            when (connect(server)) {
-                Outcome.CONNECTED -> return
-                Outcome.NEEDS_PERMISSION -> { pending.value = null; break }
-                Outcome.FAILED -> AppErrors.log("auto-reconnect attempt $attempt", IllegalStateException(statusMsg.value))
+            if (otherVpnActive()) {
+                KillSwitch.release(app)
+                idle("")
+                return
             }
+            if (connect(server, auto = true) == Outcome.CONNECTED) return
+            AppErrors.log("auto-reconnect attempt $attempt", IllegalStateException(statusMsg.value))
         }
-        isConnecting.value = false
-        statusMsg.value = str(if (KillSwitch.engaged) R.string.reconnect_failed_killswitch else R.string.reconnect_failed)
+        idle(str(if (KillSwitch.engaged) R.string.reconnect_failed_killswitch else R.string.reconnect_failed))
     }
 
-    /** Выход из аккаунта / заблокированная версия: туннель и кэш принадлежат старому аккаунту. */
-    suspend fun resetForLogout() {
-        userDisconnected = true
-        ConfigCache.clearAll(app)
-        stopTunnels()
-        onDisconnected(userInitiated = true)
-        lastServer = null
-        pending.value = null
-        permissionRequested = false
-        statusMsg.value = ""
-        isConnecting.value = false
+    /**
+     * VPN выключили снаружи: другое VPN-приложение, «Отключить» в настройках Android. Это не обрыв —
+     * без Kill Switch и переподключения. Раньше WireGuard в этом случае переподключался (а вызов
+     * VpnService.prepare() при этом молча выключал VPN другого приложения), а VLESS/OpenVPN
+     * продолжали показывать «Подключено».
+     */
+    private fun onExternalStop() {
+        val wasActive = connectedServer.value != null || isConnecting.value || KillSwitch.engaged
+        launchOp {
+            stopTunnels()
+            KillSwitch.release(app)
+            sessionVerified = false
+            pending.value = null
+            setDisconnected()
+            idle(if (wasActive) str(R.string.vpn_stopped_externally) else "")
+        }
     }
 }

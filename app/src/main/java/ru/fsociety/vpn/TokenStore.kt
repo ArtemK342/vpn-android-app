@@ -45,32 +45,43 @@ object TokenStore {
 
     @Synchronized
     fun clear() {
+        epoch++
         prefs.edit().remove("token").remove("refresh_token").apply()
         access.value = ""
     }
+
+    /** Сетевое обновление — под своей блокировкой: выход из аккаунта не ждёт его на главном потоке. */
+    private val refreshLock = Any()
+    /** Меняется при выходе: обновление, начатое до выхода, не должно «залогинить» обратно. */
+    @Volatile private var epoch = 0
 
     /**
      * Новый access-токен по refresh (вызывается из OkHttp Authenticator на 401, синхронно).
      * Если другой запрос уже обновил токен — возвращает его без нового запроса.
      * null — обновить не удалось (сеть: оставляем как есть; отказ сервера: сессия кончилась).
      */
-    @Synchronized
-    fun refreshBlocking(failedToken: String): String? {
+    fun refreshBlocking(failedToken: String): String? = synchronized(refreshLock) {
         val current = access.value
         if (current.isNotEmpty() && current != failedToken) return current
         val rt = refresh
         if (rt.isEmpty()) return null
-        return try {
+        val startEpoch = epoch
+        try {
             val resp = ApiClient.authCalls.refresh(RefreshRequest(rt)).execute()
             val body = resp.body()
             when {
-                resp.isSuccessful && body != null && body.access_token.isNotEmpty() -> {
+                resp.isSuccessful && body != null && body.access_token.isNotEmpty() -> synchronized(this) {
+                    if (epoch != startEpoch) return null   // пока обновляли, вышли из аккаунта
                     save(body.access_token, body.refresh_token)
                     body.access_token
                 }
                 resp.code() == 401 || resp.code() == 403 -> {
-                    clear()
-                    sessionExpired.tryEmit(Unit)
+                    synchronized(this) {
+                        if (epoch == startEpoch) {
+                            clear()
+                            sessionExpired.tryEmit(Unit)
+                        }
+                    }
                     null
                 }
                 else -> null   // 5xx / 429 — не выходим из аккаунта, попробуем позже

@@ -134,6 +134,9 @@ fun HomeScreen(
     var userPickedServer by HomeUiState.userPickedServer
     var autoConnectRequested by HomeUiState.autoConnectRequested
     val isConnecting by ConnectionManager.isConnecting
+    val isDisconnecting by ConnectionManager.isDisconnecting
+    val connectingTo by ConnectionManager.connectingTo
+    val killSwitchEngaged by KillSwitch.engagedState
     val statusMsg by ConnectionManager.statusMsg
     val pending by ConnectionManager.pending
     val context = LocalContext.current
@@ -145,7 +148,7 @@ fun HomeScreen(
     val strMs = stringResource(R.string.unit_ms)
 
     fun connect(server: ServerResponse) {
-        ConnectionManager.scope.launch { ConnectionManager.connect(server) }
+        ConnectionManager.requestConnect(server)
     }
 
     // Системное окно «Разрешить VPN»: конфиг ждёт в ConnectionManager.pending (переживает
@@ -245,6 +248,13 @@ fun HomeScreen(
                         fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
                         maxLines = 4, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 32.dp))
+                    // Kill Switch держит интернет заблокированным — снять можно и отсюда, не только из шторки
+                    if (killSwitchEngaged && !isConnected && !isConnecting) {
+                        TextButton(onClick = { ConnectionManager.unblockKillSwitch() }) {
+                            Text(stringResource(R.string.ks_unblock_internet), color = ErrorRed,
+                                fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        }
+                    }
                 } else if (isConnected && connectedServer != null) {
                     val connectedPing = serverPings[connectedServer.id]
                     val pingText = when {
@@ -393,9 +403,11 @@ fun HomeScreen(
                                 .combinedClickable(
                                     enabled = server.canConnect,
                                     onClick = {
-                                        // Уже подключены к этому серверу — ничего не делаем (раньше переподключал);
-                                        // к другому — ConnectionManager сам отключит текущий туннель
-                                        if (!isConnecting && !isThisConnected) {
+                                        // Уже подключены (или подключаемся) к этому серверу — ничего не делаем
+                                        // (раньше переподключал); к другому — ConnectionManager сам отменит
+                                        // текущее подключение / погасит текущий туннель
+                                        val busyWithThis = isConnecting && connectingTo?.id == server.id
+                                        if (!isThisConnected && !busyWithThis && !isDisconnecting) {
                                             selectedServer = server
                                             userPickedServer = true
                                             connect(server)
@@ -500,23 +512,28 @@ fun HomeScreen(
         HorizontalDivider(color = Border, thickness = 1.dp)
         Button(
             onClick = {
-                if (isConnected) {
-                    ConnectionManager.scope.launch { ConnectionManager.disconnect() }
-                } else {
-                    selectedFresh?.takeIf { it.canConnect }?.let { connect(it) }
+                when {
+                    // Во время подключения / переподключения кнопка — «Отмена»
+                    isConnecting || isConnected -> ConnectionManager.requestDisconnect()
+                    else -> selectedFresh?.takeIf { it.canConnect }?.let { connect(it) }
                 }
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            enabled = !isConnecting && (isConnected || selectedFresh?.canConnect == true),
+            enabled = !isDisconnecting && (isConnecting || isConnected || selectedFresh?.canConnect == true),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (isConnected) ErrorRed else Accent,
                 contentColor = BgDark
             ),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
         ) {
-            if (isConnecting) {
+            if (isConnecting || isDisconnecting) {
                 CircularProgressIndicator(color = BgDark,
                     modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                if (isConnecting) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(stringResource(R.string.home_btn_cancel), fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
             } else {
                 Text(
                     stringResource(if (isConnected) R.string.home_btn_disconnect else R.string.home_btn_connect),

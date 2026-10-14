@@ -9,11 +9,12 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 
 /**
- * Kill Switch: при неожиданном обрыве туннеля интернет блокируется, пока приложение не
- * переподключится или пользователь не нажмёт «Разблокировать» в уведомлении.
+ * Kill Switch: при неожиданном обрыве рабочего туннеля интернет блокируется, пока приложение не
+ * переподключится или пользователь не нажмёт «Разблокировать» (уведомление / главный экран).
  *
  * Как блокируется: поднимается «пустой» VPN-интерфейс с маршрутами на весь IPv4/IPv6, пакеты из
  * которого никто не читает — трафик других приложений никуда не уходит. Само приложение из него
@@ -23,25 +24,31 @@ import androidx.core.app.NotificationCompat
  * Раньше переключатель Kill Switch только сохранялся в настройках и ничего не делал.
  * Для защиты и при выгрузке приложения системой — «Постоянная VPN» + «Блокировать соединения
  * без VPN» в настройках Android (кнопка на экране Kill Switch).
+ *
+ * Все вызовы — из главного потока.
  */
 object KillSwitch {
     private const val PREF = "kill_switch"
 
-    @Volatile var engaged = false
-        private set
+    /** Блокировка включена — главный экран показывает «Разблокировать интернет». */
+    val engagedState = mutableStateOf(false)
+    val engaged: Boolean get() = engagedState.value
 
     fun enabled(context: Context): Boolean =
         context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getBoolean(PREF, false)
 
-    /** Обрыв туннеля: заблокировать трафик (если включено и VPN не забрало другое приложение). */
+    /**
+     * Обрыв туннеля: заблокировать трафик (если включено). VpnService.prepare() здесь не вызываем:
+     * при сохранённом согласии он молча выключил бы VPN другого приложения. Если VPN сейчас у
+     * другого приложения, система просто не даст поднять интерфейс — служба остановится сама.
+     */
     fun engage(context: Context) {
-        if (!enabled(context)) return
-        if (VpnService.prepare(context) != null) return   // разрешение VPN у другого приложения
+        if (!enabled(context) || engaged) return
         val intent = Intent(context, KillSwitchService::class.java).setAction(KillSwitchService.ACTION_ENGAGE)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
             else context.startService(intent)
-            engaged = true
+            engagedState.value = true
         } catch (e: Exception) {
             // Android 12+ может запретить запуск службы из фона — без падения приложения
             AppErrors.log("kill switch start", e)
@@ -51,8 +58,15 @@ object KillSwitch {
     /** Туннель снова поднят или пользователь сам отключился/разблокировал — снять блокировку. */
     fun release(context: Context) {
         if (!engaged) return
-        engaged = false
-        context.stopService(Intent(context, KillSwitchService::class.java))
+        engagedState.value = false
+        // Служба ещё не успела вызвать startForeground — stopService сейчас уронил бы приложение
+        // («did not call startForeground»); она сама увидит, что блокировка снята, и остановится.
+        if (KillSwitchService.foreground) context.stopService(Intent(context, KillSwitchService::class.java))
+    }
+
+    /** Служба не смогла поднять интерфейс (VPN у другого приложения) — блокировки нет. */
+    internal fun onServiceFailed() {
+        engagedState.value = false
     }
 }
 
@@ -62,8 +76,13 @@ class KillSwitchService : VpnService() {
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(localized(newBase))
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action != ACTION_ENGAGE) { stopSelf(); return START_NOT_STICKY }
+        // Сразу и всегда: служба запущена через startForegroundService
         startForeground(NOTIFICATION_ID, buildNotification())
+        foreground = true
+        if (intent?.action != ACTION_ENGAGE || !KillSwitch.engaged) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         try {
             if (pfd == null) {
                 pfd = Builder()
@@ -75,9 +94,11 @@ class KillSwitchService : VpnService() {
                     .addDisallowedApplication(packageName)   // само приложение — переподключение и API
                     .establish()
             }
-            if (pfd == null) stopSelf()
         } catch (e: Exception) {
             Log.w(TAG, "kill switch establish failed: ${e.message}")
+        }
+        if (pfd == null) {
+            KillSwitch.onServiceFailed()
             stopSelf()
         }
         return START_NOT_STICKY
@@ -103,13 +124,15 @@ class KillSwitchService : VpnService() {
             .build()
     }
 
-    // Другое VPN-приложение забрало VPN — не сопротивляемся
+    // Другое VPN-приложение забрало VPN — не сопротивляемся (и не переподключаемся)
     override fun onRevoke() {
         KillSwitch.release(this)
+        VpnEvents.vpnStopped.tryEmit(Unit)
         stopSelf()
     }
 
     override fun onDestroy() {
+        foreground = false
         try { pfd?.close() } catch (_: Exception) {}
         pfd = null
         super.onDestroy()
@@ -119,13 +142,17 @@ class KillSwitchService : VpnService() {
         const val ACTION_ENGAGE = "ru.fsociety.vpn.KILL_SWITCH_ENGAGE"
         private const val NOTIFICATION_ID = 1004
         private const val TAG = "KillSwitch"
+
+        /** startForeground уже вызван — службу можно останавливать stopService. */
+        @Volatile var foreground = false
+            private set
     }
 }
 
 /** «Разблокировать» в уведомлении Kill Switch. */
 class KillSwitchReleaseReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        KillSwitch.release(context)
+        ConnectionManager.unblockKillSwitch()
         context.getSystemService(NotificationManager::class.java)?.cancel(1004)
     }
 }
