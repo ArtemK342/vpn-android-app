@@ -62,6 +62,8 @@ object AppErrors {
 
     /** Для действий без своего поля ошибки (тикеты и т.п.): лог + короткий тост. */
     fun toast(context: Context, what: String, e: Throwable) {
+        // Ушли с экрана, пока шёл запрос, — это не ошибка (раньше показывался тост «ошибка»)
+        if (e is kotlinx.coroutines.CancellationException) return
         log(what, e)
         Toast.makeText(context, text(context, e), Toast.LENGTH_SHORT).show()
     }

@@ -561,10 +561,18 @@ object ConnectionManager {
      *    вовсе: «Подключено», а интернета нет. Теперь — Kill Switch и переподключение.
      */
     private suspend fun watchWireGuard(server: ServerResponse, freshKey: Boolean, startedAt: Long) {
-        delay(20_000)
-        if (!VpnManager.isConnected()) return
-        val (rx, tx, firstHandshake) = VpnManager.stats()
-        if (firstHandshake >= startedAt - 5_000 || rx > 0L) {
+        // Первое рукопожатие ждём до 20 с, проверяя каждые 2 с: сессия считается рабочей (и Kill Switch
+        // защищает её обрыв) почти сразу, а не через 20 с, как раньше
+        var verified = false
+        var tx = 0L
+        for (i in 1..10) {
+            delay(2_000)
+            if (!VpnManager.isConnected()) return
+            val (rx, sent, handshake) = VpnManager.stats()
+            tx = sent
+            if (handshake >= startedAt - 5_000 || rx > 0L) { verified = true; break }
+        }
+        if (verified) {
             sessionVerified = true
         } else if (tx > 0L) {
             rekeyOrGiveUp(server, freshKey)
