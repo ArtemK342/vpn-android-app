@@ -240,7 +240,6 @@ private fun EmptyListWarning() {
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SitesRulesScreen(
     settings: SplitTunnelingSettings,
@@ -348,27 +347,34 @@ fun SitesRulesScreen(
             item {
                 Text(stringResource(R.string.rules_presets), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 8.dp))
-                FlowRow(
+                // Ряды по 2 кнопки (FlowRow из библиотеки Compose в сборке падал с NoSuchMethodError)
+                Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Presets.all.forEach { preset ->
-                        val active = list.containsAll(preset.entries)
-                        Box(
-                            modifier = Modifier
-                                .clickable {
-                                    onSettingsChange(settings.withSites(
-                                        if (active) list - preset.entries else list + preset.entries))
+                    Presets.all.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { preset ->
+                                val active = list.containsAll(preset.entries)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            onSettingsChange(settings.withSites(
+                                                if (active) list - preset.entries else list + preset.entries))
+                                        }
+                                        .background(if (active) Accent else Surface, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        (if (active) "✓ " else "+ ") + stringResource(preset.titleRes),
+                                        color = if (active) BgDark else Accent,
+                                        fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                    )
                                 }
-                                .background(if (active) Accent else Surface, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                (if (active) "✓ " else "+ ") + stringResource(preset.titleRes),
-                                color = if (active) BgDark else Accent,
-                                fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold
-                            )
+                            }
+                            if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
