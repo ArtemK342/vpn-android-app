@@ -425,6 +425,8 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var showLimitDialog by remember { mutableStateOf(false) }
     var selectedTicket by remember { mutableStateOf<TicketDetailResponse?>(null) }
+    // Тикет открыт сразу по нажатию, сообщения ещё грузятся
+    var loadingMessages by remember { mutableStateOf(false) }
     var newSubject by remember { mutableStateOf("") }
     var newMessage by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
@@ -581,7 +583,8 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                 if (detail.messages.isEmpty()) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text(stringResource(R.string.tickets_no_messages), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                            if (loadingMessages) CircularProgressIndicator(color = Accent, modifier = Modifier.size(28.dp))
+                            else Text(stringResource(R.string.tickets_no_messages), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                         }
                     }
                 }
@@ -664,11 +667,16 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth()
                             .combinedClickable(
                                 onClick = {
+                                    // Открываем сразу (тема и статус уже есть), сообщения догружаются. Раньше экран
+                                    // ждал ответа сервера и казалось, что нажатие не сработало — жали по 2–3 раза
+                                    selectedTicket = TicketDetailResponse(ticket = ticket)
+                                    loadingMessages = true
                                     scope.launch {
                                         try {
                                             val detail = ApiClient.service.getTicket("Bearer $token", ticket.id)
-                                            selectedTicket = detail
+                                            if (selectedTicket?.ticket?.id == ticket.id) selectedTicket = detail
                                         } catch (e: Exception) { AppErrors.toast(errCtx, "open ticket", e) }
+                                        finally { loadingMessages = false }
                                     }
                                 },
                                 onLongClick = { ticketToDelete = ticket }

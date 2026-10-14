@@ -125,7 +125,6 @@ class VpnForegroundService : Service() {
             builder
                 .setContentTitle(ctx.getString(R.string.notification_title_disconnected))
                 .setContentText(ctx.getString(R.string.notification_text_disconnected))
-                .setContentIntent(connectPi)
                 .addAction(0, ctx.getString(R.string.notification_connect), connectPi)
         }
 

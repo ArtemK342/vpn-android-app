@@ -359,23 +359,45 @@ object ApiClient {
      * сервера. POST, на который не дочитали ответ, мог уже выполниться — его повтор создавал второй
      * анонимный аккаунт (и 429 вместо кода), второе письмо сброса пароля, дубли сообщений в тикетах.
      */
+    /**
+     * Cloudflare недавно не ответил — 10 минут сразу идём напрямую. Раньше каждый запрос сначала
+     * ждал таймаут Cloudflare (8–12 с): тикеты и списки открывались с задержкой, по 2–3 нажатия.
+     */
+    @Volatile private var directUntil = 0L
+    private const val DIRECT_STICKY_MS = 10 * 60_000L
+
     private val directFallback = okhttp3.Interceptor { chain ->
         val req = chain.request()
         if (req.url.host == DIRECT_HOST) return@Interceptor chain.proceed(req)
-        try {
-            val resp = chain
-                .withConnectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-                .withReadTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
-                .proceed(req)
-            val body = resp.body ?: return@Interceptor resp
+        val idempotent = req.method == "GET" || req.method == "HEAD"
+        val direct = req.newBuilder().url(req.url.newBuilder().host(DIRECT_HOST).build()).build()
+        val timed = chain
+            .withConnectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .withReadTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+        fun buffered(resp: okhttp3.Response): okhttp3.Response {
+            val body = resp.body ?: return resp
             val bytes = body.bytes()
-            resp.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
+            return resp.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
+        }
+        if (System.currentTimeMillis() < directUntil) {
+            // Сначала напрямую; не вышло — через Cloudflare (те же правила безопасного повтора)
+            try {
+                return@Interceptor buffered(timed.proceed(direct))
+            } catch (e: java.io.IOException) {
+                if (chain.call().isCanceled()) throw e
+                if (!idempotent && !e.beforeSend()) throw e
+                directUntil = 0L
+                return@Interceptor chain.proceed(req)
+            }
+        }
+        try {
+            buffered(timed.proceed(req))
         } catch (e: java.io.IOException) {
             if (chain.call().isCanceled()) throw e
-            val idempotent = req.method == "GET" || req.method == "HEAD"
             if (!idempotent && !e.beforeSend()) throw e
             android.util.Log.w("ApiClient", "${req.url.encodedPath} via Cloudflare failed (${e.message}), retry direct")
-            chain.proceed(req.newBuilder().url(req.url.newBuilder().host(DIRECT_HOST).build()).build())
+            directUntil = System.currentTimeMillis() + DIRECT_STICKY_MS
+            chain.proceed(direct)
         }
     }
 
