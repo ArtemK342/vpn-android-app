@@ -376,8 +376,11 @@ private fun AnonRegisterScreen(
 
             Button(
                 onClick = {
+                    // Двойное нажатие: второй запрос получил бы «аккаунт уже создан сегодня» (1 в сутки)
+                    if (isLoading) return@Button
+                    isLoading = true
                     scope.launch {
-                        isLoading = true; errorMsg = ""
+                        errorMsg = ""
                         try {
                             val resp = ApiClient.service.generateNumericAccount()
                             onSuccess(AnonResult(resp.code, resp.access_token, resp.refresh_token))
@@ -535,7 +538,8 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(BgDark),
+        // imePadding: клавиатура закрывала кнопку «Войти» (как на экранах регистрации)
+        modifier = Modifier.fillMaxSize().background(BgDark).imePadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(

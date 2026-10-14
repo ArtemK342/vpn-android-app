@@ -470,8 +470,10 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    if (newSubject.isBlank()) return@TextButton
+                TextButton(enabled = !isSending, onClick = {
+                    // Двойное нажатие создавало два тикета (и съедало лимит 2 в сутки)
+                    if (newSubject.isBlank() || isSending) return@TextButton
+                    isSending = true
                     scope.launch {
                         isSending = true
                         try {
@@ -617,7 +619,10 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                                 isSending = true
                                 try {
                                     val msg = ApiClient.service.sendMessage("Bearer $token", detail.ticket.id, MessageCreateRequest(newMessage))
-                                    selectedTicket = detail.copy(messages = detail.messages + msg)
+                                    // К актуальному тикету: автообновление могло уже добавить ответы поддержки
+                                    selectedTicket = selectedTicket?.let {
+                                        if (it.messages.any { m -> m.id == msg.id }) it else it.copy(messages = it.messages + msg)
+                                    }
                                     newMessage = ""
                                 } catch (e: Exception) { AppErrors.toast(errCtx, "send ticket message", e) }
                                 finally { isSending = false }

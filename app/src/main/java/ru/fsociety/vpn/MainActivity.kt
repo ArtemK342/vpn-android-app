@@ -450,7 +450,10 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
+        // Отступ под клавиатуру (приложение рисуется от края до края — сама система окно не сжимает):
+        // иначе поле сообщения в тикете, смена пароля и правила оказывались под клавиатурой.
+        // consumeWindowInsets — чтобы не прибавлять к нему высоту нижней панели.
+        Box(modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding).imePadding()) {
             when (selectedTab) {
                 0 -> HomeScreen(
                     servers = servers,
