@@ -82,29 +82,35 @@ object Presets {
         "youtube.com", "youtu.be", "youtube-nocookie.com", "youtubekids.com", "googlevideo.com",
         "ytimg.com", "ggpht.com", "youtubei.googleapis.com", "youtube.googleapis.com",
         "youtubeembeddedplayer.googleapis.com", "yt3.googleusercontent.com", "jnn-pa.googleapis.com",
+        "app:com.google.android.youtube",
     )
 
     val meta = setOf(
         "instagram.com", "cdninstagram.com", "facebook.com", "fbcdn.net", "fb.com", "facebook.net",
         "fbsbx.com", "threads.net", "threads.com",
+        "app:com.instagram.android", "app:com.facebook.katana", "app:com.instagram.barcelona",
     )
 
     val discord = setOf(
         "discord.com", "discord.gg", "discord.app", "discord.co", "discord.media", "discord.dev",
         "discord.gift", "discord.new", "discordapp.com", "discordapp.net", "discordcdn.com",
         "discord-activities.com", "discordactivities.com", "discordsays.com", "discordstatus.com", "dis.gd",
+        "app:com.discord",   // голос — UDP на IP без имени сайта: только правилом по приложению
     )
 
-    // Приложение Telegram ходит на свои IP без имени сайта — нужны подсети (core.telegram.org/resources/cidr.txt)
+    // Приложение Telegram ходит на свои IP без имени сайта (подсети — core.telegram.org/resources/cidr.txt), а
+    // если они недоступны — на запасные адреса, которые получает на лету: их не перечислить, поэтому
+    // само приложение целиком тоже через VPN (иначе после подключения минуту висело «Соединение…»)
     val telegram = setOf(
         "telegram.org", "t.me", "telegram.me", "telesco.pe", "tdesktop.com", "telegra.ph", "graph.org",
         "91.108.4.0/22", "91.108.8.0/22", "91.108.12.0/22", "91.108.16.0/22", "91.108.20.0/22",
         "91.108.56.0/22", "91.105.192.0/23", "149.154.160.0/20", "185.76.151.0/24",
+        "app:org.telegram.messenger", "app:org.telegram.messenger.web", "app:org.thunderdog.challegram",
     )
 
-    val twitter = setOf("x.com", "twitter.com", "twimg.com", "t.co")
+    val twitter = setOf("x.com", "twitter.com", "twimg.com", "t.co", "app:com.twitter.android")
 
-    val chatgpt = setOf("openai.com", "chatgpt.com", "chat.com", "oaistatic.com", "oaiusercontent.com", "sora.com")
+    val chatgpt = setOf("openai.com", "chatgpt.com", "chat.com", "oaistatic.com", "oaiusercontent.com", "sora.com", "app:com.openai.chatgpt")
 
     val all = listOf(
         SitePreset("ru", R.string.preset_ru_sites, ruEssential),
@@ -170,6 +176,10 @@ object SplitTunnelingManager {
 
     fun isIpRule(entry: String) = IPV4.matches(entry)
 
+    /** «app:org.telegram.messenger» — всё приложение целиком (только из готовых наборов). */
+    fun isAppRule(entry: String) = entry.startsWith(APP_PREFIX)
+    private const val APP_PREFIX = "app:"
+
     /**
      * Ввод пользователя → запись правила: домен (вместе с поддоменами), зона («ru», «.рф»), IPv4 или
      * подсеть. Ссылки, «www.», порт и путь отбрасываются, кириллица — в punycode. null — не понять.
@@ -203,6 +213,7 @@ object SplitTunnelingManager {
     /** Для показа: punycode → кириллица, зона — «.ru». */
     fun displaySite(entry: String): String {
         if (isIpRule(entry)) return entry
+        if (isAppRule(entry)) return entry.removePrefix(APP_PREFIX)
         val unicode = try { java.net.IDN.toUnicode(entry) } catch (_: Exception) { entry }
         return if (entry.contains('.')) unicode else ".$unicode"
     }
@@ -220,8 +231,9 @@ object SplitTunnelingManager {
     fun applySiteRules(configJson: String, s: SplitTunnelingSettings, directDns: String): String {
         if (!s.sitesActive) return configJson
         val root = JSONObject(configJson)
-        val domains = s.sites.filterNot(::isIpRule).sorted()
+        val domains = s.sites.filterNot { isIpRule(it) || isAppRule(it) }.sorted()
         val cidrs = s.sites.filter(::isIpRule).map(::cidr).sorted()
+        val packages = s.sites.filter(::isAppRule).map { it.removePrefix(APP_PREFIX) }.sorted()
         val vpn = "proxy"
         val exclude = s.sitesMode == SplitMode.EXCLUDE
         val matched = if (exclude) "direct" else vpn
@@ -239,6 +251,8 @@ object SplitTunnelingManager {
             if (action == "sniff" || action == "hijack-dns") continue
             rules.put(r)
         }
+        // Приложение целиком — по владельцу соединения (SingboxManager.findConnectionOwner)
+        if (packages.isNotEmpty()) rules.put(JSONObject().put("package_name", JSONArray(packages)).put("outbound", matched))
         if (domains.isNotEmpty()) rules.put(JSONObject().put("domain_suffix", JSONArray(domains)).put("outbound", matched))
         if (cidrs.isNotEmpty()) rules.put(JSONObject().put("ip_cidr", JSONArray(cidrs)).put("outbound", matched))
         route.put("rules", rules)

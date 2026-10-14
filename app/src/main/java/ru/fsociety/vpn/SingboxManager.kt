@@ -100,6 +100,12 @@ object SingboxManager {
                 val root = JSONObject(configJson)
                 val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
                 if (!route.has("auto_detect_interface")) route.put("auto_detect_interface", true)
+                // DEV-сборка: журнал соединений sing-box в files/singbox.log (adb run-as) — для отладки правил
+                if (BuildConfig.DEBUG) {
+                    java.io.File(context.filesDir, "singbox.log").let { if (it.length() > 2_000_000) it.delete() }
+                    root.put("log", JSONObject().put("level", "info").put("timestamp", true)
+                        .put("output", java.io.File(context.filesDir, "singbox.log").absolutePath))
+                }
                 root.toString()
             } catch (_: Exception) { configJson }
 
@@ -317,10 +323,28 @@ object SingboxManager {
         override fun includeAllNetworks(): Boolean = false
         override fun underNetworkExtension(): Boolean = false
 
+        /**
+         * Чьё соединение — для правил по приложению (package_name: «Telegram целиком через VPN»,
+         * включая его запасные адреса, которых нет ни в каком списке). Android 10+, мы — VPN-приложение.
+         */
         override fun findConnectionOwner(
             ipProtocol: Int, sourceAddress: String, sourcePort: Int,
             destAddress: String, destPort: Int
-        ): ConnectionOwner = ConnectionOwner()
+        ): ConnectionOwner {
+            val owner = ConnectionOwner()
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) return owner
+            try {
+                val cm = service.getSystemService(android.net.ConnectivityManager::class.java) ?: return owner
+                val uid = cm.getConnectionOwnerUid(ipProtocol,
+                    InetSocketAddress(sourceAddress, sourcePort), InetSocketAddress(destAddress, destPort))
+                if (uid != Process.INVALID_UID) {
+                    owner.userId = uid
+                    val pkgs = service.packageManager.getPackagesForUid(uid)?.toList().orEmpty()
+                    if (pkgs.isNotEmpty()) owner.setAndroidPackageNames(StringList(pkgs))
+                }
+            } catch (_: Exception) {}
+            return owner
+        }
 
         /** Сетевые интерфейсы устройства (раньше — пустой список). */
         override fun getInterfaces(): NetworkInterfaceIterator {

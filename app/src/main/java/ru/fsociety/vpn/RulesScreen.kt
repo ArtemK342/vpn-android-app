@@ -401,13 +401,13 @@ fun SitesRulesScreen(
                     HorizontalDivider(color = Border)
                 }
                 // Сначала сайты, потом IP и подсети; по алфавиту
-                val sorted = list.sortedWith(compareBy({ SplitTunnelingManager.isIpRule(it) }, { SplitTunnelingManager.displaySite(it) }))
+                val sorted = list.sortedWith(compareBy({ SplitTunnelingManager.isAppRule(it) }, { SplitTunnelingManager.isIpRule(it) }, { SplitTunnelingManager.displaySite(it) }))
                 items(sorted, key = { it }) { entry ->
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (SplitTunnelingManager.isIpRule(entry)) "#" else "🌐", fontSize = 14.sp, color = TextMuted)
+                        Text(when { SplitTunnelingManager.isAppRule(entry) -> "📱"; SplitTunnelingManager.isIpRule(entry) -> "#"; else -> "🌐" }, fontSize = 14.sp, color = TextMuted)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(SplitTunnelingManager.displaySite(entry), color = TextPrimary, fontSize = 14.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
