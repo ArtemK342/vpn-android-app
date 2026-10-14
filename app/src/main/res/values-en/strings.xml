@@ -58,6 +58,14 @@
     <string name="home_status_subscription">🔒 PREMIUM</string>
     <string name="home_status_blocked">⛔ CLOSED</string>
     <string name="home_logs_on">● LOGS ON</string>
+    <!-- Server status message templates from the admin panel (STATUS_MSG_TEMPLATES) -->
+    <string name="status_msg_unstable">Unstable connection</string>
+    <string name="status_msg_high_load">High load</string>
+    <string name="status_msg_packet_loss">Packet loss</string>
+    <string name="status_msg_ddos">Server under DDoS attack</string>
+    <string name="status_msg_isp_blocking">ISP-side blocking</string>
+    <string name="status_msg_maintenance">Maintenance</string>
+    <string name="status_msg_config_update">Configuration update</string>
     <string name="notif_no_server">No WireGuard server available to connect from the notification — open the app</string>
     <string name="home_btn_disconnect">● DISCONNECT</string>
     <string name="home_btn_connect">○ CONNECT</string>

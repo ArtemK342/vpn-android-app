@@ -85,6 +85,23 @@ object HomeUiState {
     }
 }
 
+/**
+ * Сообщения статуса серверов из админки — фиксированные русские шаблоны (STATUS_MSG_TEMPLATES в
+ * admin/index.html). В английском интерфейсе показываем перевод; свой текст — как есть.
+ */
+private val STATUS_MESSAGES = mapOf(
+    "Нестабильная работа" to R.string.status_msg_unstable,
+    "Высокая нагрузка" to R.string.status_msg_high_load,
+    "Потери пакетов" to R.string.status_msg_packet_loss,
+    "Сервер под DDoS атакой" to R.string.status_msg_ddos,
+    "Блокировки на стороне провайдера" to R.string.status_msg_isp_blocking,
+    "Технические работы" to R.string.status_msg_maintenance,
+    "Обновление конфигурации" to R.string.status_msg_config_update,
+)
+
+fun statusMessageText(context: Context, message: String): String =
+    STATUS_MESSAGES[message.trim()]?.let { context.getString(it) } ?: message
+
 /** Избранные серверы — по id (раньше по имени: 5 немецких серверов с одним именем шли разом) и в памяти. */
 private object Favorites {
     private const val KEY = "favorite_servers"
@@ -456,7 +473,7 @@ fun HomeScreen(
                                 }
                                 if (server.hasWarning && server.status_message != null) {
                                     Text(
-                                        "⚠ ${server.status_message}${if (server.status_message_extra != null) " — ${server.status_message_extra}" else ""}",
+                                        "⚠ ${statusMessageText(context, server.status_message)}${if (server.status_message_extra != null) " — ${server.status_message_extra}" else ""}",
                                         color = Color(0xFFF59E0B),
                                         fontSize = 9.sp, fontFamily = FontFamily.Monospace
                                     )

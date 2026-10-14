@@ -58,6 +58,14 @@
     <string name="home_status_subscription">🔒 ПОДПИСКА</string>
     <string name="home_status_blocked">⛔ ЗАКРЫТ</string>
     <string name="home_logs_on">● LOGS ON</string>
+    <!-- Шаблоны сообщений статуса из админки (STATUS_MSG_TEMPLATES) — RU как в админке -->
+    <string name="status_msg_unstable">Нестабильная работа</string>
+    <string name="status_msg_high_load">Высокая нагрузка</string>
+    <string name="status_msg_packet_loss">Потери пакетов</string>
+    <string name="status_msg_ddos">Сервер под DDoS атакой</string>
+    <string name="status_msg_isp_blocking">Блокировки на стороне провайдера</string>
+    <string name="status_msg_maintenance">Технические работы</string>
+    <string name="status_msg_config_update">Обновление конфигурации</string>
     <string name="notif_no_server">Нет доступного WireGuard-сервера для подключения из уведомления — откройте приложение</string>
     <string name="home_btn_disconnect">● ОТКЛЮЧИТЬСЯ</string>
     <string name="home_btn_connect">○ ПОДКЛЮЧИТЬСЯ</string>
