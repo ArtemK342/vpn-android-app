@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <!-- Сгенерировано tools/sync_legal.pl из terms/index.html на сайте — не править вручную -->
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0d0d0d; color: #e0e0e0; font-family: monospace; font-size: 13px; line-height: 1.85; padding: 24px 20px 48px; }
@@ -14,125 +15,133 @@
     ul { list-style: none; margin: 10px 0 14px; }
     li { color: #888; padding-left: 18px; position: relative; margin-bottom: 6px; }
     li::before { content: '→'; color: #39d98a; position: absolute; left: 0; }
+    a { color: #39d98a; }
+    .oss-badge { display: block; margin: 6px 0; word-break: break-all; }
     .highlight { background: #141414; border-left: 2px solid #39d98a; padding: 12px 16px; margin: 14px 0; color: #d0d0d0; font-size: 12px; }
     .section { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid #1a1a1a; }
     .section:last-child { border-bottom: none; }
     .num { font-size: 10px; color: #39d98a; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .logs-on { color: #ff4444; white-space: nowrap; }
     strong { color: #e0e0e0; }
   </style>
 </head>
 <body>
 
+
 <div class="tag">// Legal documents</div>
-<h1>User Agreement.</h1>
-<p class="meta">Last updated: April 25, 2026 · Version 1.1</p>
-
-<div class="section">
+  <h1>Terms of Service.</h1>
+  <p class="meta">Last updated: October 14, 2026 · Version 1.2</p>
+<div class="section" id="en-general">
   <div class="num">// 01</div>
-  <h2>General</h2>
-  <p>This User Agreement governs the use of the fsociety VPN service (hereinafter "Service").</p>
-  <p>By using the Service — creating an account, paying for a subscription, or connecting to servers — you confirm that you have fully read and accepted these terms.</p>
-  <p>If you do not agree with these terms, you must stop using the Service.</p>
+  <h2>General provisions</h2>
+  <p>These Terms of Service govern the use of the VPN service fsociety VPN (hereinafter — the "Service").</p>
+  <p>By using the Service — creating an account, purchasing a subscription, or connecting to servers — you confirm that you have read and agree to these Terms in full.</p>
+  <p>If you do not agree to these Terms, you must stop using the Service.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-service">
   <div class="num">// 02</div>
-  <h2>Service Description</h2>
-  <p>fsociety VPN is a commercial VPN service using the AmneziaWG protocol. The Service encrypts internet traffic and masks the user's real IP address, replacing it with the address of our servers.</p>
-  <div class="highlight">The Service is intended solely for protecting user privacy and security on the internet.</div>
-  <p>We maintain infrastructure in multiple jurisdictions. The list of available servers and countries may change — we strive to expand it.</p>
+  <h2>Service description</h2>
+  <p>fsociety VPN is a commercial VPN service based on the AmneziaWG, VLESS+Reality, Trojan, Hysteria2 and OpenVPN+Cloak protocols. The Service encrypts internet traffic and replaces the user's real IP address with one of our server addresses.</p>
+  <div class="highlight">The Service is intended exclusively for protecting users' privacy and security online.</div>
+  <p>We maintain infrastructure across multiple jurisdictions. The list of available servers and countries is subject to change — we continuously work to expand it.</p>
+  <p>The app may also offer "RF mode" based on the open-source <a href="https://github.com/hufrea/byedpi" target="_blank" rel="noopener">ByeDPI</a> component. It runs on your device without our servers and gets around blocking, but it does not encrypt traffic or hide your IP address.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-privacy">
   <div class="num">// 03</div>
-  <h2>Zero-Log Policy</h2>
-  <p>We do not store or collect:</p>
-  <ul>
-    <li>User internet activity history</li>
-    <li>User IP addresses upon connection</li>
-    <li>VPN session time and duration</li>
-    <li>DNS query data</li>
-    <li>Traffic information and volume</li>
-    <li>Private encryption keys</li>
-    <li>Connection metadata</li>
-  </ul>
-  <div class="highlight">We are technically unable to provide data about your activity to third parties — because we do not collect it.</div>
-  <p>For email accounts we store only: email address, password hash, subscription status, and public WireGuard key. The private key is generated on the fly and never stored on our servers. Data is stored in Switzerland.</p>
-  <p>For anonymous accounts (login via 16-digit code) we store no email or password — only the code hash, subscription status, and public VPN key.</p>
+  <h2>Data and logs</h2>
+  <p>On our VPN servers we do not store your browsing history, DNS queries, traffic content, the IP address you connect from, or the time of your connections.</p>
+  <div class="highlight">We have no data about what you do online through the VPN — so we cannot hand it over to third parties.</div>
+  <p>The exception is servers marked with a red <span style="color:#ff4444">● LOGS ON</span> label in the app and on the website: logs are enabled there (for example, while we debug a new protocol) and kept for up to 30 days. If that doesn't suit you, choose servers without the label.</p>
+  <p>What exactly we store to run your account (email or access code, subscription status, connection keys, the free-tier traffic counter, tickets) and for how long is described in the <a href="https://fsociety-vpn.org/privacy">Privacy Policy</a>. Data is stored in Switzerland.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-usage">
   <div class="num">// 04</div>
-  <h2>Acceptable Use</h2>
-  <p>By using the Service, you agree not to violate applicable law. It is prohibited to use the Service for:</p>
+  <h2>Acceptable use</h2>
+  <p>By using the Service, you agree not to violate applicable law. The Service may not be used for:</p>
   <ul>
-    <li>Distributing malware</li>
-    <li>Attacking computer systems and networks</li>
+    <li>Distributing malware or malicious software</li>
+    <li>Attacking computer systems or networks</li>
     <li>Distributing illegal content</li>
-    <li>Spam and mass mailings</li>
-    <li>Reselling Service access to third parties</li>
+    <li>Spam or mass unsolicited messaging</li>
+    <li>Reselling access to the Service to third parties</li>
   </ul>
-  <p>The user bears full responsibility for the legality of Service use.</p>
+  <p>The user bears full responsibility for the legality of their use of the Service.</p>
+  <p>The email address provided at registration cannot be changed. If you need a different email, please create a new account.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-payments">
   <div class="num">// 05</div>
-  <h2>Payment and Refunds</h2>
-  <p>Subscription payment is made through Telegram Stars. Terms and costs are shown in the app at the time of payment.</p>
-  <p>Refunds after subscription activation are not provided, except for:</p>
+  <h2>Payments & refunds</h2>
+  <p>Subscription payments are processed via Telegram Stars. Pricing and terms are displayed on the website at the time of purchase.</p>
+  <p>Refunds after subscription activation are not provided, except in cases of:</p>
   <ul>
-    <li>Technical inability to provide access due to Service fault</li>
-    <li>Documented failures confirmed by Administration</li>
+    <li>Technical inability to provide access due to a fault on our end</li>
+    <li>Documented outages confirmed by Administration</li>
   </ul>
   <p>To request a refund, contact support within 48 hours of payment.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-liability">
   <div class="num">// 06</div>
-  <h2>Limitation of Liability</h2>
-  <p>The Service is provided "AS IS". Administration does not guarantee:</p>
+  <h2>Limitation of liability</h2>
+  <p>The Service is provided "AS IS". We do not guarantee:</p>
   <ul>
-    <li>Uninterrupted Service operation 24/7</li>
+    <li>Uninterrupted availability 24/7</li>
     <li>Compatibility with all devices and networks</li>
-    <li>Bypassing all blocking systems</li>
+    <li>Circumvention of all blocking systems</li>
   </ul>
-  <p>Administration is not liable for damages arising from use or inability to use the Service.</p>
+  <p>We are not liable for any damages arising from the use of or inability to use the Service.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-termination">
   <div class="num">// 07</div>
-  <h2>Termination of Access</h2>
-  <p>Administration may suspend access for violation of Agreement terms, abuse, or legal requirements.</p>
-  <p>Users may delete their account at any time through settings. Upon deletion, all associated data is removed from our servers.</p>
+  <h2>Termination</h2>
+  <p>We reserve the right to suspend access in cases of Terms violations, abuse, or legal requirements.</p>
+  <p>Users may delete their account at any time via account settings. Upon deletion, all associated data is permanently removed from our servers.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-ip">
   <div class="num">// 08</div>
-  <h2>Anonymous Accounts</h2>
-  <p>The Service provides the ability to create an anonymous account without providing an email address or personal data. Instead of a login and password, a unique 16-digit numeric code is used.</p>
-  <div class="highlight">The code is the only means of access — recovery of a lost code is impossible. Store it in a safe place.</div>
-  <p>Terms of use for anonymous accounts:</p>
-  <ul>
-    <li>Monthly traffic limit — <strong>1 GB</strong> (email accounts without subscription — 3 GB)</li>
-    <li>Account deleted after <strong>5 days</strong> of inactivity without subscription</li>
-    <li>With active subscription — after <strong>30 days</strong> of inactivity</li>
-    <li>No more than 2 simultaneous active VPN connections allowed</li>
-    <li>Creation limit — 1 account per day from one IP</li>
-  </ul>
+  <h2>Intellectual property</h2>
+  <p>The name fsociety VPN, logo, and visual identity are proprietary. Use of branding without written permission is prohibited.</p>
+  <p>The Android and Windows client applications are open source:</p>
+  <a href="https://github.com/ArtemK342/vpn-android-app" target="_blank" class="oss-badge">↗ Android — github.com/ArtemK342/vpn-android-app</a>
+  <a href="https://github.com/ArtemK342/vpn-windows-app" target="_blank" class="oss-badge">↗ Windows — github.com/ArtemK342/vpn-windows-app</a>
+  <p>The backend infrastructure and server-side code remain proprietary and are not published.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-anonymous">
   <div class="num">// 09</div>
-  <h2>Changes to Terms</h2>
-  <p>Administration may amend this Agreement. Users are notified at least 14 days in advance via email or in-app notification.</p>
-  <p>Continued use of the Service after changes take effect constitutes acceptance of the updated terms.</p>
+  <h2>Anonymous accounts</h2>
+  <p>The Service allows creating an anonymous account without providing an email address or any personal data. Access is granted via a unique 16-digit numeric code instead of a login and password.</p>
+  <div class="highlight">An anonymous account is the only way to use the Service without providing any personal information. We do not collect email, name, phone number or other personal data.</div>
+  <p>Terms for anonymous accounts:</p>
+  <ul>
+    <li>The code is the sole means of access — recovery of a lost code is impossible</li>
+    <li>Monthly traffic limit is <strong>1 GB</strong> (email accounts without a subscription — 3 GB)</li>
+    <li>The account is automatically deleted after <strong>5 days</strong> without sign-ins or connections if there was never a subscription</li>
+    <li>If there was a subscription, the account is deleted after <strong>30 days</strong> without sign-ins or connections</li>
+    <li>A maximum of 2 simultaneous VPN connections are allowed</li>
+    <li>Account creation is limited to 1 per day per IP address</li>
+  </ul>
+  <p>When an anonymous account is created, the IP address itself is not saved: only its hash (HMAC-SHA256) is kept for rate limiting, and it is deleted after <strong>24 hours</strong>. The hash is not linked to VPN activity.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-changes">
   <div class="num">// 10</div>
-  <h2>Contact</h2>
-  <p>For questions related to this Agreement, contact us via the in-app support form or Telegram. We respond within 24 hours.</p>
+  <h2>Changes to terms</h2>
+  <p>We may update these Terms. Users are notified at least 14 days in advance via email or an in-app notice.</p>
+  <p>Continued use of the Service after changes take effect constitutes acceptance of the updated Terms.</p>
 </div>
 
+<div class="section" id="en-contacts">
+  <div class="num">// 11</div>
+  <h2>Contact</h2>
+  <p>For questions related to these Terms, contact us via the support form in your dashboard or through Telegram. We respond within 24 hours.</p>
+</div>
+  
 </body>
 </html>

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <!-- Сгенерировано tools/sync_legal.pl из privacy/index.html на сайте — не править вручную -->
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0d0d0d; color: #e0e0e0; font-family: monospace; font-size: 13px; line-height: 1.85; padding: 24px 20px 48px; }
@@ -14,99 +15,120 @@
     ul { list-style: none; margin: 10px 0 14px; }
     li { color: #888; padding-left: 18px; position: relative; margin-bottom: 6px; }
     li::before { content: '→'; color: #39d98a; position: absolute; left: 0; }
+    a { color: #39d98a; }
+    .oss-badge { display: block; margin: 6px 0; word-break: break-all; }
     .highlight { background: #141414; border-left: 2px solid #39d98a; padding: 12px 16px; margin: 14px 0; color: #d0d0d0; font-size: 12px; }
     .section { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid #1a1a1a; }
     .section:last-child { border-bottom: none; }
     .num { font-size: 10px; color: #39d98a; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .logs-on { color: #ff4444; white-space: nowrap; }
     strong { color: #e0e0e0; }
   </style>
 </head>
 <body>
 
-<div class="tag">// Legal documents</div>
-<h1>Privacy Policy.</h1>
-<p class="meta">Last updated: April 25, 2026 · Version 1.1</p>
 
-<div class="section">
+<div class="tag">// Legal documents</div>
+  <h1>Privacy Policy.</h1>
+  <p class="meta">Last updated: October 14, 2026 · Version 1.2</p>
+<div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General</h2>
-  <p>This Privacy Policy describes what data fsociety VPN collects and stores, and how that data is used and protected.</p>
-  <p>By using the Service, you agree to the terms of this Policy.</p>
+  <p>This Policy describes what data the fsociety VPN service (website, API, VPN servers and apps) collects, how long it keeps it and why.</p>
+  <p>By using the Service, you agree to this Policy. The same text is published on the website and in the app.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-nologs">
   <div class="num">// 02</div>
-  <h2>Zero-Log Policy</h2>
-  <p>We do not store or collect:</p>
+  <h2>What we don't collect</h2>
+  <p>On our VPN servers (except servers marked <span class="logs-on">● LOGS ON</span>, see section 4) we do not store:</p>
   <ul>
-    <li>Your internet activity history</li>
-    <li>User IP addresses during VPN sessions</li>
-    <li>Session time and duration</li>
-    <li>DNS query data</li>
-    <li>Traffic volume or content</li>
-    <li>Private encryption keys</li>
-    <li>Connection metadata</li>
+    <li>Your browsing history or the addresses you connect to through the VPN</li>
+    <li>DNS queries</li>
+    <li>Traffic content</li>
+    <li>The IP address you connect to the VPN from</li>
+    <li>The exact time and duration of your connections</li>
   </ul>
-  <div class="highlight">We are technically unable to provide data about your activity to third parties — because we do not collect it.</div>
+  <div class="highlight">We have no data about what you do online through the VPN — so we cannot hand it over to anyone.</div>
 </div>
 
-<div class="section">
+<div class="section" id="en-stored">
   <div class="num">// 03</div>
-  <h2>Email Accounts</h2>
-  <p>For email accounts we store only:</p>
+  <h2>What we store and for how long</h2>
+  <p>To run the service, our database (Switzerland) stores:</p>
   <ul>
-    <li>Email address</li>
-    <li>Password hash (not the password itself)</li>
-    <li>Subscription status</li>
-    <li>Public WireGuard key</li>
+    <li><strong>Email account:</strong> email, password hash (bcrypt, never the password itself), subscription status, sign-up date — until the account is deleted.</li>
+    <li><strong>Anonymous account:</strong> the 16-digit access code, subscription status, sign-up date. No email, name or phone number.</li>
+    <li><strong>Last activity date</strong> (sign-in or connection, day precision) — to delete inactive anonymous accounts and count active users.</li>
+    <li><strong>IP hash on anonymous sign-up:</strong> the IP itself is not saved, only its HMAC-SHA256 — to limit account creation (1 per day per IP). The hash is deleted after <strong>24 hours</strong>.</li>
+    <li><strong>Connection keys:</strong> for AmneziaWG — public key, server, internal tunnel address and issue date; for VLESS, Trojan, Hysteria2 and OpenVPN — a personal connection ID. The AmneziaWG private key is generated on our server when the config is issued, sent only to you and never stored. After you disconnect, the key record (with the traffic volume of that session) is deleted within <strong>7 days</strong>.</li>
+    <li><strong>Traffic volume:</strong> free accounts only — a single number for the current month to apply the limit (1 GB anonymous, 3 GB email accounts). No addresses or content. Deleted when the month ends. Paid subscriptions are not metered.</li>
+    <li><strong>Support tickets:</strong> messages are kept for <strong>10 days</strong> after the ticket is created and then deleted automatically.</li>
   </ul>
-  <p>The private key is generated on the fly on your device and <strong>is never transmitted</strong> to our servers.</p>
-  <p>All data is stored in Switzerland.</p>
+  <p>Inactive anonymous accounts are deleted automatically: after <strong>5 days</strong> without sign-ins or connections if there was never a subscription, and after <strong>30 days</strong> if there was one.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-logs">
   <div class="num">// 04</div>
-  <h2>Anonymous Accounts</h2>
-  <p>For anonymous accounts (login via 16-digit code) we store no email or password. Only stored:</p>
-  <ul>
-    <li>Access code hash</li>
-    <li>Subscription status</li>
-    <li>Public VPN key</li>
-  </ul>
-  <div class="highlight">This is the maximum possible level of privacy within a functioning service. We cannot identify you as a person.</div>
-  <p>When creating an anonymous account, the IP address is recorded solely for rate limiting purposes and is not linked to your VPN activity.</p>
+  <h2>Servers with logs enabled</h2>
+  <p>Some servers may have logs enabled — for example, while we launch and debug a new protocol. Such servers are marked in the app and on the website with a red <span class="logs-on">● LOGS ON</span> label.</p>
+  <p>Logs on these servers may contain the IP address you connect from, your connection ID, timestamps and the addresses you access. They are kept for no more than <strong>30 days</strong> and used only for diagnostics and abuse prevention.</p>
+  <div class="highlight">If that doesn't suit you, choose servers without the <span class="logs-on">● LOGS ON</span> label.</div>
 </div>
 
-<div class="section">
+<div class="section" id="en-site">
   <div class="num">// 05</div>
-  <h2>Payment Data</h2>
-  <p>Payments are processed through Telegram Stars. We do not receive or store bank card data. Payment information is processed by Telegram in accordance with their privacy policy.</p>
+  <h2>Website, API and email</h2>
+  <p>The website and API run behind Cloudflare. Cloudflare sees your IP address and processes it under its own privacy policy. If Cloudflare is unreachable, the app contacts our API directly.</p>
+  <p>Our web server keeps no request log (access log): IP addresses and page addresses are not recorded.</p>
+  <p>Emails (address confirmation, password reset, a copy of a ticket conversation on your request) are sent via Resend — it receives only the recipient address and the email text.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-applog">
   <div class="num">// 06</div>
-  <h2>Support Data</h2>
-  <p>When you contact support, we store ticket correspondence to resolve your issue. After closing the ticket and deleting the account, all data is deleted.</p>
+  <h2>Support log in the app</h2>
+  <p>The app settings include a support log. It is off by default. If you turn it on, technical events (connection, errors, network changes) are written only to your phone. Keys, passwords, tokens and emails are removed from it.</p>
+  <p>The log reaches us only if you send it yourself with the Share button. We use it only to solve your issue; a log sent in a ticket is deleted with the ticket after 10 days.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-protocols">
   <div class="num">// 07</div>
-  <h2>Third-Party Disclosure</h2>
-  <p>We do not sell, transfer, or disclose your personal data to third parties.</p>
-  <p>Since we do not store activity logs — we cannot provide them to authorities or on any other grounds.</p>
+  <h2>Protocols and third-party components</h2>
+  <p>The app uses open-source components. They run on your device and send no data to their authors:</p>
+  <ul>
+    <li><a href="https://github.com/amnezia-vpn/amneziawg-go" target="_blank" rel="noopener">AmneziaWG</a> — the main protocol</li>
+    <li><a href="https://github.com/SagerNet/sing-box" target="_blank" rel="noopener">sing-box</a> — VLESS+Reality, Trojan, Hysteria2 and split tunneling</li>
+    <li>OpenVPN and <a href="https://github.com/cbeuw/Cloak" target="_blank" rel="noopener">Cloak</a> — fallback protocol</li>
+    <li><a href="https://github.com/hufrea/byedpi" target="_blank" rel="noopener">ByeDPI</a> — "RF mode"</li>
+  </ul>
+  <p>"RF mode" runs entirely on your phone without our servers: traffic goes to websites directly, and ByeDPI only modifies packets to get around blocking. This traffic does not pass through our servers and we don't see it — but your IP address is not hidden from websites in this mode.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-payments">
   <div class="num">// 08</div>
-  <h2>Data Deletion</h2>
-  <p>You can delete your account at any time through settings. Upon deletion, all associated data is immediately removed from our servers.</p>
+  <h2>Payments</h2>
+  <p>Payments are made via Telegram Stars. We do not receive or store card details. Payments are processed by Telegram under its own privacy policy.</p>
 </div>
 
-<div class="section">
+<div class="section" id="en-third">
   <div class="num">// 09</div>
-  <h2>Contact</h2>
-  <p>For questions related to this Policy, contact us via the in-app support form or Telegram. We respond within 24 hours.</p>
+  <h2>Third parties and requests</h2>
+  <p>We do not sell or share your data. Apart from us, data is processed only by the services in sections 5 and 8 (Cloudflare, Resend, Telegram), exactly to the extent described there.</p>
+  <p>On a request from authorities we can technically provide only what is listed in sections 3 and 4. We have no history of your activity.</p>
 </div>
 
+<div class="section" id="en-delete">
+  <div class="num">// 10</div>
+  <h2>Data deletion</h2>
+  <p>You can delete your account at any time on the website — in your dashboard or on the <a href="https://fsociety-vpn.org/delete-account">Delete account</a> page. The account, keys, subscription and tickets are removed from the database immediately. Records on servers marked <span class="logs-on">● LOGS ON</span> expire on their own (within 30 days).</p>
+</div>
+
+<div class="section" id="en-contacts">
+  <div class="num">// 11</div>
+  <h2>Changes and contact</h2>
+  <p>We announce changes to this Policy on the website and in the app. The date and version are shown at the top of this document.</p>
+  <p>Questions — via a ticket in the app or your dashboard, or via Telegram. We respond within 24 hours.</p>
+</div>
+  
 </body>
 </html>
