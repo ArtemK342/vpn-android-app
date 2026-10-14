@@ -400,7 +400,21 @@ object SingboxManager {
          */
         override fun startDefaultInterfaceMonitor(l: InterfaceUpdateListener) {
             val cm = service.getSystemService(android.net.ConnectivityManager::class.java) ?: return
-            fun report(network: android.net.Network?) {
+            fun isVpn(n: android.net.Network) =
+                cm.getNetworkCapabilities(n)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+            fun report(reported: android.net.Network?) {
+                // Своя VPN-сеть (tun0) — никогда не «основная»: sing-box привязывал к ней UDP-сокеты
+                // Hysteria2 (QUIC), и они уходили в собственный туннель — до сервера не доходило ничего.
+                // Вместо неё — физическая сеть (рабочая, если есть).
+                @Suppress("DEPRECATION")
+                val network = reported?.takeIf { !isVpn(it) }
+                    ?: cm.allNetworks.filter { n ->
+                        val c = cm.getNetworkCapabilities(n)
+                        c != null && !c.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) &&
+                            c.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    }.maxByOrNull { n ->
+                        if (cm.getNetworkCapabilities(n)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true) 1 else 0
+                    }
                 val name = network?.let { cm.getLinkProperties(it)?.interfaceName }
                 if (name == null) {
                     try { l.updateDefaultInterface("", -1, false, false) } catch (_: Exception) {}
