@@ -30,16 +30,27 @@ class XrayVpnService : VpnService() {
         const val ACTION_STOP  = "ru.fsociety.vpn.XRAY_STOP"
         const val EXTRA_CONFIG = "config_json"
         const val EXTRA_SERVER_NAME = "server_name"
+        const val EXTRA_APPS_MODE = "apps_mode"
+        const val EXTRA_APPS = "apps"
 
         /** Служба существует (поднимает или держит туннель) — ConnectionManager ждёт её остановки. */
         @Volatile var isRunning = false
             private set
 
-        fun start(context: Context, configJson: String, serverName: String) {
+        /**
+         * [appsMode] — правила приложений: [SplitMode.EXCLUDE] «все, кроме [apps]»,
+         * [SplitMode.INCLUDE] «только [apps]», null — все приложения через VPN.
+         */
+        fun start(
+            context: Context, configJson: String, serverName: String,
+            appsMode: SplitMode? = null, apps: Collection<String> = emptyList()
+        ) {
             val intent = Intent(context, XrayVpnService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_CONFIG, configJson)
                 putExtra(EXTRA_SERVER_NAME, serverName)
+                appsMode?.let { putExtra(EXTRA_APPS_MODE, it.name) }
+                putExtra(EXTRA_APPS, apps.toTypedArray())
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 context.startForegroundService(intent)
@@ -57,6 +68,9 @@ class XrayVpnService : VpnService() {
     @Volatile private var intentionalStop = false
     private var startJob: Job? = null
     private var stopJob: Job? = null
+    // Правила приложений последнего запуска — применяются в openTunForSingbox
+    @Volatile private var appsMode: SplitMode? = null
+    @Volatile private var apps: List<String> = emptyList()
 
     override fun onCreate() {
         super.onCreate()
@@ -72,6 +86,8 @@ class XrayVpnService : VpnService() {
                 val rawConfig = intent.getStringExtra(EXTRA_CONFIG)
                 if (rawConfig == null) { stopSelf(startId); return START_NOT_STICKY }
                 intentionalStop = false
+                appsMode = intent.getStringExtra(EXTRA_APPS_MODE)?.let { runCatching { SplitMode.valueOf(it) }.getOrNull() }
+                apps = intent.getStringArrayExtra(EXTRA_APPS)?.toList().orEmpty()
                 // Apply per-device protocol tuning (Hysteria2 BBR/Brutal). No-op
                 // for VLESS/Trojan configs (no hysteria2 outbound).
                 val config = ProtocolSettings.patchHysteriaConfig(applicationContext, rawConfig)
@@ -162,8 +178,26 @@ class XrayVpnService : VpnService() {
         builder.addDnsServer("1.1.1.1")
         builder.addDnsServer("8.8.8.8")
 
-        // Исключаем наш пакет — sing-box подключается к серверу напрямую
-        builder.addDisallowedApplication(packageName)
+        // Приложения: «только эти» / «все, кроме этих». Само приложение — всегда вне туннеля:
+        // sing-box (и AmneziaWG в режиме прокси) подключаются к серверу напрямую.
+        // Разрешённые и запрещённые нельзя смешивать — в «только эти» нас просто нет в списке.
+        val listed = apps.filter { it != packageName }
+        if (appsMode == SplitMode.INCLUDE) {
+            var any = false
+            for (p in listed) {
+                try { builder.addAllowedApplication(p); any = true }
+                catch (_: android.content.pm.PackageManager.NameNotFoundException) {}   // удалено
+            }
+            if (!any) builder.addDisallowedApplication(packageName)
+        } else {
+            builder.addDisallowedApplication(packageName)
+            if (appsMode == SplitMode.EXCLUDE) {
+                for (p in listed) {
+                    try { builder.addDisallowedApplication(p) }
+                    catch (_: android.content.pm.PackageManager.NameNotFoundException) {}
+                }
+            }
+        }
 
         // Configure intent
         val pi = PendingIntent.getActivity(

@@ -144,6 +144,7 @@ fun HomeScreen(
     connectedServer: ServerResponse?,
     isRefreshingPings: Boolean,
     usage: UsageResponse? = null,
+    rulesActive: Boolean = false,
     onRefreshPings: () -> Unit
 ) {
     var selectedServer by HomeUiState.selectedServer
@@ -286,6 +287,12 @@ fun HomeScreen(
                     if (logsOn) {
                         Text(stringResource(R.string.home_logs_on), color = ErrorRed, fontSize = 11.sp,
                             fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+                    // Правила туннелирования есть, но этот протокол их не поддерживает (OpenVPN, Режим РФ)
+                    if (rulesActive && !SplitTunnelingManager.supports(connectedServer.server_type)) {
+                        Text(stringResource(R.string.home_rules_not_applied), color = Color(0xFFF59E0B),
+                            fontSize = 9.sp, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 32.dp))
                     }
                 }
                 if (usage != null && usage.is_limited && usage.limit_bytes > 0) {

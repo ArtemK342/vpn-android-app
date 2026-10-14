@@ -13,6 +13,13 @@
     <!-- Установка APK обновлений -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Правила → Приложения: видим только приложения с иконкой на рабочем столе (без QUERY_ALL_PACKAGES) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".FsocietyApp"

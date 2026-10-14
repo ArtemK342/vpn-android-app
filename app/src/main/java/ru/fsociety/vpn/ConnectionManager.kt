@@ -65,7 +65,17 @@ object ConnectionManager {
     val statusMsg = mutableStateOf("")
 
     /** Конфиг ждёт системного разрешения VPN — главный экран показывает системное окно. */
-    data class Pending(val server: ServerResponse, val type: String, val config: String)
+    /**
+     * [rules] — правила туннелирования на момент подключения (пустые для протоколов без поддержки);
+     * [fromCache] — конфиг WireGuard из кэша (ключ на сервере могли снять).
+     */
+    data class Pending(
+        val server: ServerResponse, val type: String, val config: String,
+        val rules: SplitTunnelingSettings = SplitTunnelingSettings(), val fromCache: Boolean = false
+    )
+
+    /** Отпечаток правил, с которыми подключены (null — не подключены / протокол без правил). */
+    val appliedRules = mutableStateOf<String?>(null)
     val pending = mutableStateOf<Pending?>(null)
     /** Системное окно уже показано (после пересоздания экрана результат придёт в новый лаунчер). */
     @Volatile var permissionRequested = false
@@ -218,6 +228,7 @@ object ConnectionManager {
             // сервера не трогаем. Раньше при неудачном переключении на экране оставался старый сервер.
             stopTunnels()
             connectedServer.value = null
+            appliedRules.value = null
 
             // «Настройки → Доступ» (техработы / протокол / тип аккаунта / лимит): до подключения —
             // так блокируется и WireGuard из кэша. API недоступен — не мешаем, решит сервер.
@@ -229,6 +240,10 @@ object ConnectionManager {
             if (access != null && !access.allowed) {
                 return fail(access.text(lang()) ?: str(R.string.home_error_connect))
             }
+
+            // Правила туннелирования (Правила → Сайты / Приложения) — на момент подключения
+            val rules = if (SplitTunnelingManager.supports(server.server_type)) SplitTunnelingManager.load(app)
+                        else SplitTunnelingSettings()
 
             val p = when (server.server_type) {
                 "bypass" -> {
@@ -243,19 +258,22 @@ object ConnectionManager {
                         ?: return fail(str(R.string.bypass_error_start))
                     Pending(server, "bypass", BypassManager.buildConfig(port, dns))
                 }
-                "vless" -> Pending(server, "vless", ApiClient.service.getVlessConfig(bearer(), server.id).config)
-                "hysteria" -> Pending(server, "hysteria", ApiClient.service.getHysteriaConfig(bearer(), server.id).config)
-                "trojan" -> Pending(server, "trojan", ApiClient.service.getTrojanConfig(bearer(), server.id).config)
+                "vless" -> Pending(server, "vless", ApiClient.service.getVlessConfig(bearer(), server.id).config, rules)
+                "hysteria" -> Pending(server, "hysteria", ApiClient.service.getHysteriaConfig(bearer(), server.id).config, rules)
+                "trojan" -> Pending(server, "trojan", ApiClient.service.getTrojanConfig(bearer(), server.id).config, rules)
                 "openvpn_cloak" -> Pending(server, "openvpn_cloak", fetchCloakBundle(server))
                 else -> {
                     // Кэш зашифрован ключом Keystore — расшифровка не на главном потоке
-                    val config = withContext(Dispatchers.IO) { ConfigCache.get(app, server.id) } ?: run {
+                    val cached = withContext(Dispatchers.IO) { ConfigCache.get(app, server.id) }
+                    val config = cached ?: run {
                         val response = ApiClient.service.getVpnConfig(bearer(), server.id)
                         val cfg = response.config ?: return fail(response.message ?: str(R.string.home_error_connect))
                         withContext(Dispatchers.IO) { ConfigCache.save(app, server.id, cfg) }
                         cfg
                     }
-                    Pending(server, "wireguard", config)
+                    // С правилами сайтов AmneziaWG работает как локальный прокси под sing-box
+                    Pending(server, if (rules.sitesActive) "wireguard_proxy" else "wireguard", config, rules,
+                        fromCache = cached != null)
                 }
             }
 
@@ -301,7 +319,11 @@ object ConnectionManager {
         val startedAt = System.currentTimeMillis()
         val ok = try {
             when (p.type) {
-                "vless", "hysteria", "trojan", "bypass" -> startSingbox(p)
+                "bypass" -> startSingbox(p, p.config)
+                "vless", "hysteria", "trojan" -> startSingbox(p,
+                    if (p.rules.sitesActive) SplitTunnelingManager.applySiteRules(p.config, p.rules, BypassManager.directDns(app))
+                    else p.config)
+                "wireguard_proxy" -> startWireGuardProxy(p)
                 "openvpn_cloak" -> startOpenVpn(p)
                 else -> startWireGuard(p)
             }
@@ -314,6 +336,12 @@ object ConnectionManager {
         }
         if (!ok) {
             if (p.type == "bypass") stopBypass()
+            // AmneziaWG через прокси проверяется сразу при запуске: не прошёл с сохранённым ключом — его
+            // могли снять (лимит подключений, «Разорвать подключения») — один раз берём новый
+            if (p.type == "wireguard_proxy" && p.fromCache && !freshKey) {
+                ConfigCache.clear(app, server.id)
+                return connect(server, freshKey = true, auto = auto)
+            }
             return fail(str(when (p.type) {
                 "wireguard" -> R.string.home_error_connect
                 "bypass" -> R.string.bypass_error_start
@@ -323,16 +351,23 @@ object ConnectionManager {
         // sing-box и OpenVPN проверены при запуске (запрос через сервер / CONNECTED); WireGuard проверит
         // сторож по рукопожатию. «Режим РФ» — без сервера: IP и так свой, Kill Switch ему не нужен.
         if (p.type != "wireguard" && p.type != "bypass") sessionVerified = true
-        onConnected(server)
+        onConnected(server, p.type)
+        appliedRules.value = if (SplitTunnelingManager.supports(server.server_type)) p.rules.fingerprint() else null
         startMonitor(server, p.type, freshKey, startedAt)
         if (auto) AppErrors.log("auto-reconnect", IllegalStateException("reconnected to ${server.id}"))
         return Outcome.CONNECTED
     }
 
-    /** sing-box: «подключено» — только после проверки, что трафик идёт через сервер (probe). */
-    private suspend fun startSingbox(p: Pending): Boolean {
+    /**
+     * sing-box: «подключено» — только после проверки, что трафик идёт через сервер (probe).
+     * [config] — с правилами сайтов; правила приложений применяет служба при поднятии интерфейса.
+     */
+    private suspend fun startSingbox(p: Pending, config: String): Boolean {
         SingboxManager.startResult.value = null
-        XrayVpnService.start(app, p.config, p.server.displayName(lang()))
+        val r = p.rules
+        XrayVpnService.start(app, config, p.server.displayName(lang()),
+            appsMode = if (r.appsActive) r.appsMode else null,
+            apps = if (r.appsActive) r.apps else emptyList())
         var result: Boolean? = null
         try {
             result = withTimeoutOrNull(60_000) { SingboxManager.startResult.first { it != null } }
@@ -359,9 +394,37 @@ object ConnectionManager {
     private suspend fun startWireGuard(p: Pending): Boolean {
         var ok = false
         try {
-            ok = VpnManager.connect(app, p.config)
+            // Правила приложений (без правил сайтов) применяет сама библиотека
+            val config = SplitTunnelingManager.applyAppRulesToWg(p.config, p.rules) {
+                SplitTunnelingManager.isInstalled(app, it)
+            }
+            ok = VpnManager.connect(app, config)
         } finally {
             // Отменили, пока туннель поднимался, — не оставляем его висеть
+            if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }
+        }
+        return ok
+    }
+
+    /**
+     * AmneziaWG с правилами сайтов: он — локальный прокси (SOCKS5 на 127.0.0.1, случайный порт и
+     * пароль), а VPN-интерфейс и выбор «через VPN / напрямую» по имени сайта — у sing-box.
+     */
+    private suspend fun startWireGuardProxy(p: Pending): Boolean {
+        val port = withContext(Dispatchers.IO) {
+            try {
+                java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1")).use { it.localPort }
+            } catch (_: Exception) { 0 }
+        }
+        if (port <= 0) return false
+        val user = java.util.UUID.randomUUID().toString()
+        val pass = java.util.UUID.randomUUID().toString()
+        var ok = false
+        try {
+            if (!VpnManager.connectProxy(app, p.config, port, user, pass)) return false
+            val config = SplitTunnelingManager.awgProxyConfig(port, user, pass, p.rules, BypassManager.directDns(app))
+            ok = startSingbox(p, config)
+        } finally {
             if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }
         }
         return ok
@@ -455,7 +518,7 @@ object ConnectionManager {
     private fun startMonitor(server: ServerResponse, type: String, freshKey: Boolean, startedAt: Long) {
         stopMonitor()
         monitor = when (type) {
-            "wireguard" -> scope.launch { watchWireGuard(server, freshKey, startedAt) }
+            "wireguard", "wireguard_proxy" -> scope.launch { watchWireGuard(server, freshKey, startedAt) }
             "vless", "hysteria", "trojan" -> scope.launch { watchSingbox() }
             else -> null   // OpenVPN следит сам (OpenVpnService); «Режим РФ» — без сервера
         }
@@ -624,7 +687,14 @@ object ConnectionManager {
 
     // ── Состояние ────────────────────────────────────────────────────────────
 
-    private fun onConnected(server: ServerResponse) {
+    /**
+     * Чьё уведомление показывать: у обычного AmneziaWG — VpnForegroundService, у sing-box (в т.ч.
+     * AmneziaWG через прокси с правилами сайтов) и OpenVPN — уведомление их служб.
+     */
+    @Volatile private var ownNotification = false
+
+    private fun onConnected(server: ServerResponse, type: String) {
+        ownNotification = type != "wireguard"
         connectedServer.value = server
         lastServer = server
         // Разрешение VPN есть — «Подключить» в уведомлении может подключать без открытия приложения;
@@ -642,6 +712,7 @@ object ConnectionManager {
 
     private fun setDisconnected() {
         connectedServer.value = null
+        appliedRules.value = null
         syncNotification()
     }
 
@@ -650,7 +721,7 @@ object ConnectionManager {
         val s = connectedServer.value
         try {
             when {
-                s != null && (s.usesSingbox || s.usesOpenVpn) -> VpnForegroundService.stop(app)
+                s != null && ownNotification -> VpnForegroundService.stop(app)
                 s != null || prefs().getBoolean("background_mode", false) -> VpnForegroundService.start(app)
                 else -> VpnForegroundService.stop(app)
             }

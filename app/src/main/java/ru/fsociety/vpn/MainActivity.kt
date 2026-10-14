@@ -318,9 +318,8 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     var killSwitch by remember { mutableStateOf(prefs.getBoolean("kill_switch", false)) }
     var autoReconnect by remember { mutableStateOf(prefs.getBoolean("auto_reconnect", true)) }
     var language by remember { mutableStateOf(prefs.getString("language", "ru") ?: "ru") }
+    // Правила туннелирования: сохраняются сразу, применяются при подключении (ConnectionManager)
     var splitSettings by remember { mutableStateOf(SplitTunnelingManager.load(prefs)) }
-
-    LaunchedEffect(splitSettings) { VpnManager.splitSettings = splitSettings }
 
     // Разрешение на уведомления (Android 13+) — один раз, а не при каждом запуске
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -463,6 +462,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                     connectedServer = connectedServer,
                     isRefreshingPings = isRefreshingPings,
                     usage = usage,
+                    rulesActive = splitSettings.anyActive,
                     onRefreshPings = refreshPings
                 )
                 1 -> RulesScreen(

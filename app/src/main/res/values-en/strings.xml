@@ -103,33 +103,6 @@
     <string name="register_back">← Already have an account? Sign in</string>
 
     <!-- Rules -->
-    <string name="rules_section">// RULES</string>
-    <string name="rules_title">Split Tunnel.</string>
-    <string name="rules_apps">Apps</string>
-    <string name="rules_in_progress">In development</string>
-    <string name="rules_sites">Sites</string>
-    <string name="rules_sites_off">Disabled</string>
-    <string name="rules_sites_none">No sites selected</string>
-    <string name="rules_sites_exclude">VPN everywhere except %d sites</string>
-    <string name="rules_sites_include">VPN only for %d sites</string>
-    <string name="rules_footer">// Apps and sites work independently of each other</string>
-    <string name="rules_apps_title">Apps.</string>
-    <string name="rules_apps_toggle">Split tunnel for apps</string>
-    <string name="rules_mode_exclude">Everywhere except</string>
-    <string name="rules_mode_include">Selected only</string>
-    <string name="rules_search_hint">Search app…</string>
-    <string name="rules_enable_hint">Enable split tunnel above</string>
-    <string name="rules_sites_title">Sites.</string>
-    <string name="rules_sites_toggle">Split tunnel for sites</string>
-    <string name="rules_vpn_except">// VPN is disabled for these sites</string>
-    <string name="rules_vpn_only">// VPN works only for these sites</string>
-    <string name="rules_presets">// PRESETS</string>
-    <string name="rules_zone_ru_soon">Zone .ru — coming soon</string>
-    <string name="rules_sites_placeholder">https://example.com or example.com</string>
-    <string name="rules_sites_empty">Add sites above</string>
-    <string name="rules_sites_error_invalid">Enter a valid URL or domain</string>
-    <string name="rules_sites_error_duplicate">Domain already added</string>
-    <string name="rules_delete_cd">Delete</string>
 
     <!-- Settings main menu -->
     <string name="settings_section">// SETTINGS</string>
@@ -335,5 +308,51 @@
     <string name="logout_confirm_title">Sign out?</string>
     <string name="logout_confirm_text">You will need your email and password to sign in again. The active VPN connection will be closed.</string>
     <string name="logout_confirm_anon">You can sign in again only with this code — save it. The code cannot be recovered.</string>
-    <string name="rules_wg_only">// Currently works only for AmneziaWG and applies on the next connection</string>
+    <!-- Split tunneling (RulesScreen.kt) -->
+    <string name="rules_section">// RULES</string>
+    <string name="rules_title">Split tunneling.</string>
+    <string name="rules_support">// Work with AmneziaWG, VLESS, Trojan and Hysteria2. Not applied to OpenVPN+Cloak and RF mode.</string>
+    <string name="rules_apply_text">Rules changed — reconnect to apply them</string>
+    <string name="rules_apply_btn">APPLY</string>
+    <string name="rules_apps">Apps</string>
+    <string name="rules_sites">Websites</string>
+    <string name="rules_off">Off</string>
+    <string name="rules_sites_exclude_n">VPN for everything except websites: %d</string>
+    <string name="rules_sites_include_n">VPN only for websites: %d</string>
+    <string name="rules_apps_exclude_n">VPN for all except apps: %d</string>
+    <string name="rules_apps_include_n">VPN only for apps: %d</string>
+    <string name="rules_list_empty">The list is empty — the rule is not active yet, everything goes through the VPN</string>
+    <string name="rules_footer">// “Everything except…” — the VPN is on everywhere, websites and apps from the list go directly.\n// “Only…” — only websites and apps from the list go through the VPN.\n// Websites and apps are set up separately; each mode keeps its own list.</string>
+    <string name="rules_sites_title">Websites.</string>
+    <string name="rules_sites_toggle">Website rules</string>
+    <string name="rules_apps_title">Apps.</string>
+    <string name="rules_apps_toggle">App rules</string>
+    <string name="rules_mode_exclude_title">VPN for everything except…</string>
+    <string name="rules_mode_include_title">VPN only for…</string>
+    <string name="rules_mode_exclude_sites_desc">Websites from the list open directly, without the VPN</string>
+    <string name="rules_mode_include_sites_desc">Only websites from the list go through the VPN, the rest go directly</string>
+    <string name="rules_mode_exclude_apps_desc">Apps from the list work without the VPN</string>
+    <string name="rules_mode_include_apps_desc">Only apps from the list use the VPN</string>
+    <string name="rules_sites_hint">// example.com — together with all subdomains. A link, IP, subnet (1.2.3.0/24) or zone (.ru) also works</string>
+    <string name="rules_sites_placeholder">example.com or a link</string>
+    <string name="rules_sites_error_invalid">Not a website, IP or subnet</string>
+    <string name="rules_sites_error_duplicate">Already in the list</string>
+    <string name="rules_presets">// PRESETS</string>
+    <string name="rules_awg_proxy_note">// With website rules AmneziaWG works through a local proxy — speed may be slightly lower</string>
+    <string name="rules_list_title">// LIST: %d</string>
+    <string name="rules_clear">Clear list</string>
+    <string name="rules_clear_confirm_title">Clear the list?</string>
+    <string name="rules_clear_confirm_btn">CLEAR</string>
+    <string name="rules_delete_cd">Delete</string>
+    <string name="rules_search_hint">Search apps…</string>
+    <string name="rules_apps_note">// Apps with a home screen icon are shown</string>
+    <string name="home_rules_not_applied">Split tunneling rules don\'t apply to this protocol</string>
+    <string name="preset_ru_sites">Russian websites</string>
+    <string name="preset_ru_zone">.ru .рф .su zones</string>
+    <string name="preset_youtube">YouTube</string>
+    <string name="preset_meta">Instagram, Facebook</string>
+    <string name="preset_discord">Discord</string>
+    <string name="preset_telegram">Telegram</string>
+    <string name="preset_twitter">X (Twitter)</string>
+    <string name="preset_chatgpt">ChatGPT</string>
 </resources>

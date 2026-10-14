@@ -198,6 +198,18 @@ object SingboxManager {
                 .put("users", JSONArray().put(JSONObject().put("username", user).put("password", pass)))
             val inbounds = if (onlyProxy) JSONArray() else (root.optJSONArray("inbounds") ?: JSONArray())
             root.put("inbounds", inbounds.put(inbound))
+            // Проверка и сторож — всегда через VPN-выход «proxy»: с правилом «через VPN только эти
+            // сайты» по умолчанию всё идёт напрямую, и проверка ничего бы не проверила
+            val outbounds = root.optJSONArray("outbounds")
+            val hasProxy = outbounds != null &&
+                (0 until outbounds.length()).any { outbounds.optJSONObject(it)?.optString("tag") == "proxy" }
+            if (hasProxy) {
+                val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
+                val old = route.optJSONArray("rules") ?: JSONArray()
+                val rules = JSONArray().put(JSONObject().put("inbound", JSONArray().put("probe-in")).put("outbound", "proxy"))
+                for (i in 0 until old.length()) rules.put(old.get(i))
+                route.put("rules", rules)
+            }
             root.toString()
         } catch (e: Exception) {
             Log.e(TAG, "withProxyInbound: ${e.message}")

@@ -103,33 +103,6 @@
     <string name="register_back">← Уже есть аккаунт? Войти</string>
 
     <!-- Rules -->
-    <string name="rules_section">// ПРАВИЛА</string>
-    <string name="rules_title">Раздельный туннель.</string>
-    <string name="rules_apps">Приложения</string>
-    <string name="rules_in_progress">В разработке</string>
-    <string name="rules_sites">Сайты</string>
-    <string name="rules_sites_off">Выключено</string>
-    <string name="rules_sites_none">Нет выбранных сайтов</string>
-    <string name="rules_sites_exclude">VPN везде, кроме %d сайтов</string>
-    <string name="rules_sites_include">VPN только для %d сайтов</string>
-    <string name="rules_footer">// Приложения и сайты работают независимо друг от друга</string>
-    <string name="rules_apps_title">Приложения.</string>
-    <string name="rules_apps_toggle">Раздельный туннель для приложений</string>
-    <string name="rules_mode_exclude">Везде, кроме</string>
-    <string name="rules_mode_include">Только выбранные</string>
-    <string name="rules_search_hint">Поиск приложения…</string>
-    <string name="rules_enable_hint">Включите раздельный туннель выше</string>
-    <string name="rules_sites_title">Сайты.</string>
-    <string name="rules_sites_toggle">Раздельный туннель для сайтов</string>
-    <string name="rules_vpn_except">// VPN не работает на этих сайтах</string>
-    <string name="rules_vpn_only">// VPN работает только на этих сайтах</string>
-    <string name="rules_presets">// ПРЕСЕТЫ</string>
-    <string name="rules_zone_ru_soon">Зона .ru — скоро</string>
-    <string name="rules_sites_placeholder">https://gosuslugi.ru или gosuslugi.ru</string>
-    <string name="rules_sites_empty">Добавьте сайты выше</string>
-    <string name="rules_sites_error_invalid">Введите корректный URL или домен</string>
-    <string name="rules_sites_error_duplicate">Домен уже добавлен</string>
-    <string name="rules_delete_cd">Удалить</string>
 
     <!-- Settings main menu -->
     <string name="settings_section">// НАСТРОЙКИ</string>
@@ -336,5 +309,51 @@
     <string name="logout_confirm_title">Выйти из аккаунта?</string>
     <string name="logout_confirm_text">Чтобы снова войти, понадобятся email и пароль. Активное VPN-подключение будет разорвано.</string>
     <string name="logout_confirm_anon">Войти снова можно только по этому коду — сохраните его. Восстановить код нельзя.</string>
-    <string name="rules_wg_only">// Пока работает только для AmneziaWG и применяется при следующем подключении</string>
+    <!-- Раздельное туннелирование (RulesScreen.kt) -->
+    <string name="rules_section">// ПРАВИЛА</string>
+    <string name="rules_title">Раздельный туннель.</string>
+    <string name="rules_support">// Работают для AmneziaWG, VLESS, Trojan и Hysteria2. Для OpenVPN+Cloak и «Режима РФ» не применяются.</string>
+    <string name="rules_apply_text">Правила изменились — переподключитесь, чтобы они заработали</string>
+    <string name="rules_apply_btn">ПРИМЕНИТЬ</string>
+    <string name="rules_apps">Приложения</string>
+    <string name="rules_sites">Сайты</string>
+    <string name="rules_off">Выключено</string>
+    <string name="rules_sites_exclude_n">Через VPN всё, кроме сайтов: %d</string>
+    <string name="rules_sites_include_n">Через VPN только сайты: %d</string>
+    <string name="rules_apps_exclude_n">Через VPN все, кроме приложений: %d</string>
+    <string name="rules_apps_include_n">Через VPN только приложения: %d</string>
+    <string name="rules_list_empty">Список пуст — правило пока не действует, через VPN идёт всё</string>
+    <string name="rules_footer">// «Всё, кроме…» — VPN включён везде, а сайты и приложения из списка идут напрямую.\n// «Только…» — через VPN идут только сайты и приложения из списка.\n// Сайты и приложения настраиваются независимо, у каждого режима свой список.</string>
+    <string name="rules_sites_title">Сайты.</string>
+    <string name="rules_sites_toggle">Правила для сайтов</string>
+    <string name="rules_apps_title">Приложения.</string>
+    <string name="rules_apps_toggle">Правила для приложений</string>
+    <string name="rules_mode_exclude_title">Через VPN всё, кроме…</string>
+    <string name="rules_mode_include_title">Через VPN только…</string>
+    <string name="rules_mode_exclude_sites_desc">Сайты из списка открываются напрямую, без VPN</string>
+    <string name="rules_mode_include_sites_desc">Через VPN — только сайты из списка, остальные напрямую</string>
+    <string name="rules_mode_exclude_apps_desc">Приложения из списка работают без VPN</string>
+    <string name="rules_mode_include_apps_desc">Через VPN — только приложения из списка</string>
+    <string name="rules_sites_hint">// example.com — вместе со всеми поддоменами. Можно ссылку, IP, подсеть (1.2.3.0/24) или зону (.ru)</string>
+    <string name="rules_sites_placeholder">example.com или ссылка</string>
+    <string name="rules_sites_error_invalid">Не похоже на сайт, IP или подсеть</string>
+    <string name="rules_sites_error_duplicate">Уже в списке</string>
+    <string name="rules_presets">// ГОТОВЫЕ НАБОРЫ</string>
+    <string name="rules_awg_proxy_note">// AmneziaWG с правилами сайтов работает через локальный прокси — скорость может быть немного ниже</string>
+    <string name="rules_list_title">// СПИСОК: %d</string>
+    <string name="rules_clear">Очистить список</string>
+    <string name="rules_clear_confirm_title">Очистить список?</string>
+    <string name="rules_clear_confirm_btn">ОЧИСТИТЬ</string>
+    <string name="rules_delete_cd">Удалить</string>
+    <string name="rules_search_hint">Поиск приложения…</string>
+    <string name="rules_apps_note">// Показаны приложения с иконкой на рабочем столе</string>
+    <string name="home_rules_not_applied">Правила туннелирования не действуют для этого протокола</string>
+    <string name="preset_ru_sites">Российские сайты</string>
+    <string name="preset_ru_zone">Зоны .ru .рф .su</string>
+    <string name="preset_youtube">YouTube</string>
+    <string name="preset_meta">Instagram, Facebook</string>
+    <string name="preset_discord">Discord</string>
+    <string name="preset_telegram">Telegram</string>
+    <string name="preset_twitter">X (Twitter)</string>
+    <string name="preset_chatgpt">ChatGPT</string>
 </resources>

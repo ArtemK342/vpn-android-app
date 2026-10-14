@@ -172,6 +172,13 @@ object BypassManager {
         if (isp != null) "udp://$isp" else "https://1.1.1.1/dns-query"
     }
 
+    /**
+     * DNS для сайтов «напрямую» в правилах туннелирования: как без VPN — DNS провайдера (местные
+     * адреса CDN, банков), если его нет — работающий DoH.
+     */
+    suspend fun directDns(context: Context): String =
+        ispDns(context)?.let { "udp://$it" } ?: pickDns(context)
+
     private fun dohWorks(ip: String): Boolean = try {
         val client = okhttp3.OkHttpClient.Builder()
             .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
