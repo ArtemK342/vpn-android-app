@@ -1,93 +1,119 @@
 package ru.fsociety.vpn
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.Message
+import android.os.Messenger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.amnezia.awg.backend.Backend
-import org.amnezia.awg.backend.GoBackend
-import org.amnezia.awg.backend.ProxyGoBackend
-import org.amnezia.awg.backend.Tunnel
-import org.amnezia.awg.backend.TunnelActionHandler
-import org.amnezia.awg.config.Config
-import org.amnezia.awg.config.proxy.Socks5Proxy
-import java.io.BufferedReader
-import java.io.StringReader
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * AmneziaWG в двух режимах:
- *  • обычный ([connect]) — библиотека сама поднимает VPN-интерфейс;
+ * AmneziaWG — клиент службы [AwgService] в отдельном процессе «:awg» (почему — там же).
+ *  • обычный режим ([connect]) — библиотека сама поднимает VPN-интерфейс;
  *  • локальный прокси ([connectProxy]) — без VPN-интерфейса, только SOCKS5 на 127.0.0.1 (TCP и UDP);
  *    интерфейс держит sing-box и решает, какие сайты пускать через этот прокси (правила сайтов).
+ * Пока туннель поднят, приложение держит связь со службой: так процесс «:awg» не выгружается,
+ * а его падение сразу видно как обрыв.
  */
 object VpnManager {
-    private var backend: GoBackend? = null
-    private var proxyBackend: ProxyGoBackend? = null
-    /** Чей сейчас туннель — ему же уходят getState / статистика / остановка. */
-    @Volatile private var active: Backend? = null
-    @Volatile private var currentTunnel: WgTunnel? = null
     @Volatile var connectedServerName: String = ""
+    @Volatile private var up = false
+    @Volatile private var proxyMode = false
 
-    private val noActions = object : TunnelActionHandler {
-        override fun runPreUp(commands: MutableCollection<String>?) {}
-        override fun runPostUp(commands: MutableCollection<String>?) {}
-        override fun runPreDown(commands: MutableCollection<String>?) {}
-        override fun runPostDown(commands: MutableCollection<String>?) {}
-    }
+    private lateinit var app: Context
+    private var service: Messenger? = null
+    private var connection: ServiceConnection? = null
+    private var bound: CompletableDeferred<Messenger?>? = null
+    private val nextId = AtomicInteger(1)
+    private val calls = ConcurrentHashMap<Int, CompletableDeferred<Bundle>>()
+    private val replies = Messenger(Handler(Looper.getMainLooper()) { onMessage(it); true })
 
-    fun isConnected(): Boolean {
-        val tunnel = currentTunnel ?: return false
-        return try { active?.getState(tunnel) == Tunnel.State.UP } catch (_: Exception) { false }
-    }
+    fun isConnected(): Boolean = up
 
     /** Работает в режиме локального прокси (VPN-интерфейс — у sing-box). */
-    val isProxyMode: Boolean get() = currentTunnel != null && active === proxyBackend
+    val isProxyMode: Boolean get() = up && proxyMode
 
-    fun init(context: Context) {
-        if (backend == null) backend = GoBackend(context, noActions)
-    }
-
-    private fun newTunnel(): WgTunnel {
-        lateinit var tunnel: WgTunnel
-        tunnel = WgTunnel("fsociety") { state ->
-            // disconnect()/новое подключение обнуляют currentTunnel ДО setState(DOWN), так что
-            // сюда попадает только чужое выключение: служба WireGuard остановлена системой —
-            // VPN забрало другое приложение или его выключили в настройках Android. Это не
-            // обрыв связи (тогда туннель остаётся «поднят» — его ловит сторож по рукопожатию):
-            // без переподключения, иначе приложение отбирало бы VPN обратно.
-            if (state == Tunnel.State.DOWN && currentTunnel === tunnel) {
-                currentTunnel = null
+    private fun onMessage(m: Message) {
+        when (m.what) {
+            AwgService.MSG_REPLY -> calls.remove(m.arg1)?.complete(m.data ?: Bundle())
+            // VPN выключили снаружи (другое VPN-приложение / настройки Android) — не обрыв
+            AwgService.MSG_STOPPED -> if (up) {
+                up = false
                 connectedServerName = ""
                 VpnEvents.vpnStopped.tryEmit(Unit)
             }
         }
-        return tunnel
     }
 
-    /** Старый туннель гасим как намеренное отключение: обнуляем ДО setState(DOWN). */
-    private fun stopCurrent() {
-        val old = currentTunnel
-        val oldBackend = active
-        currentTunnel = null
-        if (old != null) runCatching { oldBackend?.setState(old, Tunnel.State.DOWN, null) }
+    private suspend fun bind(): Messenger? = withContext(Dispatchers.Main) {
+        service?.let { return@withContext it }
+        val deferred = bound ?: CompletableDeferred<Messenger?>().also { d ->
+            bound = d
+            val conn = object : ServiceConnection {
+                override fun onServiceConnected(name: ComponentName?, binder: IBinder) {
+                    val m = Messenger(binder)
+                    service = m
+                    try { m.send(Message.obtain(null, AwgService.MSG_REGISTER).apply { replyTo = replies }) } catch (_: Exception) {}
+                    d.complete(m)
+                }
+
+                // Процесс «:awg» упал или выгружен системой — туннеля больше нет: обрыв
+                override fun onServiceDisconnected(name: ComponentName?) {
+                    service = null
+                    calls.values.forEach { it.complete(Bundle()) }
+                    calls.clear()
+                    if (up) {
+                        up = false
+                        connectedServerName = ""
+                        VpnEvents.vpnDropped.tryEmit(Unit)
+                    }
+                }
+            }
+            connection = conn
+            val ok = try {
+                app.bindService(Intent(app, AwgService::class.java), conn,
+                    Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT)
+            } catch (e: Exception) { AppErrors.log("awg bind", e); false }
+            if (!ok) { connection = null; bound = null; d.complete(null) }
+        }
+        withTimeoutOrNull(10_000) { deferred.await() }
+    }
+
+    private suspend fun unbind() = withContext(Dispatchers.Main) {
+        connection?.let { runCatching { app.unbindService(it) } }
+        connection = null
+        service = null
+        bound = null
+    }
+
+    private suspend fun call(what: Int, data: Bundle = Bundle(), timeoutMs: Long = 10_000): Bundle? {
+        val m = bind() ?: return null
+        val id = nextId.getAndIncrement()
+        val d = CompletableDeferred<Bundle>()
+        calls[id] = d
+        try {
+            m.send(Message.obtain(null, what, id, 0).apply { this.data = data; replyTo = replies })
+        } catch (e: Exception) {
+            calls.remove(id)
+            AppErrors.log("awg call $what", e)
+            return null
+        }
+        return try { withTimeoutOrNull(timeoutMs) { d.await() } } finally { calls.remove(id) }
     }
 
     /** Обычный режим. Правила приложений (если есть) уже вписаны в конфиг — их применит библиотека. */
-    suspend fun connect(context: Context, configString: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            init(context)
-            stopCurrent()
-            val config = Config.parse(BufferedReader(StringReader(configString)))
-            val tunnel = newTunnel()
-            currentTunnel = tunnel
-            active = backend
-            backend?.setState(tunnel, Tunnel.State.UP, config)
-            backend?.getState(tunnel) == Tunnel.State.UP
-        } catch (e: Exception) {
-            AppErrors.log("wireguard up", e)
-            currentTunnel = null
-            false
-        }
-    }
+    suspend fun connect(context: Context, configString: String): Boolean =
+        start(context, Bundle().apply { putString(AwgService.KEY_CONFIG, configString) }, proxy = false)
 
     /**
      * Режим локального прокси: AmneziaWG (тот же конфиг и маскировка) отдаёт SOCKS5 на
@@ -95,67 +121,39 @@ object VpnManager {
      * UDP AmneziaWG к серверу не заворачивается обратно в туннель.
      */
     suspend fun connectProxy(context: Context, configString: String, port: Int, user: String, pass: String): Boolean =
-        withContext(Dispatchers.IO) {
-            try {
-                if (proxyBackend == null) proxyBackend = ProxyGoBackend(context.applicationContext, noActions)
-                stopCurrent()
-                val base = Config.parse(BufferedReader(StringReader(configString)))
-                val config = Config.Builder()
-                    .setInterface(base.getInterface())
-                    .addPeers(base.peers)
-                    .setDnsSettings(base.dnsSettings)
-                    .addProxy(Socks5Proxy("127.0.0.1:$port", user, pass))
-                    .build()
-                val tunnel = newTunnel()
-                currentTunnel = tunnel
-                active = proxyBackend
-                proxyBackend?.setState(tunnel, Tunnel.State.UP, config)
-                proxyBackend?.getState(tunnel) == Tunnel.State.UP
-            } catch (e: Exception) {
-                AppErrors.log("wireguard proxy up", e)
-                currentTunnel = null
-                false
-            }
-        }
+        start(context, Bundle().apply {
+            putString(AwgService.KEY_CONFIG, configString)
+            putInt(AwgService.KEY_PORT, port)
+            putString(AwgService.KEY_USER, user)
+            putString(AwgService.KEY_PASS, pass)
+        }, proxy = true)
 
-    suspend fun disconnect(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            connectedServerName = ""
-            stopCurrent()
-            true
-        } catch (e: Exception) {
-            false
+    private suspend fun start(context: Context, data: Bundle, proxy: Boolean): Boolean {
+        app = context.applicationContext
+        up = false
+        val ok = call(AwgService.MSG_UP, data, timeoutMs = 45_000)?.getBoolean("ok") == true
+        if (ok) {
+            proxyMode = proxy
+            up = true
+        } else {
+            call(AwgService.MSG_DOWN)
+            unbind()
         }
+        return ok
     }
 
-    /** Время последнего рукопожатия с сервером (мс, 0 — не было) — для сторожа ConnectionManager. */
-    fun lastHandshakeMillis(): Long {
-        val tunnel = currentTunnel ?: return 0L
-        return try {
-            val stats = active?.getStatistics(tunnel) ?: return 0L
-            stats.peers().maxOfOrNull { stats.peer(it)?.latestHandshakeEpochMillis() ?: 0L } ?: 0L
-        } catch (_: Exception) {
-            0L
-        }
+    suspend fun disconnect(): Boolean {
+        connectedServerName = ""
+        up = false   // до DOWN: его событие — не чужое выключение
+        if (::app.isInitialized && service != null) call(AwgService.MSG_DOWN)
+        if (::app.isInitialized) unbind()
+        return true
     }
 
-    fun getTrafficStats(): Pair<Long, Long> {
-        val tunnel = currentTunnel ?: return Pair(0L, 0L)
-        return try {
-            val stats = active?.getStatistics(tunnel)
-            Pair(stats?.totalRx() ?: 0L, stats?.totalTx() ?: 0L)
-        } catch (_: Exception) {
-            Pair(0L, 0L)
-        }
+    /** (принято, отправлено, последнее рукопожатие мс) — для сторожа и уведомления. */
+    suspend fun stats(): Triple<Long, Long, Long> {
+        if (!up) return Triple(0L, 0L, 0L)
+        val b = call(AwgService.MSG_STATS, timeoutMs = 3_000) ?: return Triple(0L, 0L, 0L)
+        return Triple(b.getLong("rx"), b.getLong("tx"), b.getLong("hs"))
     }
-}
-
-class WgTunnel(
-    private val name: String,
-    private val onStateChanged: ((Tunnel.State) -> Unit)? = null
-) : Tunnel {
-    override fun getName() = name
-    override fun onStateChange(state: Tunnel.State) { onStateChanged?.invoke(state) }
-    override fun isIpv4ResolutionPreferred(): Boolean = false
-    override fun isMetered(): Boolean = false
 }

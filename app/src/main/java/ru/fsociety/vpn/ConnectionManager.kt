@@ -117,10 +117,15 @@ object ConnectionManager {
         app = context.applicationContext
         scope.launch { VpnEvents.vpnDropped.collect { onDrop() } }
         scope.launch { VpnEvents.vpnStopped.collect { onExternalStop() } }
-        // Android запустил VPN сам: «Постоянная VPN» после перезагрузки или перезапуск службы после
-        // выгрузки процесса. Раньше ничего не происходило — с «Блокировать без VPN» интернета не было,
-        // пока не откроешь приложение.
-        org.amnezia.awg.backend.AbstractBackend.setAlwaysOnCallback { scope.launch { onAlwaysOn() } }
+    }
+
+    /**
+     * Android запустил VPN сам: «Постоянная VPN» после перезагрузки или перезапуск службы после
+     * выгрузки процесса (сигнал приходит из процесса «:awg» — AlwaysOnReceiver). Раньше ничего не
+     * происходило — с «Блокировать без VPN» интернета не было, пока не откроешь приложение.
+     */
+    fun onAlwaysOnTriggered() {
+        scope.launch { onAlwaysOn() }
     }
 
     /** Подключиться к последнему серверу, если пользователь не отключался сам. */
@@ -542,8 +547,8 @@ object ConnectionManager {
     private suspend fun watchWireGuard(server: ServerResponse, freshKey: Boolean, startedAt: Long) {
         delay(20_000)
         if (!VpnManager.isConnected()) return
-        val (rx, tx) = VpnManager.getTrafficStats()
-        if (VpnManager.lastHandshakeMillis() >= startedAt - 5_000 || rx > 0L) {
+        val (rx, tx, firstHandshake) = VpnManager.stats()
+        if (firstHandshake >= startedAt - 5_000 || rx > 0L) {
             sessionVerified = true
         } else if (tx > 0L) {
             rekeyOrGiveUp(server, freshKey)
@@ -553,7 +558,7 @@ object ConnectionManager {
         while (true) {
             delay(30_000)
             if (!VpnManager.isConnected()) return
-            val handshake = VpnManager.lastHandshakeMillis()
+            val handshake = VpnManager.stats().third
             if (handshake >= startedAt - 5_000) sessionVerified = true
             val stale = System.currentTimeMillis() - handshake > 200_000
             strikes = if (stale && hasInternet()) strikes + 1 else 0

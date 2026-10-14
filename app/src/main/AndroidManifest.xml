@@ -44,6 +44,7 @@
         </activity>
         <service
             android:name="org.amnezia.awg.backend.AbstractBackend$VpnService"
+            android:process=":awg"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
@@ -74,6 +75,15 @@
         </service>
         <receiver
             android:name=".KillSwitchReleaseReceiver"
+            android:exported="false" />
+        <!-- AmneziaWG — в своём процессе: в одном процессе с sing-box два Go-рантайма роняли приложение -->
+        <service
+            android:name=".AwgService"
+            android:process=":awg"
+            android:exported="false" />
+        <!-- «Постоянная VPN» из процесса «:awg» → подключение в основном процессе -->
+        <receiver
+            android:name=".AlwaysOnReceiver"
             android:exported="false" />
         <!-- Результат ночной тихой установки обновления (AutoUpdate.kt) -->
         <receiver

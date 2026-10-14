@@ -45,7 +45,8 @@ class VpnForegroundService : Service() {
                         prefs().getBoolean(ConnectionManager.PREF_VPN_CONSENT, false)
                     if (connected || state != lastState) {
                         val nm = getSystemService(android.app.NotificationManager::class.java)
-                        nm.notify(VpnNotificationHelper.NOTIFICATION_ID, buildNotification())
+                        val (rx, tx) = if (connected) VpnManager.stats().let { it.first to it.second } else 0L to 0L
+                        nm.notify(VpnNotificationHelper.NOTIFICATION_ID, buildNotification(rx, tx))
                         lastState = state
                     }
                     delay(3000)
@@ -57,11 +58,11 @@ class VpnForegroundService : Service() {
 
     private fun prefs() = getSharedPreferences("fsociety", MODE_PRIVATE)
 
-    private fun buildNotification(): android.app.Notification {
+    /** [rx]/[tx] — трафик WireGuard (запрашивается у процесса «:awg» в цикле, не здесь). */
+    private fun buildNotification(rx: Long = 0L, tx: Long = 0L): android.app.Notification {
         val ctx = appStrings(this)  // язык приложения на момент обновления, а не запуска службы
         val isConnected = VpnManager.isConnected()
         val isConnecting = ConnectionManager.isConnecting.value
-        val (rx, tx) = VpnManager.getTrafficStats()
 
         val disconnectPi = PendingIntent.getBroadcast(
             this, 0,
