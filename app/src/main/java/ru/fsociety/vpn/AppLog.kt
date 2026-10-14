@@ -92,10 +92,24 @@ object AppLog {
     private fun tail(file: File, lines: Int): List<String> =
         if (!file.exists()) emptyList() else try { file.readLines().takeLast(lines) } catch (_: Exception) { emptyList() }
 
-    /** Только сообщения нашего приложения (оба процесса): чужие Android приложению не показывает. */
+    // Наши теги (приложение, AmneziaWG, sing-box, OpenVPN) — целиком; остальное — только W/E/F.
+    // Раньше 90 % файла занимали служебные сообщения прошивки (Samsung I/View по 450 символов).
+    private val OUR_TAGS = setOf("AppErrors", "AppLog", "Go", "PEER", "AwgVPN", "ApiClient", "withRetry",
+        "AndroidRuntime", "SingboxManager", "XrayVpnService", "OpenVpnService", "BypassManager", "KillSwitch",
+        "ConnectionManager", "libc", "DEBUG")
+    private val OUR_PREFIXES = listOf("AmneziaWG", "Tun/", "OpenVpn", "ovpn", "Cloak")
+    private val LOGCAT_LINE = Regex("^\\S+ \\S+ ([VDIWEF])/([^(]*)\\(")
+
+    /** Сообщения нашего приложения (оба процесса): чужие Android приложению и так не показывает. */
     private fun logcat(lines: Int): List<String> = try {
-        val p = ProcessBuilder("logcat", "-d", "-v", "time", "-t", lines.toString()).redirectErrorStream(true).start()
-        p.inputStream.bufferedReader().readLines().also { p.waitFor() }
+        val p = ProcessBuilder("logcat", "-d", "-v", "time", "-t", "10000").redirectErrorStream(true).start()
+        val all = p.inputStream.bufferedReader().readLines().also { p.waitFor() }
+        all.filter { line ->
+            val m = LOGCAT_LINE.find(line) ?: return@filter false
+            val level = m.groupValues[1]
+            val tag = m.groupValues[2].trim()
+            level == "W" || level == "E" || level == "F" || tag in OUR_TAGS || OUR_PREFIXES.any { tag.startsWith(it) }
+        }.map { it.take(300) }.takeLast(lines)
     } catch (e: Exception) { listOf("logcat: ${e.message}") }
 
     /** Собрать файл для отправки (~3000 строк максимум). */
