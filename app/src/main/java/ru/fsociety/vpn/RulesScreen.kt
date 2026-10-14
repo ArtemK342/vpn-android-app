@@ -16,7 +16,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Lan
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,6 +44,10 @@ import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.fsociety.vpn.ui.theme.*
+
+// Значки разделов — одним цветом, темнее основного (раньше эмодзи выбивались по цвету и стилю)
+private val RulesIconGreen = Color(0xFF8DB51E)
+private val RulesIconBg = Color(0xFF161C0A)
 
 data class AppInfo(
     val packageName: String,
@@ -125,7 +133,8 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
         }
 
         RulesMenuItem(
-            emoji = "🌐", title = stringResource(R.string.rules_sites),
+            icon = { Text(".com", color = RulesIconGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace) },
+            title = stringResource(R.string.rules_sites),
             subtitle = when {
                 !settings.sitesEnabled -> stringResource(R.string.rules_off)
                 settings.sites.isEmpty() -> stringResource(R.string.rules_list_empty)
@@ -135,7 +144,8 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
             onClick = { onNavigate("sites") }
         )
         RulesMenuItem(
-            emoji = "📱", title = stringResource(R.string.rules_apps),
+            icon = { Icon(Icons.Filled.Apps, contentDescription = null, tint = RulesIconGreen, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.rules_apps),
             subtitle = when {
                 !settings.appsEnabled -> stringResource(R.string.rules_off)
                 settings.apps.isEmpty() -> stringResource(R.string.rules_list_empty)
@@ -162,16 +172,16 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
 }
 
 @Composable
-private fun RulesMenuItem(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+private fun RulesMenuItem(icon: @Composable () -> Unit, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(40.dp).background(Surface, RoundedCornerShape(8.dp)),
+            modifier = Modifier.size(40.dp).background(RulesIconBg, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
-        ) { Text(emoji, fontSize = 18.sp) }
+        ) { icon() }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -407,7 +417,14 @@ fun SitesRulesScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(when { SplitTunnelingManager.isAppRule(entry) -> "📱"; SplitTunnelingManager.isIpRule(entry) -> "#"; else -> "🌐" }, fontSize = 14.sp, color = TextMuted)
+                        Icon(
+                            when {
+                                SplitTunnelingManager.isAppRule(entry) -> Icons.Outlined.Apps
+                                SplitTunnelingManager.isIpRule(entry) -> Icons.Outlined.Lan
+                                else -> Icons.Outlined.Language
+                            },
+                            contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp)
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(SplitTunnelingManager.displaySite(entry), color = TextPrimary, fontSize = 14.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))

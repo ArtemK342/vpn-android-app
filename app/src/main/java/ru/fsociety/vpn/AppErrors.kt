@@ -57,6 +57,7 @@ object AppErrors {
     /** В logcat: что делали и тип/текст ошибки (только на устройстве, никуда не отправляется). */
     fun log(what: String, e: Throwable) {
         Log.w(TAG, "$what: ${e.javaClass.simpleName}: ${e.message}")
+        AppLog.w("$what: ${e.javaClass.simpleName}: ${e.message}")
     }
 
     /** Для действий без своего поля ошибки (тикеты и т.п.): лог + короткий тост. */

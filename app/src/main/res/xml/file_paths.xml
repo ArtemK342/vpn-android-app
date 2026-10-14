@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="apk_downloads" path="apk/" />
+    <!-- Журнал для поддержки (AppLog.export) -->
+    <cache-path name="logs" path="logs/" />
 </paths>

@@ -14,6 +14,7 @@ import android.os.Build
 class FsocietyApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        AppLog.init(this)   // журнал для поддержки — в обоих процессах
         if (processName().endsWith(":awg")) {
             org.amnezia.awg.backend.AbstractBackend.setAlwaysOnCallback {
                 sendBroadcast(Intent(this, AlwaysOnReceiver::class.java))

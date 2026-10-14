@@ -355,4 +355,18 @@
     <string name="preset_telegram">Telegram</string>
     <string name="preset_twitter">X (Twitter)</string>
     <string name="preset_chatgpt">ChatGPT</string>
+    <!-- Support log (Settings → App → Log, AppLog.kt) -->
+    <string name="log_menu_title">Log</string>
+    <string name="log_title">Log.</string>
+    <string name="log_desc">If something doesn\'t work: turn the log on, repeat the problem and tap “Send log” — you can forward the file to support (Telegram, email).</string>
+    <string name="log_off">Off</string>
+    <string name="log_min">Minimum</string>
+    <string name="log_max">Maximum</string>
+    <string name="log_off_desc">Nothing is recorded</string>
+    <string name="log_min_desc">Connections, disconnections, drops and app errors. No website addresses.</string>
+    <string name="log_max_desc">Plus the VPN connection log and the app\'s system messages — website addresses are visible there. Connections are recorded from the next connection.</string>
+    <string name="log_size">Log size: %s</string>
+    <string name="log_send">SEND LOG</string>
+    <string name="log_clear">Clear</string>
+    <string name="log_note">// The log stays on the phone and is sent only if you share it yourself. Keys, passwords, tokens, emails and account codes are removed from the file. Turning the log off deletes it.</string>
 </resources>

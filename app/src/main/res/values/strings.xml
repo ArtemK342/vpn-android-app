@@ -311,7 +311,7 @@
     <string name="logout_confirm_anon">Войти снова можно только по этому коду — сохраните его. Восстановить код нельзя.</string>
     <!-- Раздельное туннелирование (RulesScreen.kt) -->
     <string name="rules_section">// ПРАВИЛА</string>
-    <string name="rules_title">Раздельный туннель.</string>
+    <string name="rules_title">Раздельное туннелирование.</string>
     <string name="rules_support">// Работают для AmneziaWG, VLESS, Trojan и Hysteria2. Для OpenVPN+Cloak и «Режима РФ» не применяются.</string>
     <string name="rules_apply_text">Правила изменились — переподключитесь, чтобы они заработали</string>
     <string name="rules_apply_btn">ПРИМЕНИТЬ</string>
@@ -356,4 +356,18 @@
     <string name="preset_telegram">Telegram</string>
     <string name="preset_twitter">X (Twitter)</string>
     <string name="preset_chatgpt">ChatGPT</string>
+    <!-- Журнал для поддержки (Настройки → Приложение → Журнал, AppLog.kt) -->
+    <string name="log_menu_title">Журнал (логи)</string>
+    <string name="log_title">Журнал.</string>
+    <string name="log_desc">Если что-то не работает: включите журнал, повторите проблему и нажмите «Отправить журнал» — файл можно переслать в поддержку (Telegram, почта).</string>
+    <string name="log_off">Выключен</string>
+    <string name="log_min">Минимум</string>
+    <string name="log_max">Максимум</string>
+    <string name="log_off_desc">Ничего не записывается</string>
+    <string name="log_min_desc">Подключения, отключения, обрывы и ошибки приложения. Без адресов сайтов.</string>
+    <string name="log_max_desc">Плюс журнал соединений VPN и системные сообщения приложения — в нём видны адреса сайтов. Соединения пишутся со следующего подключения.</string>
+    <string name="log_size">Размер журнала: %s</string>
+    <string name="log_send">ОТПРАВИТЬ ЖУРНАЛ</string>
+    <string name="log_clear">Очистить</string>
+    <string name="log_note">// Журнал хранится только на телефоне и уходит, только если вы сами его отправите. Ключи, пароли, токены, email и коды аккаунтов из файла вырезаются. При выключении журнал удаляется.</string>
 </resources>

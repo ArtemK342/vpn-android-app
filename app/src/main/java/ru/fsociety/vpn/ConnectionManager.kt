@@ -225,6 +225,7 @@ object ConnectionManager {
      * [auto] — без участия пользователя (переподключение): системное окно VPN не показываем.
      */
     private suspend fun connect(server: ServerResponse, freshKey: Boolean = false, auto: Boolean = false): Outcome {
+        AppLog.i("подключение: ${server.server_type} ${server.id}${if (auto) " (авто)" else ""}${if (freshKey) " (новый ключ)" else ""}")
         connectingTo.value = server
         isConnecting.value = true
         statusMsg.value = str(R.string.home_getting_config)
@@ -357,6 +358,7 @@ object ConnectionManager {
         // сторож по рукопожатию. «Режим РФ» — без сервера: IP и так свой, Kill Switch ему не нужен.
         if (p.type != "wireguard" && p.type != "bypass") sessionVerified = true
         onConnected(server, p.type)
+        AppLog.i("подключено: ${server.server_type} ${server.id} (${p.type}), правила: сайты=${if (p.rules.sitesActive) "${p.rules.sitesMode}/${p.rules.sites.size}" else "нет"} приложения=${if (p.rules.appsActive) "${p.rules.appsMode}/${p.rules.apps.size}" else "нет"}")
         appliedRules.value = if (SplitTunnelingManager.supports(server.server_type)) p.rules.fingerprint() else null
         startMonitor(server, p.type, freshKey, startedAt)
         if (auto) AppErrors.log("auto-reconnect", IllegalStateException("reconnected to ${server.id}"))
@@ -504,6 +506,7 @@ object ConnectionManager {
     }
 
     private fun fail(message: String): Outcome {
+        AppLog.w("не подключились: $message")
         idle(message)
         // Переключались между серверами: старый туннель уже погашен — уведомление «Отключено»
         if (connectedServer.value == null) syncNotification()
@@ -647,6 +650,7 @@ object ConnectionManager {
     // ── Отключение ───────────────────────────────────────────────────────────
 
     private suspend fun disconnect() {
+        AppLog.i("отключение пользователем")
         setWantConnected(false)
         sessionVerified = false
         pending.value = null
@@ -737,6 +741,7 @@ object ConnectionManager {
 
     /** Туннель упал сам: служба остановилась или сторож решил, что сервер перестал отвечать. */
     private fun onDrop() {
+        AppLog.w("обрыв туннеля")
         if (op?.isActive == true) return   // идёт подключение/отключение — оно само наведёт порядок
         val server = connectedServer.value ?: lastServer ?: return
         launchOp { recover(server) }
@@ -777,6 +782,7 @@ object ConnectionManager {
      * продолжали показывать «Подключено».
      */
     private fun onExternalStop() {
+        AppLog.i("VPN выключен снаружи (другое приложение / настройки Android)")
         val wasActive = connectedServer.value != null || isConnecting.value || KillSwitch.engaged
         setWantConnected(false)
         launchOp {

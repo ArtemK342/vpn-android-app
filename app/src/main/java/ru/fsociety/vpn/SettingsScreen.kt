@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
@@ -76,7 +77,8 @@ fun SettingsScreen(
             onKillSwitch = { currentScreen = "killswitch" },
             onBackground = { currentScreen = "background" },
             onLanguage = { currentScreen = "language" },
-            onProtocols = { currentScreen = "protocols" }
+            onProtocols = { currentScreen = "protocols" },
+            onLogging = { currentScreen = "logging" }
         )
         "background" -> BackgroundModeTab(
             backgroundMode = backgroundMode,
@@ -103,6 +105,7 @@ fun SettingsScreen(
             onHysteria = { currentScreen = "protocol_hysteria2" }
         )
         "protocol_hysteria2" -> Hysteria2SettingsTab(onBack = { currentScreen = "protocols" })
+        "logging" -> LoggingTab(onBack = { currentScreen = "app_settings" })
         "update" -> UpdateTab(onBack = { currentScreen = "main" })
         "subscription" -> ComingSoonTab(title = stringResource(R.string.settings_subscription), onBack = { currentScreen = "main" })
         "payments" -> ComingSoonTab(title = stringResource(R.string.settings_payments), onBack = { currentScreen = "main" })
@@ -755,9 +758,11 @@ fun AppSettingsTab(
     onBackground: () -> Unit,
     onLanguage: () -> Unit,
     onAutoReconnect: () -> Unit = {},
-    onProtocols: () -> Unit = {}
+    onProtocols: () -> Unit = {},
+    onLogging: () -> Unit = {}
 ) {
     BackHandler { onBack() }
+    val logMode = AppLog.mode(LocalContext.current)
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
@@ -795,6 +800,16 @@ fun AppSettingsTab(
             title = stringResource(R.string.proto_settings_title),
             subtitle = stringResource(R.string.proto_settings_sub),
             onClick = onProtocols
+        )
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.BugReport, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.log_menu_title),
+            subtitle = stringResource(when (logMode) {
+                LogMode.OFF -> R.string.log_off
+                LogMode.MIN -> R.string.log_min
+                LogMode.MAX -> R.string.log_max
+            }),
+            onClick = onLogging
         )
     }
 }
@@ -1416,6 +1431,77 @@ fun CcModeOption(title: String, subtitle: String, selected: Boolean, onClick: ()
         }
         if (selected) {
             Text("✓", color = Accent, fontSize = 16.sp, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+/**
+ * Журнал для поддержки: выключен / минимум / максимум, «Отправить журнал» — файл через «Поделиться».
+ * Средний режим не нужен: «минимум» уже даёт события и ошибки, а всё остальное (соединения,
+ * системные сообщения) нужно только целиком.
+ */
+@Composable
+fun LoggingTab(onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    var mode by remember { mutableStateOf(AppLog.mode(context)) }
+    var size by remember { mutableStateOf(AppLog.sizeBytes(context)) }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(stringResource(R.string.log_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
+            Text(stringResource(R.string.log_desc), color = TextMuted, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+            listOf(
+                Triple(LogMode.OFF, R.string.log_off, R.string.log_off_desc),
+                Triple(LogMode.MIN, R.string.log_min, R.string.log_min_desc),
+                Triple(LogMode.MAX, R.string.log_max, R.string.log_max_desc),
+            ).forEach { (m, title, desc) ->
+                CcModeOption(stringResource(title), stringResource(desc), mode == m) {
+                    AppLog.setMode(context, m)
+                    mode = m
+                    size = AppLog.sizeBytes(context)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            if (mode != LogMode.OFF) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(stringResource(R.string.log_size, formatBytes(size, context)), color = TextMuted,
+                    fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        if (busy) return@Button
+                        busy = true
+                        scope.launch {
+                            try { AppLog.share(context, AppLog.export(context)) }
+                            catch (e: Exception) { AppErrors.toast(context, "export log", e) }
+                            finally { busy = false; size = AppLog.sizeBytes(context) }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    enabled = !busy,
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                ) {
+                    if (busy) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text(stringResource(R.string.log_send), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+                TextButton(onClick = { AppLog.clear(context); size = AppLog.sizeBytes(context) },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.log_clear), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(stringResource(R.string.log_note), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }

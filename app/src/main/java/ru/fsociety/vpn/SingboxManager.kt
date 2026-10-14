@@ -100,11 +100,13 @@ object SingboxManager {
                 val root = JSONObject(configJson)
                 val route = root.optJSONObject("route") ?: JSONObject().also { root.put("route", it) }
                 if (!route.has("auto_detect_interface")) route.put("auto_detect_interface", true)
-                // DEV-сборка: журнал соединений sing-box в files/singbox.log (adb run-as) — для отладки правил
-                if (BuildConfig.DEBUG) {
-                    java.io.File(context.filesDir, "singbox.log").let { if (it.length() > 2_000_000) it.delete() }
+                // Журнал соединений sing-box (files/logs/singbox.log): DEV-сборка (adb run-as)
+                // и «Журнал: максимум» в настройках (для отправки в поддержку)
+                if (BuildConfig.DEBUG || AppLog.mode(context) == LogMode.MAX) {
+                    val logFile = AppLog.singboxFile(context)
+                    if (logFile.length() > 2_000_000) logFile.delete()
                     root.put("log", JSONObject().put("level", "info").put("timestamp", true)
-                        .put("output", java.io.File(context.filesDir, "singbox.log").absolutePath))
+                        .put("output", logFile.absolutePath))
                 }
                 root.toString()
             } catch (_: Exception) { configJson }
