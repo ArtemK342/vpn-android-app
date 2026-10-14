@@ -194,6 +194,19 @@ object ConnectionManager {
         idle("")
     }
 
+    /**
+     * Только DEV-сборка: настоящий обрыв для проверки Kill Switch и переподключения — sing-box
+     * останавливается сам (не по STOP), процесс AmneziaWG завершается.
+     */
+    fun debugSimulateDrop() {
+        if (!BuildConfig.DEBUG) return
+        AppLog.w("DEV: симуляция обрыва")
+        when {
+            SingboxManager.isConnected() -> Thread { SingboxManager.disconnect() }.start()
+            VpnManager.isConnected() -> debugKillAwgProcess(app)
+        }
+    }
+
     /** «Разблокировать» (уведомление Kill Switch / кнопка на главном экране). */
     fun unblockKillSwitch() {
         KillSwitch.release(app)

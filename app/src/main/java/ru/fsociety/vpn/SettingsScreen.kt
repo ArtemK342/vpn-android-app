@@ -886,6 +886,13 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
                 try { ctx.startActivity(Intent(AndroidSettings.ACTION_VPN_SETTINGS)) }
                 catch (e: Exception) { AppErrors.log("open vpn settings", e) }
             }) { Text(stringResource(R.string.ks_android_settings), color = Accent, fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
+            // Только DEV-сборка: настоящий обрыв (движок туннеля останавливается сам) — проверить Kill Switch
+            if (BuildConfig.DEBUG) {
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(onClick = { ConnectionManager.debugSimulateDrop() }) {
+                    Text("DEV: симулировать обрыв", color = ErrorRed, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                }
+            }
         }
     }
 }

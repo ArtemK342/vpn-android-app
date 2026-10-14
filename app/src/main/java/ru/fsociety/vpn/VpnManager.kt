@@ -157,3 +157,11 @@ object VpnManager {
         return Triple(b.getLong("rx"), b.getLong("tx"), b.getLong("hs"))
     }
 }
+
+/** Только DEV-сборка: завершить процесс AmneziaWG — как если бы система его выгрузила (проверка обрыва). */
+fun debugKillAwgProcess(context: Context) {
+    if (!BuildConfig.DEBUG) return
+    val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return
+    am.runningAppProcesses?.firstOrNull { it.processName.endsWith(":awg") }
+        ?.let { android.os.Process.killProcess(it.pid) }
+}
