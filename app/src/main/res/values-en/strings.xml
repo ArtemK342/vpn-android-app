@@ -258,9 +258,9 @@
 
     <!-- Anonymous registration -->
     <string name="anon_register_subtitle">// REGISTRATION</string>
-    <string name="anon_register_desc">Create an anonymous account without email or password. Instead — a unique 16-digit code.</string>
+    <string name="anon_register_desc">Create an anonymous account without email or password. Instead — a unique 16-digit code.\n\nAn anonymous account can use the VPN only with a subscription. The free 3 GB per month is for email accounts.</string>
     <string name="anon_register_btn">CREATE ACCOUNT →</string>
-    <string name="anon_register_error_rate_limit">You have already created an anonymous account today. Try again tomorrow.</string>
+    <string name="anon_register_error_rate_limit">Too many accounts were created from this address today. Try again tomorrow.</string>
     <string name="anon_code_subtitle">// ANONYMOUS ACCOUNT</string>
     <string name="anon_code_label">// ACCESS CODE</string>
     <string name="anon_code_copied">Copied!</string>

@@ -2,14 +2,16 @@
 # Политика и соглашение в приложении = тексты с сайта (vpn-site/privacy, vpn-site/terms).
 # Править на сайте, потом запустить из корня репозитория:
 #   perl tools/sync_legal.pl ../vpn-site
-# Пишет app/src/main/assets/{privacy,privacy_en,terms,terms_en}.html.
+# Пишет {privacy,privacy_en,terms,terms_en}.html в app/src/main/assets (запасная копия, едет с релизом)
+# и в vpn-site/legal/ — оттуда приложение берёт свежую версию (LoginScreen.policyRemoteUrl), так что
+# для обновления текста в приложении достаточно задеплоить сайт.
 use strict;
 use warnings;
 use utf8;
 use open qw(:std :encoding(UTF-8));
 
 my $site = shift // '../vpn-site';
-my $out  = 'app/src/main/assets';
+my @outs = ('app/src/main/assets', "$site/legal");
 
 my $head = <<'HTML';
 <!DOCTYPE html>
@@ -72,10 +74,14 @@ sub convert {
 for my $doc (qw(privacy terms)) {
     my $html = slurp("$site/$doc/index.html");
     for my $lang (qw(ru en)) {
-        my $file = "$out/$doc" . ($lang eq 'en' ? '_en' : '') . '.html';
-        open my $fh, '>', $file or die "$file: $!";
-        print $fh convert($html, $lang, "$doc/index.html");
-        close $fh;
-        print "$file\n";
+        my $page = convert($html, $lang, "$doc/index.html");
+        for my $out (@outs) {
+            mkdir $out unless -d $out;
+            my $file = "$out/$doc" . ($lang eq 'en' ? '_en' : '') . '.html';
+            open my $fh, '>', $file or die "$file: $!";
+            print $fh $page;
+            close $fh;
+            print "$file\n";
+        }
     }
 }

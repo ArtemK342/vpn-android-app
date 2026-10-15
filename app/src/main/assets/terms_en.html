@@ -30,7 +30,7 @@
 
 <div class="tag">// Legal documents</div>
   <h1>Terms of Service.</h1>
-  <p class="meta">Last updated: October 15, 2026 · Version 1.3</p>
+  <p class="meta">Last updated: October 15, 2026 · Version 1.4</p>
 <div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General provisions</h2>
@@ -122,13 +122,13 @@
   <p>Terms for anonymous accounts:</p>
   <ul>
     <li>The code is the sole means of access — recovery of a lost code is impossible</li>
-    <li>Monthly traffic limit is <strong>1 GB</strong> (email accounts without a subscription — 3 GB)</li>
+    <li>The VPN is available <strong>only with a subscription</strong>. Without one, only "RF mode" works — it doesn't use our servers. The free 3 GB per month is for email accounts only</li>
     <li>The account is automatically deleted after <strong>5 days</strong> without sign-ins or connections if there was never a subscription</li>
     <li>If there was a subscription, the account is deleted after <strong>30 days</strong> without sign-ins or connections</li>
-    <li>A maximum of 2 simultaneous VPN connections are allowed</li>
-    <li>Account creation is limited to 1 per day per IP address</li>
+    <li>With a subscription — up to 5 simultaneous connections</li>
+    <li>Account creation is limited to 5 per day per IP address</li>
   </ul>
-  <p>When an anonymous account is created, the IP address itself is not saved: only its hash (HMAC-SHA256) is kept for rate limiting, and it is deleted after <strong>24 hours</strong>. The hash is not linked to VPN activity.</p>
+  <p>When an anonymous account is created, the IP address is not written to the database — neither the address nor its hash. For rate limiting it is kept only in server memory for at most a day.</p>
 </div>
 
 <div class="section" id="en-changes">

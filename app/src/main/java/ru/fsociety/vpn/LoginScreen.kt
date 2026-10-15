@@ -44,6 +44,16 @@ private fun policyAssetUrl(name: String, lang: String): String {
     return "file:///android_asset/${name}${suffix}.html"
 }
 
+/**
+ * Политика и соглашение берутся с сайта (fsociety-vpn.org/legal/ — те же страницы, что в assets, их пишет
+ * tools/sync_legal.pl), поэтому обновляются без нового релиза. Копия в assets — запасная: нет сети,
+ * сайт заблокирован или не ответил за [POLICY_REMOTE_TIMEOUT_MS].
+ */
+private const val POLICY_REMOTE_BASE = "https://fsociety-vpn.org/legal/"
+private const val POLICY_REMOTE_TIMEOUT_MS = 6000L
+private fun policyRemoteUrl(assetUrl: String): String =
+    POLICY_REMOTE_BASE + assetUrl.substringAfterLast('/')
+
 private data class AnonResult(val code: String, val accessToken: String, val refreshToken: String)
 
 /**
@@ -125,6 +135,15 @@ fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
                 val progressCapture = progress
                 val webViewCapture = webViewRef
                 WebView(ctx).apply {
+                    // url — копия в assets; сначала пробуем свежую с сайта, при ошибке/таймауте — её
+                    var loaded = false
+                    var fellBack = false
+                    fun fallback(view: WebView?) {
+                        if (fellBack) return
+                        fellBack = true
+                        view?.stopLoading()
+                        view?.loadUrl(url)
+                    }
                     webChromeClient = object : android.webkit.WebChromeClient() {
                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
                             progressCapture.value = newProgress
@@ -136,6 +155,8 @@ fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
                             view: WebView?, request: android.webkit.WebResourceRequest?
                         ): Boolean {
                             val uri = request?.url ?: return false
+                            // редирект самой страницы политики (например, Cloudflare) — грузим здесь же
+                            if (request.isRedirect && request.isForMainFrame && !loaded) return false
                             if (uri.scheme == "http" || uri.scheme == "https") {
                                 try { ctx.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                                 catch (e: Exception) { AppErrors.log("open link", e) }
@@ -143,12 +164,20 @@ fun PolicyViewerScreen(url: String, title: String, onBack: () -> Unit) {
                             }
                             return false
                         }
+                        override fun onReceivedError(
+                            view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?
+                        ) { if (request?.isForMainFrame == true) fallback(view) }
+                        override fun onReceivedHttpError(
+                            view: WebView?, request: android.webkit.WebResourceRequest?, response: android.webkit.WebResourceResponse?
+                        ) { if (request?.isForMainFrame == true) fallback(view) }
+                        override fun onPageFinished(view: WebView?, pageUrl: String?) { loaded = true }
                     }
                     // Статичные страницы политики: JavaScript не нужен
                     settings.javaScriptEnabled = false
                     settings.useWideViewPort = true
                     settings.loadWithOverviewMode = true
-                    loadUrl(url)
+                    loadUrl(policyRemoteUrl(url))
+                    postDelayed({ if (!loaded) fallback(this) }, POLICY_REMOTE_TIMEOUT_MS)
                     webViewCapture.value = this
                 }
             },
@@ -376,7 +405,7 @@ private fun AnonRegisterScreen(
 
             Button(
                 onClick = {
-                    // Двойное нажатие: второй запрос получил бы «аккаунт уже создан сегодня» (1 в сутки)
+                    // Двойное нажатие: не создавать два аккаунта (и не тратить лимит 5 в сутки с IP)
                     if (isLoading) return@Button
                     isLoading = true
                     scope.launch {
