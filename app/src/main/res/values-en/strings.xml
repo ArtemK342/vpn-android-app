@@ -13,6 +13,12 @@
     <string name="nav_home">HOME</string>
     <string name="nav_rules">RULES</string>
     <string name="nav_settings">SETTINGS</string>
+    <string name="nav_news">NEWS</string>
+    <string name="news_section">// NEWS</string>
+    <string name="news_title">What\'s new</string>
+    <string name="news_empty">No news yet</string>
+    <string name="news_error">Could not load the news</string>
+    <string name="news_retry">RETRY</string>
 
     <!-- Home -->
     <string name="home_connecting">Connecting…</string>

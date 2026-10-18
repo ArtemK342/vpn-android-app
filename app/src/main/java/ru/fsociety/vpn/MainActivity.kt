@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -444,6 +445,16 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
                         indicatorColor = Color.Transparent)
                 )
+                // Новости — индекс 3 (индексы остальных вкладок не меняем), показываются перед настройками
+                NavigationBarItem(
+                    selected = selectedTab == 3, onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Filled.Newspaper, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    label = { Text(stringResource(R.string.nav_news), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedTextColor = Accent, unselectedTextColor = TextMuted,
+                        selectedIconColor = Accent, unselectedIconColor = TextMuted,
+                        indicatorColor = Color.Transparent)
+                )
                 NavigationBarItem(
                     selected = selectedTab == 2, onClick = { selectedTab = 2 },
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp)) },
@@ -472,6 +483,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                     rulesActive = splitSettings.anyActive,
                     onRefreshPings = refreshPings
                 )
+                3 -> NewsScreen()
                 1 -> RulesScreen(
                     settings = splitSettings,
                     onSettingsChange = { newSettings ->

@@ -13,6 +13,12 @@
     <string name="nav_home">ГЛАВНАЯ</string>
     <string name="nav_rules">ПРАВИЛА</string>
     <string name="nav_settings">НАСТРОЙКИ</string>
+    <string name="nav_news">НОВОСТИ</string>
+    <string name="news_section">// НОВОСТИ</string>
+    <string name="news_title">Что нового</string>
+    <string name="news_empty">Новостей пока нет</string>
+    <string name="news_error">Не удалось загрузить новости</string>
+    <string name="news_retry">ПОВТОРИТЬ</string>
 
     <!-- Home -->
     <string name="home_connecting">Подключение…</string>

@@ -180,6 +180,26 @@ data class AccessCheckResponse(
     fun text(lang: String): String? = (if (lang == "en") message_en else message)?.takeIf { it.isNotBlank() }
 }
 
+/** Новость из GET /news: только опубликованные, порядок задаёт админка. EN-поля — если админ их заполнил. */
+data class NewsItem(
+    val id: String = "",
+    val title: String = "",
+    val body: String = "",
+    val title_en: String? = null,
+    val body_en: String? = null,
+    val image_id: String? = null,
+    val published_at: String? = null
+) {
+    fun title(lang: String) = if (lang == "en" && !title_en.isNullOrBlank()) title_en else title
+    fun body(lang: String) = if (lang == "en" && !body_en.isNullOrBlank()) body_en else body
+}
+
+data class NewsPage(
+    val items: List<NewsItem> = emptyList(),
+    val total: Int = 0,
+    val has_more: Boolean = false
+)
+
 data class GenerateNumericResponse(
     val code: String = "",
     val access_token: String = "",
@@ -290,6 +310,13 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Body body: ChangePasswordRequest
     ): retrofit2.Response<okhttp3.ResponseBody?>
+
+    /** Лента новостей по страницам; без авторизации (читать может любой). */
+    @GET("news")
+    suspend fun getNews(
+        @Query("limit") limit: Int,
+        @Query("offset") offset: Int
+    ): NewsPage
 
     @GET("vpn/usage")
     suspend fun getUsage(
@@ -505,10 +532,16 @@ object ApiClient {
     /** Ссылка на обновление, если сервер ответил 426; MainActivity показывает блокирующий диалог. */
     val updateRequired = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
+    /** Общий клиент: картинки новостей идут по тем же правилам (аноним — напрямую, мимо Cloudflare). */
+    val http: okhttp3.OkHttpClient by lazy { buildOkHttp(20) }
+
+    /** Адрес картинки новости (хост подменяется на прямой в directFallback, если нужно). */
+    fun newsImageUrl(imageId: String) = BASE_URL + "news/images/" + imageId
+
     val service: ApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(buildOkHttp(20))
+            .client(http)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
