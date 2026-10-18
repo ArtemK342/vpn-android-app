@@ -46,9 +46,11 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -110,18 +112,28 @@ object NewsFeed {
     }
 }
 
-/** Картинки новостей: через общий клиент (маршрут как у API), уменьшенные под ширину экрана, кэш в памяти. */
+/**
+ * Картинки новостей: через общий клиент (маршрут как у API), уменьшенные под ширину экрана. Кэш в
+ * памяти и на диске (30 МБ, Cache-Control immutable): каждую картинку телефон скачивает один раз.
+ */
 private object NewsImages {
     private val cache = object : LruCache<String, ImageBitmap>(16 * 1024 * 1024) {
         override fun sizeOf(key: String, value: ImageBitmap) = value.width * value.height * 4
     }
+    @Volatile private var client: okhttp3.OkHttpClient? = null
 
-    suspend fun load(imageId: String, maxWidth: Int): ImageBitmap? {
+    private fun client(context: Context): okhttp3.OkHttpClient = client ?: synchronized(this) {
+        client ?: ApiClient.http.newBuilder()
+            .cache(okhttp3.Cache(java.io.File(context.cacheDir, "news-images"), 30L * 1024 * 1024))
+            .build().also { client = it }
+    }
+
+    suspend fun load(context: Context, imageId: String, ext: String?, maxWidth: Int): ImageBitmap? {
         cache.get(imageId)?.let { return it }
         return withContext(Dispatchers.IO) {
             try {
-                val req = okhttp3.Request.Builder().url(ApiClient.newsImageUrl(imageId)).build()
-                val bytes = ApiClient.http.newCall(req).execute().use { resp ->
+                val req = okhttp3.Request.Builder().url(ApiClient.newsImageUrl(imageId, ext)).build()
+                val bytes = client(context).newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) return@withContext null
                     resp.body?.bytes() ?: return@withContext null
                 }
@@ -149,20 +161,24 @@ private fun formatNewsDate(iso: String?, lang: String): String {
     } catch (_: Exception) { "" }
 }
 
-private val URL_RE = Regex("https?://[^\\s<>\"]+")
-
-/** Текст с кликабельными ссылками http(s); хвостовая пунктуация — не часть ссылки. */
-private fun linkified(text: String): AnnotatedString = buildAnnotatedString {
-    var last = 0
-    for (m in URL_RE.findAll(text)) {
-        val url = m.value.trimEnd('.', ',', '!', '?', ':', ';', ')', ']')
-        append(text, last, m.range.first)
-        withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = Accent, textDecoration = TextDecoration.Underline)))) {
-            append(url)
+/** Текст новости с разметкой (жирный, курсив, подчёркнутый, зачёркнутый — [NewsFormat]) и кликабельными ссылками. */
+private fun formatted(text: String): AnnotatedString = buildAnnotatedString {
+    for (r in NewsFormat.parse(text)) {
+        val decorations = listOfNotNull(
+            TextDecoration.Underline.takeIf { r.underline || r.url != null },
+            TextDecoration.LineThrough.takeIf { r.strike })
+        val style = SpanStyle(
+            fontWeight = if (r.bold) FontWeight.Bold else null,
+            fontStyle = if (r.italic) FontStyle.Italic else null,
+            textDecoration = if (decorations.isEmpty()) null else TextDecoration.combine(decorations),
+            color = if (r.url != null) Accent else androidx.compose.ui.graphics.Color.Unspecified,
+        )
+        if (r.url != null) {
+            withLink(LinkAnnotation.Url(r.url, TextLinkStyles(style))) { append(r.text) }
+        } else {
+            withStyle(style) { append(r.text) }
         }
-        last = m.range.first + url.length
     }
-    append(text, last, text.length)
 }
 
 @Composable
@@ -224,11 +240,22 @@ fun NewsScreen() {
 
 @Composable
 private fun NewsCard(news: NewsItem, lang: String) {
-    val maxWidth = LocalContext.current.resources.displayMetrics.widthPixels
+    val context = LocalContext.current
+    val maxWidth = context.resources.displayMetrics.widthPixels
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val date = formatNewsDate(news.published_at, lang)
+        if (date.isNotEmpty()) Text(date, color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Text(news.title(lang), color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        SelectionContainer {
+            Text(formatted(news.body(lang)), color = TextMuted, fontSize = 13.sp, lineHeight = 20.sp)
+        }
+        // Картинка — под текстом
         news.image_id?.let { id ->
-            val image by produceState<ImageBitmap?>(initialValue = null, id) { value = NewsImages.load(id, maxWidth) }
+            Spacer(modifier = Modifier.height(4.dp))
+            val image by produceState<ImageBitmap?>(initialValue = null, id) {
+                value = NewsImages.load(context.applicationContext, id, news.image_ext, maxWidth)
+            }
             val bmp = image
             if (bmp != null) {
                 Image(bmp, contentDescription = null, contentScale = ContentScale.Crop,
@@ -236,13 +263,6 @@ private fun NewsCard(news: NewsItem, lang: String) {
             } else {
                 Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Surface))
             }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-        val date = formatNewsDate(news.published_at, lang)
-        if (date.isNotEmpty()) Text(date, color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        Text(news.title(lang), color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        SelectionContainer {
-            Text(linkified(news.body(lang)), color = TextMuted, fontSize = 13.sp, lineHeight = 20.sp)
         }
     }
     HorizontalDivider(color = Border, modifier = Modifier.padding(horizontal = 24.dp))

@@ -188,6 +188,7 @@ data class NewsItem(
     val title_en: String? = null,
     val body_en: String? = null,
     val image_id: String? = null,
+    val image_ext: String? = null,
     val published_at: String? = null
 ) {
     fun title(lang: String) = if (lang == "en" && !title_en.isNullOrBlank()) title_en else title
@@ -535,8 +536,9 @@ object ApiClient {
     /** Общий клиент: картинки новостей идут по тем же правилам (аноним — напрямую, мимо Cloudflare). */
     val http: okhttp3.OkHttpClient by lazy { buildOkHttp(20) }
 
-    /** Адрес картинки новости (хост подменяется на прямой в directFallback, если нужно). */
-    fun newsImageUrl(imageId: String) = BASE_URL + "news/images/" + imageId
+    /** Адрес картинки новости: с расширением — её кэширует Cloudflare (хост подменяется в directFallback). */
+    fun newsImageUrl(imageId: String, ext: String?) =
+        BASE_URL + "news/images/" + imageId + (ext?.takeIf { it.isNotBlank() }?.let { ".$it" } ?: "")
 
     val service: ApiService by lazy {
         Retrofit.Builder()
