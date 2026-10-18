@@ -30,7 +30,7 @@
 
 <div class="tag">// Legal documents</div>
   <h1>Privacy Policy.</h1>
-  <p class="meta">Last updated: October 15, 2026 · Version 1.4</p>
+  <p class="meta">Last updated: October 18, 2026 · Version 1.5</p>
 <div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General</h2>
@@ -80,7 +80,13 @@
 <div class="section" id="en-site">
   <div class="num">// 05</div>
   <h2>Website, API and email</h2>
-  <p>The website and API run behind Cloudflare. Cloudflare sees your IP address and processes it under its own privacy policy. If Cloudflare is unreachable, the app contacts our API directly.</p>
+  <p>The website runs behind Cloudflare: when you open the website or your dashboard, Cloudflare sees your IP address and the content of the requests and processes them under its own privacy policy.</p>
+  <p>The app talks to our API directly, bypassing Cloudflare:</p>
+  <ul>
+    <li><strong>anonymous account</strong> — all requests, including code sign-in and account creation: Cloudflare sees neither your IP, nor the code, nor the keys;</li>
+    <li><strong>email account</strong> — VPN config requests (keys and connection passwords); sign-in, tickets and the rest go through Cloudflare.</li>
+  </ul>
+  <p>If the direct address is unreachable (for example, blocked by your ISP), the app temporarily sends these requests through Cloudflare. For maximum privacy, use an anonymous account in the app rather than on the website.</p>
   <p>Our web server keeps no request log (access log): IP addresses and page addresses are not recorded.</p>
   <p>The website sets no cookies and uses no analytics, ads or third-party counters; fonts are served from our server. The country used to show prices in your currency comes from Cloudflare and is not stored. Your browser keeps only sign-in, language and theme — see the <a href="https://fsociety-vpn.org/cookies">Cookie Policy</a>.</p>
   <p>Emails (address confirmation, password reset, a copy of a ticket conversation on your request) are sent via Resend — it receives only the recipient address and the email text.</p>

@@ -350,6 +350,10 @@
     <string name="rules_delete_cd">Delete</string>
     <string name="rules_search_hint">Search apps…</string>
     <string name="rules_apps_note">// Apps with a home screen icon are shown</string>
+    <string name="rules_apps_preset_blocked">Blocked in Russia</string>
+    <string name="rules_apps_preset_blocked_desc">Telegram, WhatsApp, Instagram, Facebook, Threads, X, YouTube, Discord, Viber, Signal, Snapchat, LinkedIn, Roblox, ChatGPT and more. Installed on your phone: %1$d</string>
+    <string name="rules_apps_preset_none">None of the apps in this set are installed</string>
+    <string name="rules_apps_preset_only_include">The \"Blocked in Russia\" set is available in \"VPN only for…\" mode</string>
     <string name="home_rules_not_applied">Split tunneling rules don\'t apply to this protocol</string>
     <string name="preset_ru_sites">Russian websites</string>
     <string name="preset_ru_zone">.ru .рф .su zones</string>

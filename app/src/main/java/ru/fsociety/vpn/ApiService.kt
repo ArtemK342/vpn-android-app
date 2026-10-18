@@ -372,9 +372,46 @@ object ApiClient {
     @Volatile private var directUntil = 0L
     private const val DIRECT_STICKY_MS = 10 * 60_000L
 
+    /**
+     * Запросы VPN (/api/vpn/…: конфиги с ключами и паролями подключения, проверка доступа, расход
+     * трафика) — сначала напрямую на наш сервер, минуя Cloudflare: он расшифровывает HTTPS у себя и
+     * видел бы и IP, и ключи. Cloudflare — запасной путь; прямой адрес не ответил — 10 минут такие
+     * запросы идут сначала через Cloudflare, чтобы не ждать таймаут на каждом.
+     */
+    private fun isVpnRequest(req: okhttp3.Request) = req.url.encodedPath.startsWith("/api/vpn/")
+    @Volatile private var directDownUntil = 0L
+
+    /**
+     * Анонимный аккаунт — все запросы напрямую (политика конфиденциальности, раздел «Сайт, API и почта»):
+     * Cloudflare не видит ни IP, ни код, ни токены. Вход по коду и создание аккаунта — тоже, ещё до токена.
+     */
+    private val ANON_AUTH_PATHS = setOf("/api/login-numeric", "/api/generate-numeric-account")
+    @Volatile private var anonTokenCache: Pair<String, Boolean>? = null
+
+    /** Анонимная сессия — по токену: sub «a:<id>» (с 0.0.3.9) или старый «n:<код>». */
+    private fun isAnonymousSession(): Boolean {
+        val token = TokenStore.access.value
+        if (token.isEmpty()) return false
+        anonTokenCache?.let { (t, anon) -> if (t == token) return anon }
+        val anon = try {
+            val payload = token.split('.')[1]
+            val json = String(android.util.Base64.decode(payload,
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP))
+            val sub = org.json.JSONObject(json).optString("sub")
+            sub.startsWith("a:") || sub.startsWith("n:")
+        } catch (_: Exception) { false }
+        anonTokenCache = token to anon
+        return anon
+    }
+
+    private fun prefersDirect(req: okhttp3.Request) =
+        isVpnRequest(req) || req.url.encodedPath in ANON_AUTH_PATHS || isAnonymousSession()
+
     private val directFallback = okhttp3.Interceptor { chain ->
         val req = chain.request()
         if (req.url.host == DIRECT_HOST) return@Interceptor chain.proceed(req)
+        val now = System.currentTimeMillis()
+        val directFirst = now < directUntil || (prefersDirect(req) && now >= directDownUntil)
         val idempotent = req.method == "GET" || req.method == "HEAD"
         val direct = req.newBuilder().url(req.url.newBuilder().host(DIRECT_HOST).build()).build()
         val timed = chain
@@ -385,14 +422,16 @@ object ApiClient {
             val bytes = body.bytes()
             return resp.newBuilder().body(bytes.toResponseBody(body.contentType())).build()
         }
-        if (System.currentTimeMillis() < directUntil) {
+        if (directFirst) {
             // Сначала напрямую; не вышло — через Cloudflare (те же правила безопасного повтора)
             try {
                 return@Interceptor buffered(timed.proceed(direct))
             } catch (e: java.io.IOException) {
                 if (chain.call().isCanceled()) throw e
                 if (!idempotent && !e.beforeSend()) throw e
+                android.util.Log.w("ApiClient", "${req.url.encodedPath} direct failed (${e.message}), retry via Cloudflare")
                 directUntil = 0L
+                directDownUntil = System.currentTimeMillis() + DIRECT_STICKY_MS
                 return@Interceptor chain.proceed(req)
             }
         }

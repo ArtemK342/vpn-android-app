@@ -112,6 +112,21 @@ object Presets {
 
     val chatgpt = setOf("openai.com", "chatgpt.com", "chat.com", "oaistatic.com", "oaiusercontent.com", "sora.com", "app:com.openai.chatgpt")
 
+    /**
+     * Вкладка «Приложения», режим «Через VPN только…»: заблокированное или недоступное в РФ (октябрь 2026:
+     * соцсети Meta и X, мессенджеры с ограниченными звонками или блокировкой, Discord, YouTube, Snapchat,
+     * Roblox, LinkedIn; ИИ и стриминги, ушедшие из РФ сами). Добавляются только установленные.
+     */
+    val blockedApps = setOf(
+        "org.telegram.messenger", "org.telegram.messenger.web", "org.thunderdog.challegram",
+        "com.whatsapp", "com.whatsapp.w4b", "com.viber.voip", "org.thoughtcrime.securesms",
+        "com.instagram.android", "com.instagram.barcelona", "com.facebook.katana", "com.facebook.lite",
+        "com.facebook.orca", "com.twitter.android", "com.linkedin.android", "com.snapchat.android",
+        "com.discord", "com.google.android.youtube", "com.google.android.apps.youtube.music",
+        "com.roblox.client", "com.openai.chatgpt", "com.anthropic.claude", "com.google.android.apps.bard",
+        "com.spotify.music", "com.netflix.mediaclient", "org.torproject.torbrowser",
+    )
+
     val all = listOf(
         SitePreset("ru", R.string.preset_ru_sites, ruEssential),
         SitePreset("ru_zone", R.string.preset_ru_zone, ruZone),

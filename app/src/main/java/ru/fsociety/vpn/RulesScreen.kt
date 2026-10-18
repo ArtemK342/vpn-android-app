@@ -459,10 +459,15 @@ fun AppsRulesScreen(
     }
 
     val list = settings.apps
-    // Выбранные — сверху. Порядок фиксируется при открытии и смене режима, чтобы строка не «убегала»
-    // из-под пальца при нажатии
-    val ordered = remember(allApps, settings.appsMode) {
+    // Выбранные — сверху. Порядок фиксируется при открытии, смене режима и нажатии набора, чтобы строка
+    // не «убегала» из-под пальца при нажатии
+    var presetClicks by remember { mutableStateOf(0) }
+    val ordered = remember(allApps, settings.appsMode, presetClicks) {
         allApps?.sortedBy { if (it.packageName in list) 0 else 1 }
+    }
+    // Набор «Заблокировано в РФ» — только из установленных (видимых в списке) приложений
+    val blockedInstalled = remember(allApps) {
+        allApps?.map { it.packageName }?.filter { it in Presets.blockedApps }?.toSet().orEmpty()
     }
     val displayed = ordered?.filter {
         query.isBlank() || it.label.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true)
@@ -494,6 +499,43 @@ fun AppsRulesScreen(
                 ) { onSettingsChange(settings.copy(appsMode = SplitMode.INCLUDE)) }
                 if (list.isEmpty()) EmptyListWarning()
                 Spacer(modifier = Modifier.height(6.dp))
+                HorizontalDivider(color = Border)
+            }
+
+            // Готовый набор: смысл есть только в «Через VPN только…» (в «всё, кроме» он пустил бы их мимо VPN)
+            item {
+                Text(stringResource(R.string.rules_presets), color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 8.dp))
+                if (settings.appsMode == SplitMode.INCLUDE) {
+                    val active = blockedInstalled.isNotEmpty() && list.containsAll(blockedInstalled)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .clickable(enabled = blockedInstalled.isNotEmpty()) {
+                                onSettingsChange(settings.withApps(if (active) list - blockedInstalled else list + blockedInstalled))
+                                presetClicks++
+                            }
+                            .background(if (active) Accent else Surface, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            (if (active) "✓ " else "+ ") + stringResource(R.string.rules_apps_preset_blocked),
+                            color = if (active) BgDark else Accent,
+                            fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            if (allApps != null && blockedInstalled.isEmpty()) stringResource(R.string.rules_apps_preset_none)
+                            else stringResource(R.string.rules_apps_preset_blocked_desc, blockedInstalled.size),
+                            color = if (active) BgDark else TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                        )
+                    }
+                } else {
+                    Text(stringResource(R.string.rules_apps_preset_only_include), color = TextMuted, fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace, modifier = Modifier.padding(horizontal = 24.dp))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider(color = Border)
             }
 

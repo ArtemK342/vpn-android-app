@@ -351,6 +351,10 @@
     <string name="rules_delete_cd">Удалить</string>
     <string name="rules_search_hint">Поиск приложения…</string>
     <string name="rules_apps_note">// Показаны приложения с иконкой на рабочем столе</string>
+    <string name="rules_apps_preset_blocked">Заблокировано в РФ</string>
+    <string name="rules_apps_preset_blocked_desc">Telegram, WhatsApp, Instagram, Facebook, Threads, X, YouTube, Discord, Viber, Signal, Snapchat, LinkedIn, Roblox, ChatGPT и другие. Установлено у вас: %1$d</string>
+    <string name="rules_apps_preset_none">Ни одно приложение из набора не установлено</string>
+    <string name="rules_apps_preset_only_include">Набор «Заблокировано в РФ» — в режиме «Через VPN только…»</string>
     <string name="home_rules_not_applied">Правила туннелирования не действуют для этого протокола</string>
     <string name="preset_ru_sites">Российские сайты</string>
     <string name="preset_ru_zone">Зоны .ru .рф .su</string>
