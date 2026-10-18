@@ -28,6 +28,9 @@ data class RefreshRequest(
     val refresh_token: String
 )
 
+/** В конфиге с ключом телефона вместо приватного ключа — эта строка (vpn.py CLIENT_KEY_PLACEHOLDER). */
+const val AWG_CLIENT_KEY_PLACEHOLDER = "CLIENT_PRIVATE_KEY"
+
 data class VpnConfigResponse(
     val config: String? = null,
     val client_ip: String? = null,
@@ -260,10 +263,13 @@ interface ApiService {
         @Body body: RegisterRequest
     ): UserResponse
 
+    /** Конфиг AmneziaWG: [publicKey] — ключ с телефона (приватный остаётся здесь, в конфиге вместо него
+     *  заглушка [AWG_CLIENT_KEY_PLACEHOLDER]); null — ключ создаёт сервер (как до 0.0.3.9). */
     @POST("vpn/config")
     suspend fun getVpnConfig(
         @Header("Authorization") token: String,
-        @Query("server_id") serverId: String
+        @Query("server_id") serverId: String,
+        @Query("public_key") publicKey: String?
     ): VpnConfigResponse
 
     @GET("tickets")

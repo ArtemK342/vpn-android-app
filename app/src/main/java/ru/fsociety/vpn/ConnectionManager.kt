@@ -304,8 +304,13 @@ object ConnectionManager {
                     // Кэш зашифрован ключом Keystore — расшифровка не на главном потоке
                     val cached = withContext(Dispatchers.IO) { ConfigCache.get(app, server.id) }
                     val config = cached ?: run {
-                        val response = ApiClient.service.getVpnConfig(bearer(), server.id)
-                        val cfg = response.config ?: return fail(response.message ?: str(R.string.home_error_connect))
+                        // Ключ создаётся на телефоне: серверу уходит только публичный, приватный не покидает
+                        // устройство (в кэше — зашифрованный ключом Keystore). Старый сервер ключ не примет —
+                        // тогда в конфиге его собственный, без заглушки, и он используется как раньше.
+                        val keys = org.amnezia.awg.crypto.KeyPair()
+                        val response = ApiClient.service.getVpnConfig(bearer(), server.id, keys.publicKey.toBase64())
+                        val raw = response.config ?: return fail(response.message ?: str(R.string.home_error_connect))
+                        val cfg = raw.replace(AWG_CLIENT_KEY_PLACEHOLDER, keys.privateKey.toBase64())
                         withContext(Dispatchers.IO) { ConfigCache.save(app, server.id, cfg) }
                         cfg
                     }
