@@ -81,15 +81,37 @@ object Presets {
     val youtube = setOf(
         "youtube.com", "youtu.be", "youtube-nocookie.com", "youtubekids.com", "googlevideo.com",
         "ytimg.com", "ggpht.com", "youtubei.googleapis.com", "youtube.googleapis.com",
-        "youtubeembeddedplayer.googleapis.com", "yt3.googleusercontent.com", "jnn-pa.googleapis.com",
-        "app:com.google.android.youtube",
+        "youtubeembeddedplayer.googleapis.com", "yt3.googleusercontent.com", "jnn-pa.googleapis.com", "yt.be",
+        "app:com.google.android.youtube", "app:com.google.android.apps.youtube.music",
+    )
+
+    /**
+     * Адреса Meta (AS32934: Instagram, Facebook, Threads, WhatsApp), сведённые в подсети по анонсам RIPE
+     * (stat.ripe.net announced-prefixes, 18.10.2026). Приложения Meta часто идут на IP без имени сайта —
+     * без этих подсетей Instagram в «только эти» работал через раз.
+     */
+    private val metaCidrs = setOf(
+        "31.13.24.0/21", "31.13.64.0/18", "45.64.40.0/22", "57.141.0.0/24", "57.141.2.0/23", "57.141.4.0/23",
+        "57.141.6.0/24", "57.141.8.0/24", "57.141.10.0/24", "57.141.12.0/23", "57.141.14.0/24", "57.141.16.0/22",
+        "57.141.20.0/24", "57.141.22.0/24", "57.141.24.0/24", "57.144.0.0/14", "66.220.144.0/20", "69.63.176.0/20",
+        "69.171.224.0/19", "74.119.76.0/22", "102.132.96.0/20", "103.4.96.0/22", "129.134.0.0/17", "157.240.0.0/17",
+        "157.240.192.0/18", "163.70.128.0/17", "163.77.132.0/23", "163.77.136.0/23", "163.77.160.0/20",
+        "173.252.64.0/18", "179.60.192.0/22", "185.60.216.0/22", "185.89.216.0/22", "204.15.20.0/22",
     )
 
     val meta = setOf(
-        "instagram.com", "cdninstagram.com", "facebook.com", "fbcdn.net", "fb.com", "facebook.net",
-        "fbsbx.com", "threads.net", "threads.com",
-        "app:com.instagram.android", "app:com.facebook.katana", "app:com.instagram.barcelona",
-    )
+        "instagram.com", "cdninstagram.com", "instagr.am", "ig.me",
+        "facebook.com", "fbcdn.net", "fb.com", "fb.me", "facebook.net", "fbsbx.com", "messenger.com", "m.me",
+        "threads.net", "threads.com", "meta.com", "meta.ai",
+        "app:com.instagram.android", "app:com.instagram.barcelona", "app:com.facebook.katana",
+        "app:com.facebook.lite", "app:com.facebook.orca",
+    ) + metaCidrs
+
+    // Звонки и сообщения WhatsApp идут на подсети Meta без имени сайта
+    val whatsapp = setOf(
+        "whatsapp.com", "whatsapp.net", "wa.me",
+        "app:com.whatsapp", "app:com.whatsapp.w4b",
+    ) + metaCidrs
 
     val discord = setOf(
         "discord.com", "discord.gg", "discord.app", "discord.co", "discord.media", "discord.dev",
@@ -101,16 +123,29 @@ object Presets {
     // Приложение Telegram ходит на свои IP без имени сайта (подсети — core.telegram.org/resources/cidr.txt), а
     // если они недоступны — на запасные адреса, которые получает на лету: их не перечислить, поэтому
     // само приложение целиком тоже через VPN (иначе после подключения минуту висело «Соединение…»)
+    // Подсети: core.telegram.org/resources/cidr.txt (совпадает) + 95.161.64.0/20 из анонсов AS62041
     val telegram = setOf(
         "telegram.org", "t.me", "telegram.me", "telesco.pe", "tdesktop.com", "telegra.ph", "graph.org",
         "91.108.4.0/22", "91.108.8.0/22", "91.108.12.0/22", "91.108.16.0/22", "91.108.20.0/22",
-        "91.108.56.0/22", "91.105.192.0/23", "149.154.160.0/20", "185.76.151.0/24",
+        "91.108.56.0/22", "91.105.192.0/23", "149.154.160.0/20", "185.76.151.0/24", "95.161.64.0/20",
         "app:org.telegram.messenger", "app:org.telegram.messenger.web", "app:org.thunderdog.challegram",
     )
 
-    val twitter = setOf("x.com", "twitter.com", "twimg.com", "t.co", "app:com.twitter.android")
+    // Подсети X Corp (AS13414, анонсы RIPE 18.10.2026); видео и картинки — twimg.com
+    val twitter = setOf(
+        "x.com", "twitter.com", "twimg.com", "t.co", "twttr.com",
+        "64.63.0.0/18", "103.252.112.0/22", "104.244.42.0/24", "104.244.44.0/22", "188.64.224.0/21",
+        "192.133.76.0/22", "199.16.156.0/22", "199.59.148.0/22", "199.96.56.0/23", "202.160.128.0/22",
+        "app:com.twitter.android",
+    )
 
-    val chatgpt = setOf("openai.com", "chatgpt.com", "chat.com", "oaistatic.com", "oaiusercontent.com", "sora.com", "app:com.openai.chatgpt")
+    // ИИ, закрытые для РФ самими сервисами: ChatGPT, Claude, Gemini (приложения — целиком)
+    val chatgpt = setOf(
+        "openai.com", "chatgpt.com", "chat.com", "oaistatic.com", "oaiusercontent.com", "sora.com",
+        "claude.ai", "claude.com", "anthropic.com", "claudeusercontent.com",
+        "gemini.google.com", "aistudio.google.com", "generativelanguage.googleapis.com",
+        "app:com.openai.chatgpt", "app:com.anthropic.claude", "app:com.google.android.apps.bard",
+    )
 
     /**
      * Вкладка «Приложения», режим «Через VPN только…»: заблокированное или недоступное в РФ (октябрь 2026:
@@ -132,6 +167,7 @@ object Presets {
         SitePreset("ru_zone", R.string.preset_ru_zone, ruZone),
         SitePreset("youtube", R.string.preset_youtube, youtube),
         SitePreset("meta", R.string.preset_meta, meta),
+        SitePreset("whatsapp", R.string.preset_whatsapp, whatsapp),
         SitePreset("discord", R.string.preset_discord, discord),
         SitePreset("telegram", R.string.preset_telegram, telegram),
         SitePreset("twitter", R.string.preset_twitter, twitter),
@@ -141,7 +177,35 @@ object Presets {
 
 object SplitTunnelingManager {
 
+    /**
+     * Пресеты пополняются (18.10.2026: подсети Meta и X, новые домены) — у тех, кто уже включил набор,
+     * дописываем новое один раз. Набор считается включённым, если в списке есть его «опорные» записи
+     * из прежней версии.
+     */
+    private const val PRESETS_VERSION = 2
+    private val presetMarkers = mapOf(
+        "ru" to setOf("gosuslugi.ru", "sberbank.ru"), "ru_zone" to setOf("ru", "su"),
+        "youtube" to setOf("youtube.com", "googlevideo.com"), "meta" to setOf("instagram.com", "fbcdn.net"),
+        "discord" to setOf("discord.com", "discordapp.com"), "telegram" to setOf("telegram.org", "149.154.160.0/20"),
+        "twitter" to setOf("x.com", "twimg.com"), "chatgpt" to setOf("openai.com", "chatgpt.com"),
+    )
+
+    private fun upgradePresets(prefs: SharedPreferences) {
+        if (prefs.getInt("split_presets_version", 1) >= PRESETS_VERSION) return
+        val edit = prefs.edit()
+        for (key in listOf("split_sites_excluded", "split_sites_included")) {
+            val list = prefs.getStringSet(key, null)?.toMutableSet() ?: continue
+            for (preset in Presets.all) {
+                val markers = presetMarkers[preset.id] ?: continue
+                if (list.containsAll(markers)) list += preset.entries
+            }
+            edit.putStringSet(key, list)
+        }
+        edit.putInt("split_presets_version", PRESETS_VERSION).apply()
+    }
+
     fun load(prefs: SharedPreferences): SplitTunnelingSettings {
+        upgradePresets(prefs)
         val appsMode = if (prefs.getString("split_apps_mode", "EXCLUDE") == "INCLUDE") SplitMode.INCLUDE else SplitMode.EXCLUDE
         val sitesMode = if (prefs.getString("split_sites_mode", "EXCLUDE") == "INCLUDE") SplitMode.INCLUDE else SplitMode.EXCLUDE
         // До 0.0.3.8 был один список на оба режима — переносим его в список текущего режима

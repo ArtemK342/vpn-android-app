@@ -359,10 +359,11 @@
     <string name="preset_ru_zone">.ru .рф .su zones</string>
     <string name="preset_youtube">YouTube</string>
     <string name="preset_meta">Instagram, Facebook</string>
+    <string name="preset_whatsapp">WhatsApp</string>
     <string name="preset_discord">Discord</string>
     <string name="preset_telegram">Telegram</string>
     <string name="preset_twitter">X (Twitter)</string>
-    <string name="preset_chatgpt">ChatGPT</string>
+    <string name="preset_chatgpt">AI services</string>
     <!-- Support log (Settings → App → Log, AppLog.kt) -->
     <string name="log_menu_title">Log</string>
     <string name="log_title">Log.</string>

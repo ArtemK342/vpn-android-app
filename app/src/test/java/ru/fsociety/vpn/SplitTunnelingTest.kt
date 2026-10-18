@@ -83,4 +83,22 @@ class SplitTunnelingTest {
         // правила выключены — конфиг как есть
         assertEquals(cfg, SplitTunnelingManager.applyAppRulesToWg(cfg, s.copy(appsEnabled = false)) { true })
     }
+
+    @Test fun presetEntriesAreValid() {
+        // Каждая запись пресета — такая, какой её сохранил бы ввод: домен/зона/подсеть не меняются при
+        // нормализации, приложения — «app:пакет». Ловит опечатки в длинных списках подсетей.
+        val app = Regex("^app:[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
+        for (preset in Presets.all) for (e in preset.entries) {
+            if (SplitTunnelingManager.isAppRule(e)) assertTrue("${preset.id}: $e", app.matches(e))
+            else assertEquals("${preset.id}: $e", e, n(e))
+        }
+        for (p in Presets.blockedApps) assertTrue(p, app.matches("app:$p"))
+        // подсети — без лишних бит хоста (57.141.0.0/24, а не 57.141.0.1/24)
+        for (preset in Presets.all) for (e in preset.entries.filter { it.contains('/') }) {
+            val (ip, len) = e.split('/')
+            val x = ip.split('.').fold(0L) { acc, o -> acc * 256 + o.toLong() }
+            val mask = if (len.toInt() == 0) 0L else (0xFFFFFFFFL shl (32 - len.toInt())) and 0xFFFFFFFFL
+            assertEquals("${preset.id}: $e", x, x and mask)
+        }
+    }
 }

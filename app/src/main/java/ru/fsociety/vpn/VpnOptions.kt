@@ -64,7 +64,17 @@ object VpnOptions {
         if (servers != null) {
             for (i in 0 until servers.length()) {
                 val srv = servers.optJSONObject(i) ?: continue
-                if (srv.optString("detour") == "proxy") srv.put("address", dnsIp(ctx))
+                if (srv.optString("detour") != "proxy") continue
+                // Формат сохраняем: в «AmneziaWG + сайты» DNS идёт по DoH (TCP через туннель) — замена на
+                // голый IP пускала его по UDP через локальный прокси AmneziaWG, и проверка при подключении
+                // ждала DNS почти минуту. Все четыре DNS из настроек отвечают по DoH на своём IP.
+                val ip = dnsIp(ctx)
+                val old = srv.optString("address")
+                srv.put("address", when {
+                    old.startsWith("https://") -> "https://$ip/dns-query"
+                    old.startsWith("tls://") -> "tls://$ip"
+                    else -> ip
+                })
             }
         }
         root.toString()
