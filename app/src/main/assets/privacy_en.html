@@ -30,7 +30,7 @@
 
 <div class="tag">// Legal documents</div>
   <h1>Privacy Policy.</h1>
-  <p class="meta">Last updated: October 19, 2026 · Version 1.6</p>
+  <p class="meta">Last updated: November 8, 2026 · Version 1.7</p>
 <div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General</h2>
@@ -61,12 +61,14 @@
     <li><strong>Email account:</strong> email, password hash (bcrypt, never the password itself), subscription status, sign-up date — until the account is deleted.</li>
     <li><strong>Anonymous account:</strong> a hash of the 16-digit access code (HMAC-SHA256 — we don't keep the code itself; only you have it: in the app, your browser or written down), subscription status, sign-up date. No email, name or phone number.</li>
     <li><strong>Last activity date</strong> (sign-in or connection, day precision) — to delete inactive anonymous accounts and count active users.</li>
+    <li><strong>Pricing region</strong> (Russia, Europe or the rest of the world) — set from your country at sign-up so prices are shown in the right currency. The country and IP themselves are not stored. You can switch to Russian prices in your dashboard; other changes go through support.</li>
     <li><strong>IP on anonymous sign-up</strong> is not written to the database — neither the address nor its hash. To limit account creation (5 per day per IP) it is kept only in server memory for at most a day and is gone after a restart.</li>
     <li><strong>Connection keys:</strong> for AmneziaWG — public key, server, internal tunnel address and issue date; for VLESS, Trojan, Hysteria2 and OpenVPN — a personal connection ID. In the app (from version 0.0.3.9) the AmneziaWG private key is generated on your phone and never leaves it — the server only receives the public key. If you download a config on the website, the key is generated on our server, sent only to you and never stored. After you disconnect, the key record (with the traffic volume of that session) is deleted within <strong>7 days</strong>.</li>
     <li><strong>Traffic volume:</strong> free email accounts only — a single number for the current month to apply the 3 GB limit. No addresses or content. Deleted when the month ends. Paid subscriptions are not metered.</li>
     <li><strong>Support tickets:</strong> messages are kept for <strong>10 days</strong> after the ticket is created and then deleted automatically.</li>
   </ul>
   <p>Inactive anonymous accounts are deleted automatically: after <strong>5 days</strong> without sign-ins or connections if there was never a subscription, and after <strong>30 days</strong> if there was one.</p>
+  <p><strong>Database backups</strong> are made daily and stored in Proton Drive (Switzerland), which encrypts files end to end. Each backup is kept for <strong>30 days</strong> and then deleted.</p>
 </div>
 
 <div class="section" id="en-logs">
@@ -121,14 +123,14 @@
 <div class="section" id="en-third">
   <div class="num">// 09</div>
   <h2>Third parties and requests</h2>
-  <p>We do not sell or share your data. Apart from us, data is processed only by the services in sections 5 and 8 (Cloudflare, Resend, Telegram), exactly to the extent described there.</p>
+  <p>We do not sell or share your data. Apart from us, data is processed only by the services in sections 3, 5 and 8 (Proton — storage of encrypted backups, Cloudflare, Resend, Telegram), exactly to the extent described there.</p>
   <p>On a request from authorities we can technically provide only what is listed in sections 3 and 4. We have no history of your activity.</p>
 </div>
 
 <div class="section" id="en-delete">
   <div class="num">// 10</div>
   <h2>Data deletion</h2>
-  <p>You can delete your account at any time on the website — in your dashboard or on the <a href="https://fsociety-vpn.org/delete-account">Delete account</a> page. The account, keys, subscription and tickets are removed from the database immediately. Records on servers marked <span class="logs-on">● LOGS ON</span> expire on their own (within 30 days).</p>
+  <p>You can delete your account at any time on the website — in your dashboard or on the <a href="https://fsociety-vpn.org/delete-account">Delete account</a> page. The account, keys, subscription and tickets are removed from the database immediately. Records on servers marked <span class="logs-on">● LOGS ON</span> expire on their own (within 30 days), and from database backups within 30 days at the latest.</p>
 </div>
 
 <div class="section" id="en-contacts">
