@@ -161,6 +161,9 @@ fun HomeScreen(
     var serverListTab by remember { mutableStateOf(0) }
     var favoriteServers by remember { mutableStateOf(Favorites.load(context)) }
     var showFavoriteDialog by remember { mutableStateOf<ServerResponse?>(null) }
+    // Что выдаётся для сторонних приложений (AmneziaVPN, Happ…) — пункт «Для другого приложения» в меню сервера
+    var externalInfo by remember { mutableStateOf<ExternalOverview?>(null) }
+    var externalServer by remember { mutableStateOf<ServerResponse?>(null) }
     val lang = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
         .getString("language", "ru") ?: "ru"
     val strMs = stringResource(R.string.unit_ms)
@@ -216,39 +219,57 @@ fun HomeScreen(
         }
     }
 
+    LaunchedEffect(servers) {
+        if (servers.isEmpty() || TokenStore.access.value.isEmpty()) return@LaunchedEffect
+        externalInfo = try {
+            ApiClient.service.getExternal("Bearer ${TokenStore.access.value}")
+        } catch (e: Exception) { AppErrors.log("external overview", e); null }
+    }
+
     val displayedServers = if (serverListTab == 0) servers
     else servers.filter { favoriteServers.contains(it.id) }
 
+    // Меню сервера по долгому нажатию: избранное и (если сервер выдаётся в сторонние приложения) строка для них
     showFavoriteDialog?.let { server ->
         val isFav = favoriteServers.contains(server.id)
+        val ext = externalInfo
+        val forOtherApps = ext != null && (ext.isAwg(server.id) || ext.isVless(server.id))
         AlertDialog(
             onDismissRequest = { showFavoriteDialog = null },
             containerColor = Bg2,
             title = { Text(server.displayName(lang), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
             text = {
-                Text(
-                    stringResource(if (isFav) R.string.home_remove_favorite else R.string.home_add_favorite),
-                    color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    favoriteServers = if (isFav) favoriteServers - server.id else favoriteServers + server.id
-                    Favorites.save(context, favoriteServers)
-                    showFavoriteDialog = null
-                }) {
-                    Text(
-                        stringResource(if (isFav) R.string.home_btn_remove else R.string.home_btn_add),
-                        color = Accent, fontFamily = FontFamily.Monospace, fontSize = 11.sp
-                    )
+                Column {
+                    ServerMenuItem(stringResource(if (isFav) R.string.home_menu_unfavorite else R.string.home_menu_favorite), Accent) {
+                        favoriteServers = if (isFav) favoriteServers - server.id else favoriteServers + server.id
+                        Favorites.save(context, favoriteServers)
+                        showFavoriteDialog = null
+                    }
+                    if (forOtherApps) {
+                        HorizontalDivider(color = Border)
+                        ServerMenuItem(
+                            stringResource(R.string.home_menu_other_app) +
+                                if (ext?.entitled == false) " · " + stringResource(R.string.ext_by_sub) else "",
+                            TextPrimary
+                        ) {
+                            externalServer = server
+                            showFavoriteDialog = null
+                        }
+                    }
                 }
             },
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = { showFavoriteDialog = null }) {
                     Text(stringResource(R.string.home_btn_cancel), color = TextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                 }
             }
         )
+    }
+
+    externalServer?.let { server ->
+        externalInfo?.let { ext ->
+            ExternalConfigDialog(server, ext, lang, onUpdated = { externalInfo = it }, onDismiss = { externalServer = null })
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
@@ -567,4 +588,12 @@ fun HomeScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ServerMenuItem(text: String, color: Color, onClick: () -> Unit) {
+    Text(
+        text, color = color, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp)
+    )
 }

@@ -211,6 +211,49 @@ data class GenerateNumericResponse(
     val token_type: String = "bearer"
 )
 
+/**
+ * Строки и ссылки для сторонних приложений (AmneziaVPN, Happ, v2rayNG…) — то же, что вкладка «Другое
+ * приложение» в кабинете на сайте (api/routers/external.py). Выдаются только с подпиской и служебным.
+ */
+data class ExternalServer(
+    val id: String = "",
+    val name: String = "",
+    val name_en: String? = null,
+    val country: String? = null
+)
+
+data class ExternalKey(
+    val id: String = "",
+    val server_id: String = "",
+    val client_ip: String? = null,
+    val created_at: String? = null
+)
+
+data class ExternalSlots(val used: Int = 0, val max: Int = 0)
+
+data class ExternalOverview(
+    val entitled: Boolean = false,
+    val slots: ExternalSlots = ExternalSlots(),
+    val awg_servers: List<ExternalServer> = emptyList(),
+    val vless_servers: List<ExternalServer> = emptyList(),
+    val keys: List<ExternalKey> = emptyList(),
+    val sub_url: String? = null,
+    val vless_lines: Map<String, String> = emptyMap()
+) {
+    fun isAwg(serverId: String) = awg_servers.any { it.id == serverId }
+    fun isVless(serverId: String) = vless_servers.any { it.id == serverId }
+}
+
+/** Новый ключ AmneziaWG: [amnezia_key] — строка vpn:// для AmneziaVPN (показывается один раз). */
+data class ExternalAwgResponse(
+    val id: String = "",
+    val amnezia_key: String = "",
+    val config: String = "",
+    val filename: String = ""
+)
+
+data class ExternalSubResponse(val url: String = "")
+
 // ── Интерфейс API ──
 
 interface ApiService {
@@ -363,6 +406,24 @@ interface ApiService {
 
     @GET("app-config")
     suspend fun getAppConfig(): AppConfigResponse
+
+    // ── Для сторонних приложений (долгое нажатие на сервер → «Для другого приложения») ──
+    @GET("vpn/external")
+    suspend fun getExternal(
+        @Header("Authorization") token: String
+    ): ExternalOverview
+
+    @POST("vpn/external/awg")
+    suspend fun createExternalAwg(
+        @Header("Authorization") token: String,
+        @Query("server_id") serverId: String
+    ): ExternalAwgResponse
+
+    /** Первый вызов создаёт доступ VLESS (строки и ссылку-подписку), следующие — сбрасывают его. */
+    @POST("vpn/external/sub")
+    suspend fun createExternalSub(
+        @Header("Authorization") token: String
+    ): ExternalSubResponse
 
     @POST("generate-numeric-account")
     suspend fun generateNumericAccount(): GenerateNumericResponse
