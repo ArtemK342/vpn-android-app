@@ -447,4 +447,7 @@
     <string name="home_servers_title">Где подключиться</string>
     <string name="home_power_connect">ПОДКЛЮЧИТЬ</string>
     <string name="home_power_disconnect">ОТКЛЮЧИТЬ</string>
+    <string name="home_pull_hint">Потяните, чтобы обновить</string>
+    <string name="home_pull_release">Отпустите — обновим</string>
+    <string name="home_pull_refreshing">Обновляем серверы и пинг…</string>
 </resources>

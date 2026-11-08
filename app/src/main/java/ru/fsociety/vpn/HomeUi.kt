@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -255,5 +257,77 @@ private fun DrawScope.drawFlag(code: String, w: Float, h: Float) {
             drawCircle(Color.White, h * 0.25f, Offset(w * 0.40f, h / 2))
             drawCircle(c(0xE30A17), h * 0.2f, Offset(w * 0.45f, h / 2))
         }
+    }
+}
+
+/** Логотип «[f]society» как в приложении для Windows: «[f]» лаймом, «society» основным цветом. */
+@Composable
+fun BrandLogo(modifier: Modifier = Modifier, fontSize: androidx.compose.ui.unit.TextUnit = 15.sp) {
+    Text(
+        androidx.compose.ui.text.buildAnnotatedString {
+            withStyle(androidx.compose.ui.text.SpanStyle(color = Accent)) { append("[f]") }
+            withStyle(androidx.compose.ui.text.SpanStyle(color = TextPrimary)) { append("society") }
+        },
+        fontSize = fontSize, lineHeight = fontSize * 1.2f, fontWeight = FontWeight.Bold,
+        fontFamily = FontFamily.Monospace, modifier = modifier
+    )
+}
+
+/** Высота полосы «потяните, чтобы обновить» — на неё сдвигается список. */
+val RefreshHeaderHeight = 48.dp
+
+/**
+ * Обновление списка свайпом вниз: список съезжает, сверху открывается полоса с дугой (растёт по мере
+ * того, как тянешь, крутится, пока обновляется) и подсказкой. Вместо круглой кнопки Material с тенью.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun RefreshHeader(
+    state: androidx.compose.material3.pulltorefresh.PullToRefreshState,
+    refreshing: Boolean,
+    pullHint: String,
+    releaseHint: String,
+    refreshingHint: String,
+    modifier: Modifier = Modifier
+) {
+    val fraction = state.distanceFraction.coerceIn(0f, 1.5f)
+    if (fraction <= 0f && !refreshing) return
+    val spin = rememberInfiniteTransition(label = "refresh")
+    val angle by spin.animateFloat(
+        0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart), label = "refreshAngle"
+    )
+    val ready = fraction >= 1f
+    val arcColor = Accent
+    val trackColor = Border
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(RefreshHeaderHeight * fraction.coerceAtMost(1f))
+            .graphicsLayer { alpha = fraction.coerceAtMost(1f) },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Canvas(modifier = Modifier.size(16.dp)) {
+            val stroke = 2.dp.toPx()
+            val d = size.minDimension - stroke
+            val tl = Offset(stroke / 2, stroke / 2)
+            drawArc(trackColor, 0f, 360f, false, tl, Size(d, d), style = Stroke(stroke))
+            if (refreshing) {
+                drawArc(arcColor, angle - 90f, 100f, false, tl, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
+            } else {
+                drawArc(arcColor, -90f, 360f * fraction.coerceAtMost(1f), false, tl, Size(d, d),
+                    style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            when {
+                refreshing -> refreshingHint
+                ready -> releaseHint
+                else -> pullHint
+            },
+            color = if (ready || refreshing) Accent else TextMuted,
+            fontSize = 10.sp, lineHeight = 14.sp, fontFamily = FontFamily.Monospace, maxLines = 1
+        )
     }
 }

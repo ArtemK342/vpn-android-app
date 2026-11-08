@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -321,6 +322,8 @@ fun HomeScreen(
         Column(modifier = Modifier.fillMaxWidth().card().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
+                    BrandLogo()
+                    Spacer(modifier = Modifier.height(10.dp))
                     SectionLabel(stringResource(R.string.home_card_label))
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
@@ -477,15 +480,24 @@ fun HomeScreen(
                 state = pullState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 indicator = {
-                    androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
+                    // Своя полоса вместо круглой кнопки Material: список съезжает вниз и открывает её
+                    RefreshHeader(
                         state = pullState,
-                        isRefreshing = isRefreshingPings && !isLoadingServers,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                        color = Accent,
-                        containerColor = Surface
+                        refreshing = isRefreshingPings && !isLoadingServers,
+                        pullHint = stringResource(R.string.home_pull_hint),
+                        releaseHint = stringResource(R.string.home_pull_release),
+                        refreshingHint = stringResource(R.string.home_pull_refreshing),
+                        modifier = Modifier.align(Alignment.TopCenter)
                     )
                 }
             ) {
+              Box(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .graphicsLayer {
+                          translationY = pullState.distanceFraction.coerceIn(0f, 1.5f) * RefreshHeaderHeight.toPx()
+                      }
+              ) {
                 if (isLoadingServers) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
@@ -544,6 +556,7 @@ fun HomeScreen(
                         }
                     }
                 }
+              }
             }
         }
         Spacer(modifier = Modifier.height(12.dp))

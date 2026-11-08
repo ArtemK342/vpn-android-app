@@ -446,4 +446,7 @@
     <string name="home_servers_title">Where to connect</string>
     <string name="home_power_connect">CONNECT</string>
     <string name="home_power_disconnect">DISCONNECT</string>
+    <string name="home_pull_hint">Pull to refresh</string>
+    <string name="home_pull_release">Release to refresh</string>
+    <string name="home_pull_refreshing">Refreshing servers and ping…</string>
 </resources>
