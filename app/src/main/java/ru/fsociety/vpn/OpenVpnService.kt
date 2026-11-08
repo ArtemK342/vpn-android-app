@@ -42,12 +42,16 @@ class OpenVpnService : VpnService() {
         const val EXTRA_SERVER_NAME = "server_name"
         private const val TAG = "OpenVpnService"
 
-        /** Служба существует (поднимает или держит туннель) — ConnectionManager ждёт её остановки. */
-        @Volatile
-        var isRunning: Boolean = false
-            private set
+        /**
+         * Служба существует (поднимает или держит туннель) — ConnectionManager ждёт её остановки.
+         * Служба — в процессе «:ovpn», поэтому по списку служб приложения (OvpnBridge).
+         */
+        val isRunning: Boolean get() = OvpnBridge.serviceRunning()
 
-        /** Итог запуска: null — идёт, true — OpenVPN сообщил CONNECTED, false — не поднялся. */
+        /**
+         * Итог запуска (в основном процессе, приходит из «:ovpn» через OvpnBridge): null — идёт,
+         * true — OpenVPN сообщил CONNECTED, false — не поднялся.
+         */
         val startResult = MutableStateFlow<Boolean?>(null)
 
         fun start(context: Context, configJson: String, serverName: String) {
@@ -69,20 +73,12 @@ class OpenVpnService : VpnService() {
         }
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        isRunning = true
-    }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
                 connectedServerName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: ""
                 // Сразу: служба запущена через startForegroundService
-                startForeground(
-                    VpnNotificationHelper.NOTIFICATION_ID + 2,
-                    buildNotification(connectedServerName)
-                )
+                startForeground(OvpnBridge.NOTIFICATION_ID, buildNotification(connectedServerName))
                 val configJson = intent.getStringExtra(EXTRA_CONFIG)
                 if (configJson == null) { stopSelf(startId); return START_NOT_STICKY }
                 stopping = false
@@ -125,7 +121,6 @@ class OpenVpnService : VpnService() {
                 vpnBuilder = Builder(),
                 protect = { sock -> protect(sock) }
             )
-            VpnManager.connectedServerName = connectedServerName
         } catch (e: CancellationException) {
             stopOpenVpn()
             throw e
@@ -133,7 +128,7 @@ class OpenVpnService : VpnService() {
             AppErrors.log("openvpn start", e)
             stopOpenVpn()
             currentCoroutineContext().ensureActive()   // отменён новым запуском — итог не наш
-            startResult.value = false
+            OvpnBridge.sendResult(this, false)
             stopSelf(startId)
             return
         }
@@ -146,12 +141,12 @@ class OpenVpnService : VpnService() {
             if (!connected) {
                 stopOpenVpn()
                 currentCoroutineContext().ensureActive()
-                startResult.value = false
+                OvpnBridge.sendResult(this, false)
                 stopSelf(startId)
                 return
             }
             currentCoroutineContext().ensureActive()
-            startResult.value = true
+            OvpnBridge.sendResult(this, true)
 
             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             val uid = android.os.Process.myUid()
@@ -171,10 +166,7 @@ class OpenVpnService : VpnService() {
                 }
                 val rx = (android.net.TrafficStats.getUidRxBytes(uid) - rxBase).coerceAtLeast(0)
                 val tx = (android.net.TrafficStats.getUidTxBytes(uid) - txBase).coerceAtLeast(0)
-                nm.notify(
-                    VpnNotificationHelper.NOTIFICATION_ID + 2,
-                    buildNotification(connectedServerName, rx, tx)
-                )
+                nm.notify(OvpnBridge.NOTIFICATION_ID, buildNotification(connectedServerName, rx, tx))
                 delay(1000)
             }
         } catch (e: CancellationException) {
@@ -183,7 +175,7 @@ class OpenVpnService : VpnService() {
         }
         stopOpenVpn()
         // Не STOP и не отзыв VPN — обрыв
-        if (!stopping) VpnEvents.vpnDropped.tryEmit(Unit)
+        if (!stopping) OvpnBridge.sendDropped(this)
         stopSelf(startId)
     }
 
@@ -225,12 +217,11 @@ class OpenVpnService : VpnService() {
     // без переподключения и Kill Switch, но приложение должно узнать, что туннеля больше нет
     override fun onRevoke() {
         stopping = true
-        VpnEvents.vpnStopped.tryEmit(Unit)
+        OvpnBridge.sendStopped(this)
         super.onRevoke()
     }
 
     override fun onDestroy() {
-        isRunning = false
         scope.cancel()   // запуск/цикл уведомлений этого экземпляра
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) { stopOpenVpn() }
         super.onDestroy()

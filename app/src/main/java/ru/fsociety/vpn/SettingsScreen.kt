@@ -480,8 +480,11 @@ fun formatMsgTime(raw: String): String = try {
 @Composable
 fun TicketsTab(token: String, onBack: () -> Unit) {
     val errCtx = LocalContext.current
-    var tickets by remember { mutableStateOf<List<TicketResponse>>(emptyList()) }
+    // Сразу — сохранённый список (или «Тикетов нет»), свежий приходит следом
+    var tickets by remember { mutableStateOf(ProfileCache.tickets(errCtx) ?: emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    // Список с сервера получен — дальше его изменения (создание, удаление, закрытие) сохраняются
+    var listFresh by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showLimitDialog by remember { mutableStateOf(false) }
     var selectedTicket by remember { mutableStateOf<TicketDetailResponse?>(null) }
@@ -507,15 +510,22 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
             kotlinx.coroutines.delay(20_000)
             try {
                 val fresh = ApiClient.service.getTicket("Bearer $token", openTicketId)
+                ProfileCache.saveTicket(errCtx, fresh)
                 if (selectedTicket?.ticket?.id == openTicketId) selectedTicket = fresh
             } catch (e: Exception) { AppErrors.log("refresh ticket", e) }
         }
     }
 
     LaunchedEffect(token) {
-        try { tickets = ApiClient.service.getTickets("Bearer $token") }
+        try { tickets = ApiClient.service.getTickets("Bearer $token"); listFresh = true }
         catch (e: Exception) { AppErrors.toast(errCtx, "load tickets", e) }
         finally { isLoading = false }
+    }
+    LaunchedEffect(tickets, listFresh) { if (listFresh) ProfileCache.saveTickets(errCtx, tickets) }
+    // Открытый тикет с перепиской (не заготовка, пока она грузится) — на следующее открытие
+    LaunchedEffect(selectedTicket, loadingMessages) {
+        val d = selectedTicket
+        if (d != null && !loadingMessages && d.messages.isNotEmpty()) ProfileCache.saveTicket(errCtx, d)
     }
 
     if (showCreateDialog) {
@@ -712,11 +722,10 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
         }
         HorizontalDivider(color = Border)
 
-        if (isLoading) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
-            }
-        } else if (tickets.isEmpty()) {
+        // Обновление идёт — тонкая полоска; список (или «Тикетов нет») виден сразу
+        if (isLoading) LinearProgressIndicator(color = Accent, trackColor = Border, modifier = Modifier.fillMaxWidth().height(2.dp))
+        else Spacer(modifier = Modifier.height(2.dp))
+        if (tickets.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.tickets_empty), color = TextMuted, fontFamily = FontFamily.Monospace)
             }
@@ -729,7 +738,9 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                                 onClick = {
                                     // Открываем сразу (тема и статус уже есть), сообщения догружаются. Раньше экран
                                     // ждал ответа сервера и казалось, что нажатие не сработало — жали по 2–3 раза
-                                    selectedTicket = TicketDetailResponse(ticket = ticket)
+                                    // Переписка с прошлого открытия видна сразу, свежая догружается
+                                    selectedTicket = ProfileCache.ticket(errCtx, ticket.id)?.copy(ticket = ticket)
+                                        ?: TicketDetailResponse(ticket = ticket)
                                     loadingMessages = true
                                     scope.launch {
                                         try {

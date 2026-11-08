@@ -410,6 +410,12 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                 handleAuthError(e)
             } finally { isLoadingSettings = false }
         }
+        // Тикеты и новости — заранее, в фоне: разделы открываются сразу с сохранённым
+        scope.launch {
+            try { ProfileCache.saveTickets(appContext, ApiClient.service.getTickets("Bearer $token")) }
+            catch (e: Exception) { AppErrors.log("prefetch tickets", e) }
+        }
+        scope.launch { NewsFeed.refresh(appContext) }
     }
 
     LaunchedEffect(Unit) {

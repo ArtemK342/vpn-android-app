@@ -99,6 +99,10 @@
         <receiver
             android:name=".InstallResultReceiver"
             android:exported="false" />
+        <!-- События службы OpenVPN из процесса «:ovpn» -->
+        <receiver
+            android:name=".OpenVpnEventReceiver"
+            android:exported="false" />
         <receiver
             android:name=".VpnDisconnectReceiver"
             android:exported="false">
@@ -130,8 +134,10 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+        <!-- OpenVPN + Cloak — в своём процессе: Cloak и sing-box (оба на Go) в одном процессе роняли приложение -->
         <service
             android:name=".OpenVpnService"
+            android:process=":ovpn"
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">

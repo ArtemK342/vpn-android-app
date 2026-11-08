@@ -103,9 +103,42 @@ object ProfileCache {
         }.apply()
     }
 
-    fun clear(context: Context) =
+    /**
+     * Тикеты поддержки: список и открытые тикеты — раздел открывается сразу (с тем, что было, или
+     * «Тикетов нет»), свежее приходит следом. Раньше каждый раз ждали сервер.
+     * null — ещё ни разу не загружали.
+     */
+    fun tickets(context: Context): List<TicketResponse>? =
+        read(context, "cached_tickets", Array<TicketResponse>::class.java)?.toList()
+
+    fun saveTickets(context: Context, tickets: List<TicketResponse>) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val keep = tickets.map { TICKET_PREFIX + it.id }.toSet()
+        prefs.edit().apply {
+            putString("cached_tickets", gson.toJson(tickets))
+            // Переписка удалённых тикетов не нужна
+            prefs.all.keys.filter { it.startsWith(TICKET_PREFIX) && it !in keep }.forEach { remove(it) }
+        }.apply()
+    }
+
+    fun ticket(context: Context, id: String): TicketDetailResponse? =
+        read(context, TICKET_PREFIX + id, TicketDetailResponse::class.java)
+
+    fun saveTicket(context: Context, detail: TicketDetailResponse) {
+        val id = detail.ticket?.id ?: return
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .remove("cached_user").remove("cached_subscription").apply()
+            .putString(TICKET_PREFIX + id, gson.toJson(detail)).apply()
+    }
+
+    private const val TICKET_PREFIX = "cached_ticket_"
+
+    fun clear(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            remove("cached_user"); remove("cached_subscription"); remove("cached_tickets")
+            prefs.all.keys.filter { it.startsWith(TICKET_PREFIX) }.forEach { remove(it) }
+        }.apply()
+    }
 
     private fun <T> read(context: Context, key: String, cls: Class<T>): T? = try {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(key, null)
