@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.fsociety.vpn.ui.theme.*
@@ -426,45 +427,49 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     Scaffold(
         containerColor = BgDark,
         bottomBar = {
+          // Нижняя панель как боковое меню в приложении для Windows: выбранный пункт — лаймовая подложка
+          Column {
+            HorizontalDivider(color = Border, thickness = 1.dp)
             NavigationBar(containerColor = Bg2, tonalElevation = 0.dp) {
                 NavigationBarItem(
                     selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Filled.Home, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    label = { Text(stringResource(R.string.nav_home), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    label = { Text(stringResource(R.string.nav_home), fontSize = 11.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
-                        indicatorColor = Color.Transparent)
+                        indicatorColor = AccentSoft)
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Filled.List, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    label = { Text(stringResource(R.string.nav_rules), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    icon = { Icon(Icons.Filled.List, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    label = { Text(stringResource(R.string.nav_rules), fontSize = 11.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
-                        indicatorColor = Color.Transparent)
+                        indicatorColor = AccentSoft)
                 )
                 // Новости — индекс 3 (индексы остальных вкладок не меняем), показываются перед настройками
                 NavigationBarItem(
                     selected = selectedTab == 3, onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Filled.Newspaper, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    label = { Text(stringResource(R.string.nav_news), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    icon = { Icon(Icons.Filled.Newspaper, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    label = { Text(stringResource(R.string.nav_news), fontSize = 11.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
-                        indicatorColor = Color.Transparent)
+                        indicatorColor = AccentSoft)
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2, onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    label = { Text(stringResource(R.string.nav_settings), fontFamily = FontFamily.Monospace, fontSize = 9.sp) },
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    label = { Text(stringResource(R.string.nav_settings), fontSize = 11.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,
                         selectedIconColor = Accent, unselectedIconColor = TextMuted,
-                        indicatorColor = Color.Transparent)
+                        indicatorColor = AccentSoft)
                 )
             }
+          }
         }
     ) { innerPadding ->
         // Отступ под клавиатуру (приложение рисуется от края до края — сама система окно не сжимает):

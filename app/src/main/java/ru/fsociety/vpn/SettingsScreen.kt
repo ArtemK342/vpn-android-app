@@ -40,6 +40,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -172,33 +173,40 @@ fun SettingsScreen(
 
 @Composable
 fun SettingsMenuItem(icon: @Composable () -> Unit, title: String, subtitle: String, onClick: () -> Unit) {
+    // Карточка-строка как в приложении для Windows: скруглённая, значок на лаймовой подложке
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 3.dp)
+            .clip(CardShape)
+            .background(Bg2)
+            .border(1.dp, Border, CardShape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .background(Surface, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                .size(38.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(11.dp))
+                .background(AccentSoft),
             contentAlignment = Alignment.Center
         ) { icon() }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = TextMuted, fontSize = 12.sp)
+            Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, color = TextMuted, fontSize = 12.sp, maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextDim, modifier = Modifier.size(20.dp))
     }
-    HorizontalDivider(color = Border, thickness = 1.dp)
 }
 
 @Composable
 fun SettingsRow(label: String, value: String) {
     Column(
-        modifier = Modifier.fillMaxWidth().border(1.dp, Border).padding(16.dp)
+        modifier = Modifier.fillMaxWidth().clip(RowShape).background(Bg2).border(1.dp, Border, RowShape).padding(16.dp)
     ) {
         Text(label.uppercase(), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.height(4.dp))
@@ -394,10 +402,10 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         enabled = !isSaving,
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+                        shape = BtnShape
                     ) {
-                        if (isSaving) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        if (isSaving) CircularProgressIndicator(color = OnAccent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         else Text(stringResource(R.string.account_btn_change_password), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
@@ -407,7 +415,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                     onClick = { confirmLogout = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = ErrorRed),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                    shape = BtnShape,
                     border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
                 ) {
                     Text(stringResource(R.string.account_btn_logout), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -687,7 +695,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                             }
                         },
                         enabled = !isSending && newMessage.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                     ) { Text("→", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) }
                 }
@@ -776,8 +784,8 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                 showCreateDialog = true
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+            colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+            shape = BtnShape
         ) {
             Text(stringResource(R.string.tickets_btn_new), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
@@ -824,7 +832,7 @@ fun AppSettingsTab(
 ) {
     BackHandler { onBack() }
     val logMode = AppLog.mode(LocalContext.current)
-    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+    Column(modifier = Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
         Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.clickable { onBack() })
@@ -832,6 +840,7 @@ fun AppSettingsTab(
             Text(stringResource(R.string.app_settings_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
+        Spacer(modifier = Modifier.height(9.dp))
         SettingsMenuItem(
             icon = { Icon(Icons.Filled.Refresh, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
             title = stringResource(R.string.autoreconnect_title),
@@ -1352,8 +1361,8 @@ fun UpdateTab(onBack: () -> Unit) {
                         Button(
                             onClick = { if (ready != null) install(ready) else startDownload(info) },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+                            shape = BtnShape
                         ) {
                             Text(
                                 if (ready != null) stringResource(R.string.update_btn_install)
@@ -1586,10 +1595,10 @@ fun LoggingTab(onBack: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     enabled = !busy,
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+                    shape = BtnShape
                 ) {
-                    if (busy) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    if (busy) CircularProgressIndicator(color = OnAccent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     else Text(stringResource(R.string.log_send), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
                 TextButton(onClick = { AppLog.clear(context); size = AppLog.sizeBytes(context) },
