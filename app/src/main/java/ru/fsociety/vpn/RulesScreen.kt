@@ -158,7 +158,7 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             stringResource(R.string.rules_support),
-            color = Color(0xFFF59E0B), fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+            color = Warn, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -245,7 +245,7 @@ private fun ModeOption(title: String, desc: String, selected: Boolean, onClick: 
 private fun EmptyListWarning() {
     Text(
         stringResource(R.string.rules_list_empty),
-        color = Color(0xFFF59E0B), fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+        color = Warn, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
         modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
     )
 }
@@ -341,7 +341,7 @@ fun SitesRulesScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = { addEntry() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
                         shape = RoundedCornerShape(4.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
                     ) { Text("+", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 16.sp) }

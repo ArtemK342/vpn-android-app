@@ -8,6 +8,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -272,78 +278,173 @@ fun HomeScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+    // Карточка подключения: заголовок, сервер и круглая кнопка (заменила нижнюю кнопку, логика та же)
+    val ksBlocked = killSwitchEngaged && !isConnected && !isConnecting
+    val powerState = when {
+        isConnecting || isDisconnecting -> PowerState.Busy
+        isConnected -> PowerState.On
+        ksBlocked -> PowerState.Blocked
+        else -> PowerState.Off
+    }
+    val powerEnabled = !isDisconnecting && (isConnecting || isConnected || selectedFresh?.canConnect == true)
+    val onPower = {
+        when {
+            // Во время подключения / переподключения кнопка — «Отмена»
+            isConnecting || isConnected -> ConnectionManager.requestDisconnect()
+            else -> { selectedFresh?.takeIf { it.canConnect }?.let { connect(it) } }
+        }
+        Unit
+    }
 
-        Box(
-            modifier = Modifier.fillMaxWidth().height(200.dp).background(Bg2),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("[f]", color = Accent, fontSize = 48.sp,
-                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                if (statusMsg.isNotEmpty()) {
-                    // Длинные ошибки переносятся с отступами от краёв, а не упираются в край экрана
-                    Text(statusMsg, color = TextMuted, fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
-                        maxLines = 4, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 32.dp))
-                    // Kill Switch держит интернет заблокированным — снять можно и отсюда, не только из шторки
-                    if (killSwitchEngaged && !isConnected && !isConnecting) {
-                        TextButton(onClick = { ConnectionManager.unblockKillSwitch() }) {
-                            Text(stringResource(R.string.ks_unblock_internet), color = ErrorRed,
-                                fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BgDark)
+            .padding(start = 12.dp, end = 12.dp, top = 12.dp)
+    ) {
+
+        // Плашка технических работ (админка → Настройки → Доступ), из /app-config
+        val maintenance by ApiClient.maintenance.collectAsState()
+        maintenance?.takeIf { it.enabled }?.let { m ->
+            Text(
+                "⚠ " + (m.text(lang) ?: stringResource(R.string.home_maintenance_default)),
+                color = Warn, fontSize = 12.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RowShape)
+                    .background(WarnSoft)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // ═══ Подключение ═══
+        Column(modifier = Modifier.fillMaxWidth().card().padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    BrandLogo()
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SectionLabel(stringResource(R.string.home_card_label))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        stringResource(
+                            when {
+                                isDisconnecting -> R.string.home_disconnecting
+                                isConnecting -> R.string.home_connecting
+                                isConnected -> R.string.home_title_on
+                                ksBlocked -> R.string.home_title_blocked
+                                else -> R.string.home_title_off
+                            }
+                        ),
+                        color = if (ksBlocked) ErrorRed else TextPrimary,
+                        fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    if (isConnected && connectedServer != null) {
+                        val connectedPing = serverPings[connectedServer.id]
+                        Text(
+                            if (connectedPing == null || connectedPing >= 999) "● ${connectedServer.displayName(lang)}"
+                            else "● ${connectedServer.displayName(lang)} · ${connectedPing}$strMs",
+                            color = Accent, fontSize = 11.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis
+                        )
+                        // Флаг мог включиться после подключения — берём из свежего списка
+                        val logsOn = servers.find { it.id == connectedServer.id }?.logs_enabled
+                            ?: connectedServer.logs_enabled
+                        if (logsOn) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Chip(stringResource(R.string.home_logs_on), ErrorRed, ErrorSoft)
                         }
-                    }
-                } else if (isConnected && connectedServer != null) {
-                    val connectedPing = serverPings[connectedServer.id]
-                    val pingText = when {
-                        connectedPing == null || connectedPing >= 999 -> "● ${connectedServer.displayName(lang)}"
-                        else -> "● ${connectedServer.displayName(lang)} · ${connectedPing}$strMs"
-                    }
-                    Text(pingText, color = Accent, fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace)
-                    // Флаг мог включиться после подключения — берём из свежего списка
-                    val logsOn = servers.find { it.id == connectedServer.id }?.logs_enabled
-                        ?: connectedServer.logs_enabled
-                    if (logsOn) {
-                        Text(stringResource(R.string.home_logs_on), color = ErrorRed, fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                    }
-                    // Правила туннелирования есть, но этот протокол их не поддерживает (OpenVPN, Режим РФ)
-                    if (rulesActive && !SplitTunnelingManager.supports(connectedServer.server_type)) {
-                        Text(stringResource(R.string.home_rules_not_applied), color = Color(0xFFF59E0B),
-                            fontSize = 9.sp, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp))
+                    } else {
+                        // Куда подключит кнопка (или куда подключаемся)
+                        val target = if (isConnecting) connectingTo ?: selectedFresh else selectedFresh
+                        Text(
+                            target?.let { "→ " + it.displayName(lang) } ?: stringResource(R.string.home_sub_off),
+                            color = TextMuted, fontSize = 11.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
-                if (usage != null && usage.is_limited && usage.limit_bytes > 0) {
-                    val used = usage.bytes_used
-                    val limit = usage.limit_bytes
-                    val remaining = (limit - used).coerceAtLeast(0L)
-                    val fraction = (used.toFloat() / limit.toFloat()).coerceIn(0f, 1f)
-                    val bannerColor = when {
-                        fraction >= 1f -> ErrorRed
-                        fraction >= 0.8f -> Color(0xFFFFAA00)
-                        else -> TextMuted
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                PowerButton(
+                    state = powerState,
+                    label = stringResource(
+                        when {
+                            isConnecting -> R.string.home_btn_cancel
+                            isConnected || isDisconnecting -> R.string.home_power_disconnect
+                            else -> R.string.home_power_connect
+                        }
+                    ),
+                    enabled = powerEnabled,
+                    onClick = onPower
+                )
+            }
+
+            if (statusMsg.isNotEmpty()) {
+                // Длинные ошибки переносятся, а не упираются в край экрана
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    statusMsg, color = TextMuted, fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 4, overflow = TextOverflow.Ellipsis
+                )
+            }
+            // Kill Switch держит интернет заблокированным — снять можно и отсюда, не только из шторки
+            if (ksBlocked) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = { ConnectionManager.unblockKillSwitch() },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ErrorSoft, contentColor = ErrorRed),
+                    shape = BtnShape
+                ) {
+                    Text(stringResource(R.string.ks_unblock_internet), fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+            }
+            // Правила туннелирования есть, но этот протокол их не поддерживает (OpenVPN, Режим РФ)
+            if (isConnected && connectedServer != null && rulesActive &&
+                !SplitTunnelingManager.supports(connectedServer.server_type)) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(stringResource(R.string.home_rules_not_applied), color = Warn,
+                    fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
+            if (usage != null && usage.is_limited && usage.limit_bytes > 0) {
+                val used = usage.bytes_used
+                val limit = usage.limit_bytes
+                val remaining = (limit - used).coerceAtLeast(0L)
+                val fraction = (used.toFloat() / limit.toFloat()).coerceIn(0f, 1f)
+                val barColor = when {
+                    fraction >= 1f -> ErrorRed
+                    fraction >= 0.8f -> Warn
+                    else -> AccentFill
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Surface)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
                     Text(
                         stringResource(R.string.home_traffic_remaining,
                             formatBytes(remaining, context), formatBytes(limit, context)),
-                        color = bannerColor, fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace
+                        color = if (fraction >= 0.8f) barColor else TextPrimary, fontSize = 12.sp
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Box(
-                        modifier = Modifier.fillMaxWidth(0.6f).height(2.dp).background(Border)
+                        modifier = Modifier.fillMaxWidth().height(5.dp)
+                            .clip(RoundedCornerShape(3.dp)).background(Border)
                     ) {
                         Box(
-                            modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight().background(bannerColor)
+                            modifier = Modifier.fillMaxWidth(fraction).fillMaxHeight()
+                                .clip(RoundedCornerShape(3.dp)).background(barColor)
                         )
                     }
                     // Ограничение скорости бесплатных есть только на AmneziaWG
                     if (connectedServer?.server_type == "wireguard") {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(stringResource(R.string.home_free_speed), color = TextMuted,
                             fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                     }
@@ -351,241 +452,226 @@ fun HomeScreen(
             }
         }
 
-        HorizontalDivider(color = Border, thickness = 1.dp)
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(stringResource(R.string.home_tab_all),
-                color = if (serverListTab == 0) Accent else TextMuted,
-                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (serverListTab == 0) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { serverListTab = 0 })
-            Text(stringResource(R.string.home_tab_favorites),
-                color = if (serverListTab == 1) Accent else TextMuted,
-                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = if (serverListTab == 1) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.clickable { serverListTab = 1 })
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = if (isConnected) "● ${connectedServer?.displayName(lang) ?: ""}"
-                       else stringResource(R.string.home_disconnected),
-                color = if (isConnected) Accent else TextMuted,
-                fontSize = 10.sp, fontFamily = FontFamily.Monospace
-            )
-        }
-
-        HorizontalDivider(color = Border, thickness = 1.dp)
-
-        // Плашка технических работ (админка → Настройки → Доступ), из /app-config
-        val maintenance by ApiClient.maintenance.collectAsState()
-        maintenance?.takeIf { it.enabled }?.let { m ->
-            Text(
-                "⚠ " + (m.text(lang) ?: stringResource(R.string.home_maintenance_default)),
-                color = Color(0xFFF59E0B), fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0x14F59E0B))
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
-            )
-            HorizontalDivider(color = Border, thickness = 1.dp)
-        }
-
-        val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
-        PullToRefreshBox(
-            isRefreshing = isRefreshingPings && !isLoadingServers,
-            onRefresh = onRefreshPings,
-            state = pullState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            indicator = {
-                androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(
-                    state = pullState,
-                    isRefreshing = isRefreshingPings && !isLoadingServers,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    color = Accent,
-                    containerColor = Bg2
-                )
-            }
-        ) {
-            if (isLoadingServers) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+        // ═══ Серверы ═══
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().card()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    SectionLabel(stringResource(R.string.home_servers_label))
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(stringResource(R.string.home_servers_title), color = TextPrimary,
+                        fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-            } else if (displayedServers.isEmpty()) {
-                // Прокручиваемый контейнер — иначе pull-to-refresh на пустом списке не срабатывает
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(androidx.compose.foundation.rememberScrollState()),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        stringResource(
-                            if (serverListTab == 1) R.string.home_hint_long_press
-                            else R.string.home_no_servers
-                        ),
-                        color = TextMuted, fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
+                Segmented(
+                    listOf(stringResource(R.string.home_tab_all), "★ " + stringResource(R.string.home_tab_favorites)),
+                    serverListTab
+                ) { serverListTab = it }
+            }
+
+            val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+            PullToRefreshBox(
+                isRefreshing = isRefreshingPings && !isLoadingServers,
+                onRefresh = onRefreshPings,
+                state = pullState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                indicator = {
+                    // Своя полоса вместо круглой кнопки Material: список съезжает вниз и открывает её
+                    RefreshHeader(
+                        state = pullState,
+                        refreshing = isRefreshingPings && !isLoadingServers,
+                        pullHint = stringResource(R.string.home_pull_hint),
+                        releaseHint = stringResource(R.string.home_pull_release),
+                        refreshingHint = stringResource(R.string.home_pull_refreshing),
+                        modifier = Modifier.align(Alignment.TopCenter)
                     )
-                    if (serverListTab == 0) {
-                        TextButton(onClick = onRefreshPings, enabled = !isRefreshingPings) {
-                            Text(stringResource(R.string.home_refresh), color = Accent, fontFamily = FontFamily.Monospace)
+                }
+            ) {
+              Box(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .graphicsLayer {
+                          translationY = pullState.distanceFraction.coerceIn(0f, 1.5f) * RefreshHeaderHeight.toPx()
+                      }
+              ) {
+                if (isLoadingServers) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+                    }
+                } else if (displayedServers.isEmpty()) {
+                    // Прокручиваемый контейнер — иначе pull-to-refresh на пустом списке не срабатывает
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            stringResource(
+                                if (serverListTab == 1) R.string.home_hint_long_press
+                                else R.string.home_no_servers
+                            ),
+                            color = TextMuted, fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
+                        )
+                        if (serverListTab == 0) {
+                            TextButton(onClick = onRefreshPings, enabled = !isRefreshingPings) {
+                                Text(stringResource(R.string.home_refresh), color = Accent, fontFamily = FontFamily.Monospace)
+                            }
                         }
                     }
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(displayedServers, key = { it.id }) { server ->
-                        val ping = serverPings[server.id]
-                        val isThisConnected = connectedServer?.id == server.id && isConnected
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                // Недоступные (по подписке / закрытые в «Доступе» / статус из админки) не нажимаются
-                                .combinedClickable(
-                                    enabled = server.canConnect,
-                                    onClick = {
-                                        // Уже подключены (или подключаемся) к этому серверу — ничего не делаем
-                                        // (раньше переподключал); к другому — ConnectionManager сам отменит
-                                        // текущее подключение / погасит текущий туннель
-                                        val busyWithThis = isConnecting && connectingTo?.id == server.id
-                                        if (!isThisConnected && !busyWithThis && !isDisconnecting) {
-                                            selectedServer = server
-                                            userPickedServer = true
-                                            connect(server)
-                                        }
-                                    },
-                                    onLongClick = { showFavoriteDialog = server }
-                                )
-                                .background(if (isThisConnected || selectedServer?.id == server.id) Surface else BgDark)
-                                .padding(horizontal = 24.dp, vertical = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                // Режим РФ — без флага страны (локальный обход, не сервер)
-                                text = if (server.server_type == "bypass") "⚡" else when (server.country) {
-                                    "Finland"     -> "🇫🇮"
-                                    "Switzerland" -> "🇨🇭"
-                                    "Russia"      -> "🇷🇺"
-                                    "Germany"     -> "🇩🇪"
-                                    "Netherlands" -> "🇳🇱"
-                                    else          -> "🌍"
-                                }, fontSize = 20.sp
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 8.dp)
+                    ) {
+                        items(displayedServers, key = { it.id }) { server ->
+                            ServerRow(
+                                server = server,
+                                ping = serverPings[server.id],
+                                isThisConnected = connectedServer?.id == server.id && isConnected,
+                                isSelected = selectedServer?.id == server.id,
+                                isFavorite = favoriteServers.contains(server.id),
+                                lang = lang,
+                                strMs = strMs,
+                                onClick = {
+                                    // Уже подключены (или подключаемся) к этому серверу — ничего не делаем
+                                    // (раньше переподключал); к другому — ConnectionManager сам отменит
+                                    // текущее подключение / погасит текущий туннель
+                                    val isThisConnected = connectedServer?.id == server.id && isConnected
+                                    val busyWithThis = isConnecting && connectingTo?.id == server.id
+                                    if (!isThisConnected && !busyWithThis && !isDisconnecting) {
+                                        selectedServer = server
+                                        userPickedServer = true
+                                        connect(server)
+                                    }
+                                },
+                                onLongClick = { showFavoriteDialog = server }
                             )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(server.displayName(lang),
-                                    color = if (server.canConnect || isThisConnected) TextPrimary else TextMuted,
-                                    fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = "· " + when (server.server_type) {
-                                        "vless"         -> "VLESS+Reality"
-                                        "hysteria"      -> "Hysteria2"
-                                        "trojan"        -> "Trojan"
-                                        "openvpn_cloak" -> "OpenVPN+Cloak"
-                                        "bypass"        -> stringResource(R.string.home_proto_bypass)
-                                        else            -> "AmneziaWG"
-                                    },
-                                    color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace
-                                )
-                                if (favoriteServers.contains(server.id)) {
-                                    Text(stringResource(R.string.home_favorite_label),
-                                        color = Accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                                }
-                                // Причина закрытия протокола / типа аккаунта (техработы уже на общей плашке)
-                                server.access_block?.takeIf { it.code != "maintenance" }?.text(lang)?.let {
-                                    Text(it, color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                                }
-                                if (server.hasWarning && server.status_message != null) {
-                                    Text(
-                                        "⚠ ${statusMessageText(context, server.status_message)}${if (server.status_message_extra != null) " — ${server.status_message_extra}" else ""}",
-                                        color = Color(0xFFF59E0B),
-                                        fontSize = 9.sp, fontFamily = FontFamily.Monospace
-                                    )
-                                }
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = when {
-                                        isThisConnected      -> stringResource(R.string.home_status_connected)
-                                        server.isUnavailable -> stringResource(R.string.home_status_soon)
-                                        !server.connectable  -> when (server.status) {
-                                            "testing"     -> stringResource(R.string.home_status_test)
-                                            "maintenance" -> stringResource(R.string.home_status_maintenance)
-                                            else          -> stringResource(R.string.home_status_soon)
-                                        }
-                                        server.access_block != null -> stringResource(
-                                            if (server.access_block.code == "maintenance") R.string.home_status_maintenance
-                                            else R.string.home_status_blocked)
-                                        server.subscription_required -> stringResource(R.string.home_status_subscription)
-                                        server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
-                                        // без сервера — пинговать нечего
-                                        server.server_type == "bypass" -> stringResource(R.string.home_status_bypass)
-                                        ping == null         -> "● ..."
-                                        ping >= 999          -> "● —"
-                                        else                 -> "● $ping$strMs"
-                                    },
-                                    color = when {
-                                        isThisConnected      -> Accent
-                                        server.isUnavailable -> TextMuted
-                                        !server.canConnect   -> TextMuted
-                                        server.hasWarning    -> Color(0xFFF59E0B)
-                                        ping == null || ping >= 999 -> TextMuted
-                                        ping < 100  -> Accent
-                                        ping < 200  -> Color(0xFFFFAA00)
-                                        else        -> ErrorRed
-                                    },
-                                    fontSize = 10.sp, fontFamily = FontFamily.Monospace
-                                )
-                                // Сервис без логов; если на доступном сервере их временно включили — видно сразу
-                                if (server.logs_enabled && (server.canConnect || isThisConnected)) {
-                                    Text(stringResource(R.string.home_logs_on), color = ErrorRed,
-                                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace)
-                                }
-                            }
                         }
-                        HorizontalDivider(color = Border, thickness = 1.dp)
                     }
                 }
+              }
             }
         }
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+}
 
-        HorizontalDivider(color = Border, thickness = 1.dp)
-        Button(
-            onClick = {
+/** Строка сервера: флаг, имя, плашки протокола и LOGS ON, статус / пинг, звезда избранного. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ServerRow(
+    server: ServerResponse,
+    ping: Int?,
+    isThisConnected: Boolean,
+    isSelected: Boolean,
+    isFavorite: Boolean,
+    lang: String,
+    strMs: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp)
+            .clip(RowShape)
+            .background(
                 when {
-                    // Во время подключения / переподключения кнопка — «Отмена»
-                    isConnecting || isConnected -> ConnectionManager.requestDisconnect()
-                    else -> selectedFresh?.takeIf { it.canConnect }?.let { connect(it) }
+                    isThisConnected -> AccentSoft
+                    isSelected -> Surface
+                    else -> Color.Transparent
                 }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            enabled = !isDisconnecting && (isConnecting || isConnected || selectedFresh?.canConnect == true),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isConnected) ErrorRed else Accent,
-                contentColor = BgDark
-            ),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
-        ) {
-            if (isConnecting || isDisconnecting) {
-                CircularProgressIndicator(color = BgDark,
-                    modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                if (isConnecting) {
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(stringResource(R.string.home_btn_cancel), fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            )
+            .border(1.dp, if (isThisConnected) AccentLine else Color.Transparent, RowShape)
+            // Недоступные (по подписке / закрытые в «Доступе» / статус из админки) не нажимаются
+            .combinedClickable(enabled = server.canConnect, onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Режим РФ — без флага страны (локальный обход, не сервер)
+        Flag(server.country, bypass = server.server_type == "bypass")
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                server.displayName(lang),
+                color = if (server.canConnect || isThisConnected) TextPrimary else TextMuted,
+                fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Chip(
+                    when (server.server_type) {
+                        "vless"         -> "VLESS+Reality"
+                        "hysteria"      -> "Hysteria2"
+                        "trojan"        -> "Trojan"
+                        "openvpn_cloak" -> "OpenVPN+Cloak"
+                        "bypass"        -> stringResource(R.string.home_proto_bypass)
+                        else            -> "AmneziaWG"
+                    }
+                )
+                // Сервис без логов; если на доступном сервере их временно включили — видно сразу
+                if (server.logs_enabled && (server.canConnect || isThisConnected)) {
+                    Chip(stringResource(R.string.home_logs_on), ErrorRed, ErrorSoft)
                 }
-            } else {
+            }
+            // Причина закрытия протокола / типа аккаунта (техработы уже на общей плашке)
+            server.access_block?.takeIf { it.code != "maintenance" }?.text(lang)?.let {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(it, color = TextMuted, fontSize = 9.sp, lineHeight = 12.sp, fontFamily = FontFamily.Monospace)
+            }
+            if (server.hasWarning && server.status_message != null) {
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    stringResource(if (isConnected) R.string.home_btn_disconnect else R.string.home_btn_connect),
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold, fontSize = 13.sp
+                    "⚠ ${statusMessageText(context, server.status_message)}${if (server.status_message_extra != null) " — ${server.status_message_extra}" else ""}",
+                    color = Warn, fontSize = 9.sp, lineHeight = 12.sp, fontFamily = FontFamily.Monospace
                 )
             }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = when {
+                isThisConnected      -> stringResource(R.string.home_status_connected)
+                server.isUnavailable -> stringResource(R.string.home_status_soon)
+                !server.connectable  -> when (server.status) {
+                    "testing"     -> stringResource(R.string.home_status_test)
+                    "maintenance" -> stringResource(R.string.home_status_maintenance)
+                    else          -> stringResource(R.string.home_status_soon)
+                }
+                server.access_block != null -> stringResource(
+                    if (server.access_block.code == "maintenance") R.string.home_status_maintenance
+                    else R.string.home_status_blocked)
+                server.subscription_required -> stringResource(R.string.home_status_subscription)
+                server.hasWarning    -> "⚠ ${ping?.let { if (it >= 999) "—" else "$it$strMs" } ?: "..."}"
+                // без сервера — пинговать нечего
+                server.server_type == "bypass" -> stringResource(R.string.home_status_bypass)
+                ping == null         -> "● ..."
+                ping >= 999          -> "● —"
+                else                 -> "● $ping$strMs"
+            },
+            color = when {
+                isThisConnected      -> Accent
+                server.isUnavailable -> TextMuted
+                !server.canConnect   -> TextMuted
+                server.hasWarning    -> Warn
+                ping == null || ping >= 999 -> TextMuted
+                ping < 100  -> Accent
+                ping < 200  -> Warn
+                else        -> ErrorRed
+            },
+            fontSize = 10.sp, fontFamily = FontFamily.Monospace
+        )
+        if (isFavorite) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(Icons.Rounded.Star, contentDescription = null, tint = Accent, modifier = Modifier.size(15.dp))
         }
     }
 }

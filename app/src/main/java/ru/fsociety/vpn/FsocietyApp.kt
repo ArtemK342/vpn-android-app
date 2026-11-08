@@ -9,12 +9,15 @@ import android.os.Build
  * ночное автообновление): токены и обработка событий подключения не зависят от открытого экрана.
  *
  * Процесс «:awg» (AmneziaWG, см. AwgService) — отдельный: там ничего из основного не нужно, только
- * передать в основной процесс сигнал «Постоянной VPN».
+ * передать в основной процесс сигнал «Постоянной VPN». Процесс «:ovpn» (OpenVPN + Cloak, OvpnBridge) —
+ * тоже только служба.
  */
 class FsocietyApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        AppLog.init(this)   // журнал для поддержки — в обоих процессах
+        AppLog.init(this)   // журнал для поддержки — во всех процессах
+        // OpenVPN + Cloak (OpenVpnService): итоги — в основной процесс через OpenVpnEventReceiver
+        if (processName().endsWith(":ovpn")) return
         if (processName().endsWith(":awg")) {
             org.amnezia.awg.backend.AbstractBackend.setAlwaysOnCallback {
                 sendBroadcast(Intent(this, AlwaysOnReceiver::class.java))
@@ -22,6 +25,7 @@ class FsocietyApp : Application() {
             return
         }
         TokenStore.init(this)
+        OvpnBridge.init(this)
         VpnNotificationHelper.init(this)
         ConnectionManager.init(this)
     }

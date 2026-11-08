@@ -437,4 +437,17 @@
     <string name="autostart_on_desc">Подключаться после перезагрузки</string>
     <string name="autostart_off_desc">Подключаться вручную</string>
     <string name="autostart_note">// Нужно, чтобы VPN хотя бы раз подключался вручную: без этого Android не даст подключиться в фоне. Для защиты и при выгрузке приложения есть «Постоянная VPN» в настройках Android (экран Kill Switch).</string>
+    <!-- Редизайн главного экрана (как в приложении для Windows) -->
+    <string name="home_card_label">// ПОДКЛЮЧЕНИЕ</string>
+    <string name="home_title_on">Защищено</string>
+    <string name="home_title_off">Не защищено</string>
+    <string name="home_title_blocked">Интернет заблокирован</string>
+    <string name="home_sub_off">Выберите сервер или нажмите кнопку</string>
+    <string name="home_servers_label">// СЕРВЕРЫ</string>
+    <string name="home_servers_title">Где подключиться</string>
+    <string name="home_power_connect">ПОДКЛЮЧИТЬ</string>
+    <string name="home_power_disconnect">ОТКЛЮЧИТЬ</string>
+    <string name="home_pull_hint">Потяните, чтобы обновить</string>
+    <string name="home_pull_release">Отпустите — обновим</string>
+    <string name="home_pull_refreshing">Обновляем серверы и пинг…</string>
 </resources>

@@ -335,8 +335,8 @@ private fun AnonCodeResultScreen(result: AnonResult, onLogin: (String, String) -
             Button(
                 onClick = { onLogin(result.accessToken, result.refreshToken) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+                shape = BtnShape
             ) {
                 Text(stringResource(R.string.anon_code_login_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
@@ -428,10 +428,10 @@ private fun AnonRegisterScreen(
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !isLoading && privacyAccepted,
-                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+                shape = BtnShape
             ) {
-                if (isLoading) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                if (isLoading) CircularProgressIndicator(color = OnAccent, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Text(stringResource(R.string.anon_register_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
@@ -698,10 +698,10 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+                shape = BtnShape
             ) {
-                if (isLoading) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                if (isLoading) CircularProgressIndicator(color = OnAccent, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Text(stringResource(R.string.login_btn), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
@@ -725,7 +725,7 @@ fun LoginScreen(onLogin: (String, String) -> Unit, onRegister: () -> Unit) {
                 onClick = { isAnonymousMode = !isAnonymousMode; errorMsg = "" },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextMuted),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+                shape = BtnShape,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Border)
             ) {
                 Text(
@@ -922,10 +922,10 @@ fun RegisterScreen(onBack: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = !isLoading && privacyAccepted,
-                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = BgDark),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = AccentFill, contentColor = OnAccent),
+                shape = BtnShape
             ) {
-                if (isLoading) CircularProgressIndicator(color = BgDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                if (isLoading) CircularProgressIndicator(color = OnAccent, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Text(stringResource(R.string.login_btn_register), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
 

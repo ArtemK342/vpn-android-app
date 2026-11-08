@@ -115,6 +115,7 @@ object ConnectionManager {
     fun init(context: Context) {
         if (::app.isInitialized) return
         app = context.applicationContext
+        cancelStaleNotifications()
         scope.launch { VpnEvents.vpnDropped.collect { onDrop() } }
         scope.launch { VpnEvents.vpnStopped.collect { onExternalStop() } }
     }
@@ -566,7 +567,9 @@ object ConnectionManager {
         monitor = when (type) {
             "wireguard", "wireguard_proxy" -> scope.launch { watchWireGuard(server, freshKey, startedAt) }
             "vless", "hysteria", "trojan" -> scope.launch { watchSingbox() }
-            else -> null   // OpenVPN следит сам (OpenVpnService); «Режим РФ» — без сервера
+            // OpenVPN за сервером следит сам (OpenVpnService); здесь — только падение его процесса
+            "openvpn_cloak" -> scope.launch { watchOpenVpnProcess() }
+            else -> null   // «Режим РФ» — без сервера
         }
     }
 
@@ -663,6 +666,36 @@ object ConnectionManager {
         }
     }
 
+    /**
+     * Процесс «:ovpn» упал (Cloak на Go) — служба молча пропала, туннеля нет: как обрыв. Обычный обрыв
+     * служба сообщает сама; отзыв VPN снаружи — тоже (onExternalStop отменит этого сторожа).
+     */
+    private suspend fun watchOpenVpnProcess() {
+        while (true) {
+            delay(3_000)
+            if (OpenVpnService.isRunning) continue
+            delay(1_500)   // событие самой службы (обрыв / отзыв) могло ещё не дойти
+            if (op?.isActive == true || OpenVpnService.isRunning) return
+            AppErrors.log("openvpn process", IllegalStateException("service process died"))
+            OvpnBridge.cancelStaleNotification()
+            VpnEvents.vpnDropped.tryEmit(Unit)
+            return
+        }
+    }
+
+    /**
+     * Уведомления служб, оставшиеся после падения процесса: служб уже нет, а строка висит в шторке
+     * (так висело уведомление OpenVPN рядом с уведомлением Hysteria2). В новом основном процессе
+     * sing-box ещё не запущен; служба OpenVPN — в своём процессе, её проверяем.
+     */
+    private fun cancelStaleNotifications() {
+        try {
+            app.getSystemService(android.app.NotificationManager::class.java)
+                ?.cancel(VpnNotificationHelper.NOTIFICATION_ID + 1)   // XrayVpnService
+        } catch (_: Exception) {}
+        OvpnBridge.cancelStaleNotification()
+    }
+
     /** Рабочая сеть телефона (не VPN): без неё «сервер молчит» — не повод переподключаться. */
     private fun hasInternet(): Boolean = try {
         val cm = app.getSystemService(ConnectivityManager::class.java)
@@ -731,6 +764,7 @@ object ConnectionManager {
     private suspend fun stopOpenVpn() {
         try { OpenVpnService.stop(app) } catch (e: Exception) { AppErrors.log("openvpn stop", e) }
         waitUntil(10_000) { !OpenVpnService.isRunning }
+        OvpnBridge.cancelStaleNotification()
     }
 
     /** byedpi останавливается с ожиданием процесса — не на главном потоке. */

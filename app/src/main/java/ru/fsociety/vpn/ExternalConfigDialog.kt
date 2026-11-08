@@ -136,7 +136,7 @@ private fun ExtNote(text: String, color: androidx.compose.ui.graphics.Color) {
 private fun ExtButton(text: String, enabled: Boolean, accent: Boolean, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+        shape = BtnShape,
         border = androidx.compose.foundation.BorderStroke(1.dp, if (accent) Accent else Border)
     ) {
         Text(text, color = if (accent) Accent else TextPrimary, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
@@ -164,7 +164,7 @@ private fun ExtSecret(label: String, value: String, context: Context) {
                 copySecret(context, "fsociety", value)
                 Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
             },
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+            shape = BtnShape,
             border = androidx.compose.foundation.BorderStroke(1.dp, Accent)
         ) { Text(stringResource(R.string.ext_copy), color = Accent, fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
         OutlinedButton(
@@ -172,7 +172,7 @@ private fun ExtSecret(label: String, value: String, context: Context) {
                 context.startActivity(Intent.createChooser(
                     Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, value) }, null))
             },
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+            shape = BtnShape,
             border = androidx.compose.foundation.BorderStroke(1.dp, Border)
         ) { Text(stringResource(R.string.ext_share), color = TextPrimary, fontFamily = FontFamily.Monospace, fontSize = 10.sp) }
     }

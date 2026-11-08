@@ -32,7 +32,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -54,7 +53,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.fsociety.vpn.ui.theme.*
@@ -64,45 +62,57 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Лента новостей (вкладка «Новости»): только опубликованные, в порядке из админки, по [PAGE] штук —
- * следующая страница подгружается, когда до конца списка остаётся пара карточек. Лента живёт в
- * процессе ([NewsFeed]): при возврате на вкладку видно то, что было, и тихо обновляется.
+ * Лента новостей (вкладка «Новости»): [COUNT] последних опубликованных, в порядке из админки.
+ * Лента хранится на телефоне ([NewsFeed]): вкладка сразу показывает сохранённое и тихо обновляется
+ * (раньше каждый раз ждала сервер, и подгружала по 10 штук при прокрутке).
  *
  * Эмодзи: текст показывается как есть (Compose рисует их системным шрифтом). Ссылки http(s) —
  * кликабельные, открываются в браузере.
  */
-private const val PAGE = 10
+private const val COUNT = 5
 
 object NewsFeed {
+    private const val FILE = "news.json"
     val items = mutableStateListOf<NewsItem>()
-    val hasMore = mutableStateOf(true)
     val loading = mutableStateOf(false)
     val error = mutableStateOf(false)
     @Volatile private var loadedAt = 0L
+    @Volatile private var restored = false
+    private val gson = com.google.gson.Gson()
 
-    /** Первая страница заново; старая лента видна, пока грузится новая. */
-    suspend fun refresh(force: Boolean = false) {
+    /** Сохранённая лента — один раз за процесс, до первого запроса. */
+    fun restore(context: Context) {
+        if (restored) return
+        restored = true
+        try {
+            val f = java.io.File(context.filesDir, FILE)
+            if (!f.exists()) return
+            val saved = gson.fromJson(f.readText(), Array<NewsItem>::class.java)?.toList().orEmpty()
+            if (items.isEmpty()) items.addAll(saved.take(COUNT))
+        } catch (e: Exception) { AppErrors.log("restore news", e) }
+    }
+
+    /** Последние [COUNT] заново; сохранённая лента видна, пока грузится свежая. */
+    suspend fun refresh(context: Context, force: Boolean = false) {
+        restore(context)
         if (loading.value) return
-        if (!force && items.isNotEmpty() && System.currentTimeMillis() - loadedAt < 60_000) return
-        load(reset = true)
-    }
-
-    suspend fun loadMore() {
-        if (loading.value || !hasMore.value || error.value) return
-        load(reset = false)
-    }
-
-    private suspend fun load(reset: Boolean) {
+        if (!force && loadedAt > 0 && System.currentTimeMillis() - loadedAt < 60_000) return
         loading.value = true
         error.value = false
         try {
-            val page = ApiClient.service.getNews(PAGE, if (reset) 0 else items.size)
-            if (reset) items.clear()
-            // Порядок мог поменяться между страницами — без дублей
-            val known = items.map { it.id }.toHashSet()
-            items.addAll(page.items.filter { known.add(it.id) })
-            hasMore.value = page.has_more
+            val page = ApiClient.service.getNews(COUNT, 0)
+            val fresh = page.items.distinctBy { it.id }.take(COUNT)
+            items.clear()
+            items.addAll(fresh)
             loadedAt = System.currentTimeMillis()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val f = java.io.File(context.filesDir, FILE)
+                    val tmp = java.io.File(context.filesDir, "$FILE.tmp")
+                    tmp.writeText(gson.toJson(fresh))
+                    if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+                } catch (e: Exception) { AppErrors.log("save news", e) }
+            }
         } catch (e: Exception) {
             AppErrors.log("load news", e)
             error.value = true
@@ -110,6 +120,7 @@ object NewsFeed {
             loading.value = false
         }
     }
+
 }
 
 /**
@@ -185,21 +196,14 @@ private fun formatted(text: String): AnnotatedString = buildAnnotatedString {
 fun NewsScreen() {
     val context = LocalContext.current
     val lang = remember { context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru" }
+    remember { NewsFeed.restore(context) }   // сохранённое — уже в первом кадре
     val items = NewsFeed.items
-    val hasMore by NewsFeed.hasMore
     val loading by NewsFeed.loading
     val error by NewsFeed.error
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) { NewsFeed.refresh() }
-    // Подгрузка: до конца списка осталось 2 карточки
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            last >= listState.layoutInfo.totalItemsCount - 3
-        }.distinctUntilChanged().collect { nearEnd -> if (nearEnd && items.isNotEmpty()) NewsFeed.loadMore() }
-    }
+    LaunchedEffect(Unit) { NewsFeed.refresh(context) }
 
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().background(BgDark)) {
         item {
@@ -216,22 +220,19 @@ fun NewsScreen() {
         item {
             Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                 when {
-                    loading -> CircularProgressIndicator(color = Accent, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
-                    error -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Есть сохранённые — без крутилки и без ошибки внизу: они уже на экране
+                    loading && items.isEmpty() -> CircularProgressIndicator(color = Accent, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+                    error && items.isEmpty() -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(stringResource(R.string.news_error), color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         TextButton(onClick = {
-                            // Пустая лента — с первой страницы, иначе — следующую
-                            scope.launch {
-                                NewsFeed.error.value = false
-                                if (items.isEmpty()) NewsFeed.refresh(force = true) else NewsFeed.loadMore()
-                            }
+                            scope.launch { NewsFeed.refresh(context, force = true) }
                         }) {
                             Text(stringResource(R.string.news_retry), color = Accent, fontFamily = FontFamily.Monospace)
                         }
                     }
-                    items.isEmpty() -> Text(stringResource(R.string.news_empty), color = TextMuted, fontSize = 12.sp,
+                    items.isEmpty() && !loading -> Text(stringResource(R.string.news_empty), color = TextMuted, fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace)
-                    !hasMore -> Spacer(modifier = Modifier.height(8.dp))
+                    else -> Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }

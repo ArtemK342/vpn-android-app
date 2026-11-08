@@ -436,4 +436,17 @@
     <string name="autostart_on_desc">Connect after reboot</string>
     <string name="autostart_off_desc">Connect manually</string>
     <string name="autostart_note">// The VPN must have been connected manually at least once: otherwise Android won\'t allow connecting in the background. For protection when Android closes the app there is Always-on VPN in Android settings (Kill Switch screen).</string>
+    <!-- Редизайн главного экрана (как в приложении для Windows) -->
+    <string name="home_card_label">// CONNECTION</string>
+    <string name="home_title_on">Protected</string>
+    <string name="home_title_off">Not protected</string>
+    <string name="home_title_blocked">Internet blocked</string>
+    <string name="home_sub_off">Pick a server or press the button</string>
+    <string name="home_servers_label">// SERVERS</string>
+    <string name="home_servers_title">Where to connect</string>
+    <string name="home_power_connect">CONNECT</string>
+    <string name="home_power_disconnect">DISCONNECT</string>
+    <string name="home_pull_hint">Pull to refresh</string>
+    <string name="home_pull_release">Release to refresh</string>
+    <string name="home_pull_refreshing">Refreshing servers and ping…</string>
 </resources>
