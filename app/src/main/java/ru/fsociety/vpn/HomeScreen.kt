@@ -129,6 +129,7 @@ fun autoSelectServer(
 ): ServerResponse? =
     servers
         .filter { it.canConnect && it.allow_auto_connect && it.server_type != "bypass" }  // режим РФ — не VPN, только вручную
+        .filter { !it.isReserve }   // резервные — только если пользователь сам выбрал (юзер 2026-11-09)
         .filter { !wireguardOnly || it.server_type == "wireguard" }
         .minByOrNull { pings[it.id] ?: 999 }
 
@@ -296,10 +297,39 @@ fun HomeScreen(
         Unit
     }
 
+    // Свайп вниз — с полосой «Обновляем…»; автоматическое обновление раз в минуту — молча: пинги просто меняются
+    var userRefresh by remember { mutableStateOf(false) }
+    val refreshingNow by rememberUpdatedState(isRefreshingPings)
+    LaunchedEffect(isRefreshingPings) { if (!isRefreshingPings) userRefresh = false }
+    LaunchedEffect(userRefresh) {
+        // Обновление не началось (уже шло и закончилось) — полосу не держим
+        if (userRefresh) { delay(600); if (!refreshingNow) userRefresh = false }
+    }
+    val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+
+    // Экран прокручивается целиком: блоки серверов по высоте списка, длинный уходит вниз
+    PullToRefreshBox(
+        isRefreshing = userRefresh,
+        onRefresh = { userRefresh = true; onRefreshPings() },
+        state = pullState,
+        modifier = Modifier.fillMaxSize().background(BgDark),
+        indicator = {
+            // Своя полоса вместо круглой кнопки Material: экран съезжает вниз и открывает её
+            RefreshHeader(
+                state = pullState,
+                refreshing = userRefresh,
+                pullHint = stringResource(R.string.home_pull_hint),
+                releaseHint = stringResource(R.string.home_pull_release),
+                refreshingHint = stringResource(R.string.home_pull_refreshing),
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgDark)
+            .graphicsLayer { translationY = pullState.distanceFraction.coerceIn(0f, 1.5f) * RefreshHeaderHeight.toPx() }
+            .verticalScroll(androidx.compose.foundation.rememberScrollState())
             .padding(start = 12.dp, end = 12.dp, top = 12.dp)
     ) {
 
@@ -454,8 +484,42 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ═══ Серверы ═══
-        Column(modifier = Modifier.weight(1f).fillMaxWidth().card()) {
+        // ═══ Серверы: основные и резервные (админка → Серверы; порядок оттуда же) ═══
+        val mainServers = displayedServers.filter { !it.isReserve }
+        val reserveServers = displayedServers.filter { it.isReserve }
+        val onServerClick: (ServerResponse) -> Unit = { server ->
+            // Уже подключены (или подключаемся) к этому серверу — ничего не делаем
+            // (раньше переподключал); к другому — ConnectionManager сам отменит
+            // текущее подключение / погасит текущий туннель
+            val isThisConnected = connectedServer?.id == server.id && isConnected
+            val busyWithThis = isConnecting && connectingTo?.id == server.id
+            if (!isThisConnected && !busyWithThis && !isDisconnecting) {
+                selectedServer = server
+                userPickedServer = true
+                connect(server)
+            }
+        }
+        val rows: @Composable (List<ServerResponse>) -> Unit = { list ->
+            Column(modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 8.dp)) {
+                list.forEach { server ->
+                    key(server.id) {
+                        ServerRow(
+                            server = server,
+                            ping = serverPings[server.id],
+                            isThisConnected = connectedServer?.id == server.id && isConnected,
+                            isSelected = selectedServer?.id == server.id,
+                            isFavorite = favoriteServers.contains(server.id),
+                            lang = lang,
+                            strMs = strMs,
+                            onClick = { onServerClick(server) },
+                            onLongClick = { showFavoriteDialog = server }
+                        )
+                    }
+                }
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxWidth().card()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -472,94 +536,54 @@ fun HomeScreen(
                     serverListTab
                 ) { serverListTab = it }
             }
-
-            val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
-            PullToRefreshBox(
-                isRefreshing = isRefreshingPings && !isLoadingServers,
-                onRefresh = onRefreshPings,
-                state = pullState,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                indicator = {
-                    // Своя полоса вместо круглой кнопки Material: список съезжает вниз и открывает её
-                    RefreshHeader(
-                        state = pullState,
-                        refreshing = isRefreshingPings && !isLoadingServers,
-                        pullHint = stringResource(R.string.home_pull_hint),
-                        releaseHint = stringResource(R.string.home_pull_release),
-                        refreshingHint = stringResource(R.string.home_pull_refreshing),
-                        modifier = Modifier.align(Alignment.TopCenter)
+            when {
+                isLoadingServers -> Box(modifier = Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+                }
+                displayedServers.isEmpty() -> Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        stringResource(
+                            if (serverListTab == 1) R.string.home_hint_long_press
+                            else R.string.home_no_servers
+                        ),
+                        color = TextMuted, fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
                     )
-                }
-            ) {
-              Box(
-                  modifier = Modifier
-                      .fillMaxSize()
-                      .graphicsLayer {
-                          translationY = pullState.distanceFraction.coerceIn(0f, 1.5f) * RefreshHeaderHeight.toPx()
-                      }
-              ) {
-                if (isLoadingServers) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
-                    }
-                } else if (displayedServers.isEmpty()) {
-                    // Прокручиваемый контейнер — иначе pull-to-refresh на пустом списке не срабатывает
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(androidx.compose.foundation.rememberScrollState()),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            stringResource(
-                                if (serverListTab == 1) R.string.home_hint_long_press
-                                else R.string.home_no_servers
-                            ),
-                            color = TextMuted, fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center
-                        )
-                        if (serverListTab == 0) {
-                            TextButton(onClick = onRefreshPings, enabled = !isRefreshingPings) {
-                                Text(stringResource(R.string.home_refresh), color = Accent, fontFamily = FontFamily.Monospace)
-                            }
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 8.dp)
-                    ) {
-                        items(displayedServers, key = { it.id }) { server ->
-                            ServerRow(
-                                server = server,
-                                ping = serverPings[server.id],
-                                isThisConnected = connectedServer?.id == server.id && isConnected,
-                                isSelected = selectedServer?.id == server.id,
-                                isFavorite = favoriteServers.contains(server.id),
-                                lang = lang,
-                                strMs = strMs,
-                                onClick = {
-                                    // Уже подключены (или подключаемся) к этому серверу — ничего не делаем
-                                    // (раньше переподключал); к другому — ConnectionManager сам отменит
-                                    // текущее подключение / погасит текущий туннель
-                                    val isThisConnected = connectedServer?.id == server.id && isConnected
-                                    val busyWithThis = isConnecting && connectingTo?.id == server.id
-                                    if (!isThisConnected && !busyWithThis && !isDisconnecting) {
-                                        selectedServer = server
-                                        userPickedServer = true
-                                        connect(server)
-                                    }
-                                },
-                                onLongClick = { showFavoriteDialog = server }
-                            )
+                    if (serverListTab == 0) {
+                        TextButton(onClick = onRefreshPings, enabled = !isRefreshingPings) {
+                            Text(stringResource(R.string.home_refresh), color = Accent, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
-              }
+                // Все серверы сейчас в резерве (или избранные — только среди резервных)
+                mainServers.isEmpty() -> Text(
+                    stringResource(R.string.home_main_empty), color = TextMuted, fontSize = 11.sp,
+                    lineHeight = 15.sp, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 16.dp)
+                )
+                else -> rows(mainServers)
+            }
+        }
+
+        if (!isLoadingServers && reserveServers.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Column(modifier = Modifier.fillMaxWidth().card()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 8.dp)) {
+                    SectionLabel(stringResource(R.string.home_reserve_label))
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(stringResource(R.string.home_reserve_title), color = TextPrimary,
+                        fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.home_reserve_sub), color = TextMuted,
+                        fontSize = 11.sp, lineHeight = 15.sp, fontFamily = FontFamily.Monospace)
+                }
+                rows(reserveServers)
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
+    }
     }
 }
 

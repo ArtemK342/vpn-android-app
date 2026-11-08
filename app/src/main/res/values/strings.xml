@@ -450,4 +450,8 @@
     <string name="home_pull_hint">Потяните, чтобы обновить</string>
     <string name="home_pull_release">Отпустите — обновим</string>
     <string name="home_pull_refreshing">Обновляем серверы и пинг…</string>
+    <string name="home_reserve_label">// РЕЗЕРВ</string>
+    <string name="home_reserve_title">Резервные серверы</string>
+    <string name="home_reserve_sub">Если основные не подключаются</string>
+    <string name="home_main_empty">Основных серверов сейчас нет — выберите резервный ниже</string>
 </resources>

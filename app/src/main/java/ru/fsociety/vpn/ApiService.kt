@@ -65,8 +65,11 @@ data class ServerResponse(
     // не null: подключение закрыто в «Настройки → Доступ» (техработы / протокол / тип аккаунта)
     val access_block: AccessBlock? = null,
     // На сервере временно ведутся логи (галочка в админке) — показываем заметную пометку LOGS ON
-    val logs_enabled: Boolean = false
+    val logs_enabled: Boolean = false,
+    // «main» / «reserve» — блок «Основные / Резервные серверы» (админка → Серверы)
+    val server_group: String? = "main"
 ) {
+    val isReserve: Boolean get() = server_group == "reserve"
     // Можно ли нажать на сервер: флаги из админки + подписка + блокировки доступа
     val canConnect: Boolean get() = connectable && !subscription_required && access_block == null
     val isUnavailable: Boolean get() = status in setOf("down", "coming_soon")
