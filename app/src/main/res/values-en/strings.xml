@@ -453,4 +453,24 @@
     <string name="home_reserve_title">Reserve servers</string>
     <string name="home_reserve_sub">If the main ones do not connect</string>
     <string name="home_main_empty">No main servers right now — pick a reserve one below</string>
+    <string name="shop_anon_account">anonymous account</string>
+    <string name="shop_redeem_ok">Done! The subscription is active until %1$s.</string>
+    <string name="shop_sold_out">Sold out right now — please check back later.</string>
+    <string name="shop_status_label">// STATUS</string>
+    <string name="shop_status_staff">Staff account — no limits</string>
+    <string name="shop_status_active">Monthly subscription until %1$s</string>
+    <string name="shop_status_free">Free plan</string>
+    <string name="shop_buy_label">// BUY</string>
+    <string name="shop_buy_text">Monthly — all servers and protocols, unlimited traffic, up to 5 devices. Pay with Telegram Stars: the @fsocietynet_agent bot opens with a ready invoice and the subscription turns on by itself. An active one is extended.</string>
+    <string name="shop_buy_stars">Pay with Telegram Stars</string>
+    <string name="shop_code_label">// ACTIVATE A CODE</string>
+    <string name="shop_code_text">A code from the @fsocietynet_agent bot (after paying in the bot or in Tribute). The subscription goes to this account: %1$s</string>
+    <string name="shop_code_btn">Activate</string>
+    <string name="shop_payments_empty">No payments yet. All purchases will be listed here: date, method and amount.</string>
+    <string name="shop_payments_failed">Could not load the history — try again later.</string>
+    <string name="shop_plan_month">Monthly</string>
+    <string name="shop_method_stars">Telegram Stars</string>
+    <string name="shop_refunded">refunded</string>
+    <string name="shop_menu_buy">Buy with Stars or activate a code</string>
+    <string name="shop_menu_payments">Purchase history</string>
 </resources>

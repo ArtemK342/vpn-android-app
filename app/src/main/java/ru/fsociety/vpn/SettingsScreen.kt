@@ -120,8 +120,9 @@ fun SettingsScreen(
         "autostart" -> SwitchOptionTab(VpnOptions.PREF_AUTOSTART, R.string.autostart_title, R.string.autostart_desc,
             R.string.autostart_on_desc, R.string.autostart_off_desc, R.string.autostart_note, onBack = { currentScreen = "app_settings" })
         "update" -> UpdateTab(onBack = { currentScreen = "main" })
-        "subscription" -> ComingSoonTab(title = stringResource(R.string.settings_subscription), onBack = { currentScreen = "main" })
-        "payments" -> ComingSoonTab(title = stringResource(R.string.settings_payments), onBack = { currentScreen = "main" })
+        "subscription" -> SubscriptionTab(token = token, user = user, subscription = subscription,
+            onBack = { currentScreen = "main" }, onChanged = onReloadAccount)
+        "payments" -> PaymentsTab(token = token, onBack = { currentScreen = "main" })
         else -> Column(modifier = Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
             Column(modifier = Modifier.statusBarsPadding().padding(24.dp)) {
                 Text(stringResource(R.string.settings_section), color = Accent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
@@ -152,13 +153,18 @@ fun SettingsScreen(
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
                 title = stringResource(R.string.settings_subscription),
-                subtitle = stringResource(R.string.settings_in_dev),
+                subtitle = when {
+                    user?.role in setOf("tester", "developer", "admin", "superadmin") -> stringResource(R.string.shop_status_staff)
+                    subscription?.is_active == true -> stringResource(R.string.shop_status_active,
+                        subscription.expires_at?.take(10)?.split("-")?.reversed()?.joinToString(".") ?: "")
+                    else -> stringResource(R.string.shop_menu_buy)
+                },
                 onClick = { currentScreen = "subscription" }
             )
             SettingsMenuItem(
                 icon = { Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
                 title = stringResource(R.string.settings_payments),
-                subtitle = stringResource(R.string.settings_in_dev),
+                subtitle = stringResource(R.string.shop_menu_payments),
                 onClick = { currentScreen = "payments" }
             )
             SettingsMenuItem(

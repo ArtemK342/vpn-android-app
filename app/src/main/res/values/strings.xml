@@ -454,4 +454,24 @@
     <string name="home_reserve_title">Резервные серверы</string>
     <string name="home_reserve_sub">Если основные не подключаются</string>
     <string name="home_main_empty">Основных серверов сейчас нет — выберите резервный ниже</string>
+    <string name="shop_anon_account">анонимный аккаунт</string>
+    <string name="shop_redeem_ok">Готово! Подписка активна до %1$s.</string>
+    <string name="shop_sold_out">Мест нет — все подписки проданы. Загляните позже.</string>
+    <string name="shop_status_label">// СТАТУС</string>
+    <string name="shop_status_staff">Служебный аккаунт — без лимитов</string>
+    <string name="shop_status_active">Подписка «Месяц» до %1$s</string>
+    <string name="shop_status_free">Бесплатный тариф</string>
+    <string name="shop_buy_label">// КУПИТЬ</string>
+    <string name="shop_buy_text">«Месяц» — все серверы и протоколы, безлимитный трафик, до 5 устройств. Оплата звёздами в Telegram: откроется бот @fsocietynet_agent с готовым счётом, после оплаты подписка включится сама. Если подписка уже есть — срок продлится.</string>
+    <string name="shop_buy_stars">Оплатить звёздами в Telegram</string>
+    <string name="shop_code_label">// АКТИВИРОВАТЬ КОД</string>
+    <string name="shop_code_text">Код из бота @fsocietynet_agent (после оплаты в боте или в Tribute). Подписка начислится на этот аккаунт: %1$s</string>
+    <string name="shop_code_btn">Активировать</string>
+    <string name="shop_payments_empty">Оплат пока нет. Здесь будут все покупки: дата, способ и сумма.</string>
+    <string name="shop_payments_failed">Не удалось загрузить историю — попробуйте позже.</string>
+    <string name="shop_plan_month">Месяц</string>
+    <string name="shop_method_stars">Звёзды Telegram</string>
+    <string name="shop_refunded">возврат</string>
+    <string name="shop_menu_buy">Купить за звёзды или активировать код</string>
+    <string name="shop_menu_payments">История покупок</string>
 </resources>

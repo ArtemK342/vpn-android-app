@@ -103,6 +103,19 @@ data class SubscriptionResponse(
     val expires_at: String? = null
 )
 
+// Магазин (бот @fsocietynet_agent): заказ звёздами, активация кода, история оплат
+data class StarsOrderResponse(val url: String = "", val stars: Int = 0)
+data class RedeemRequest(val code: String)
+data class RedeemResponse(val message: String = "", val expires_at: String? = null)
+data class PaymentItem(
+    val created_at: String? = null,
+    val plan: String? = null,
+    val method: String? = null,
+    val amount: Double? = null,
+    val currency: String? = null,
+    val refunded: Boolean = false
+)
+
 data class ForgotPasswordRequest(val email: String)
 
 data class RegisterRequest(
@@ -292,6 +305,15 @@ interface ApiService {
     suspend fun getSubscription(
         @Header("Authorization") token: String
     ): SubscriptionResponse
+
+    @POST("shop/stars-order")
+    suspend fun starsOrder(@Header("Authorization") token: String): StarsOrderResponse
+
+    @POST("promo/redeem")
+    suspend fun redeemCode(@Header("Authorization") token: String, @Body body: RedeemRequest): RedeemResponse
+
+    @GET("payments/history")
+    suspend fun paymentsHistory(@Header("Authorization") token: String): List<PaymentItem>
 
     @POST("login-numeric")
     suspend fun loginNumeric(
