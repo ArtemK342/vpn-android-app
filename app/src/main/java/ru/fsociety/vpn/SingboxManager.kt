@@ -81,7 +81,7 @@ object SingboxManager {
         serverName: String
     ): Boolean {
         return try {
-            disconnect()
+            stopSingbox()
 
             // Инициализируем один раз
             if (!setupDone) {
@@ -153,6 +153,20 @@ object SingboxManager {
     ): Boolean = synchronized(startLock) {
         // Параллельные запуски убивали друг другу sing-box, а одновременные
         // вызовы в libbox роняли Go-рантайм ("fatal error: unknown caller pc").
+        // Сервер XHTTP (Yandex CDN): сначала xray отдельным процессом, sing-box ходит в него по socks
+        val configJson = XrayProcess.prepare(context, configJson) ?: return@synchronized false
+        val ok = connectVerifiedInner(context, service, configJson, serverName, cancelled)
+        if (!ok) XrayProcess.stop()
+        ok
+    }
+
+    private fun connectVerifiedInner(
+        context: Context,
+        service: XrayVpnService,
+        configJson: String,
+        serverName: String,
+        cancelled: () -> Boolean
+    ): Boolean {
         val port = freeLocalPort()
         val user = UUID.randomUUID().toString()
         val pass = UUID.randomUUID().toString()
@@ -164,25 +178,25 @@ object SingboxManager {
             var works = false
             for (attempt in 1..2) {
                 // «Отмена» / новый запуск: не доводим до TUN — иначе он заменил бы чужой туннель
-                if (cancelled()) return@synchronized false
-                if (!connect(context, service, probeConfig, serverName)) return@synchronized false
+                if (cancelled()) return false
+                if (!connect(context, service, probeConfig, serverName)) return false
                 works = probeThroughProxy(port, user, pass, cancelled)
-                disconnect()
+                stopSingbox()
                 if (works) break
                 Log.w(TAG, "probe attempt $attempt failed")
             }
             if (!works) {
                 Log.e(TAG, "probe failed: server does not pass traffic")
-                return@synchronized false
+                return false
             }
         }
-        if (cancelled()) return@synchronized false
+        if (cancelled()) return false
         // Рабочий конфиг + тот же локальный прокси (127.0.0.1, случайный порт и пароль) для сторожа
         val livePort = freeLocalPort()
         val live = if (livePort > 0) withProxyInbound(configJson, livePort, user, pass, onlyProxy = false) else null
         val ok = connect(context, service, live ?: configJson, serverName)
         if (ok && live != null) monitorProxy = ProbeProxy(livePort, user, pass)
-        ok
+        return ok
     }
 
     private val startLock = Any()
@@ -263,7 +277,14 @@ object SingboxManager {
         return false
     }
 
+    /** Полная остановка: sing-box и xray (если был). */
     fun disconnect() {
+        stopSingbox()
+        XrayProcess.stop()
+    }
+
+    /** Только sing-box — между проверкой и рабочим запуском xray продолжает работать. */
+    private fun stopSingbox() {
         synchronized(stateLock) {
             try {
                 commandServer?.closeService()
