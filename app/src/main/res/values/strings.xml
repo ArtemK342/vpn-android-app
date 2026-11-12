@@ -79,6 +79,7 @@
     <string name="home_refresh">Обновить</string>
     <string name="home_status_connected">● ПОДКЛЮЧЁН</string>
     <string name="home_status_soon">СКОРО</string>
+    <string name="status_msg_whitelist_wip">Обход белых списков — в работе</string>
     <string name="home_status_test">⚡ ТЕСТ.</string>
     <string name="home_status_maintenance">🔧 ОБСЛ.</string>
     <string name="home_status_subscription">🔒 ПОДПИСКА</string>

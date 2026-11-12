@@ -103,6 +103,7 @@ private val STATUS_MESSAGES = mapOf(
     "Блокировки на стороне провайдера" to R.string.status_msg_isp_blocking,
     "Технические работы" to R.string.status_msg_maintenance,
     "Обновление конфигурации" to R.string.status_msg_config_update,
+    "Обход белых списков — в работе" to R.string.status_msg_whitelist_wip,
 )
 
 fun statusMessageText(context: Context, message: String): String =
@@ -651,6 +652,12 @@ private fun ServerRow(
             server.access_block?.takeIf { it.code != "maintenance" }?.text(lang)?.let {
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(it, color = TextMuted, fontSize = 9.sp, lineHeight = 12.sp, fontFamily = FontFamily.Monospace)
+            }
+            // Статус «testing» (напр. белые списки «в работе»): подпись без ⚠
+            if (server.status == "testing" && server.status_message != null) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(statusMessageText(context, server.status_message), color = TextMuted,
+                    fontSize = 9.sp, lineHeight = 12.sp, fontFamily = FontFamily.Monospace)
             }
             if (server.hasWarning && server.status_message != null) {
                 Spacer(modifier = Modifier.height(3.dp))

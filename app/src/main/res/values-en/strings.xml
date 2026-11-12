@@ -79,6 +79,7 @@
     <string name="home_refresh">Refresh</string>
     <string name="home_status_connected">● CONNECTED</string>
     <string name="home_status_soon">SOON</string>
+    <string name="status_msg_whitelist_wip">Whitelist bypass — in progress</string>
     <string name="home_status_test">⚡ TEST</string>
     <string name="home_status_maintenance">🔧 MAINT.</string>
     <string name="home_status_subscription">🔒 PREMIUM</string>
