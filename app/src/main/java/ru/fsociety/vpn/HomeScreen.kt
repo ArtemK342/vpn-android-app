@@ -569,7 +569,7 @@ fun HomeScreen(
         }
 
         if (!isLoadingServers && reserveServers.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(28.dp))   // заметный отступ между основными и резервными (юзер 2026-11-12)
             Column(modifier = Modifier.fillMaxWidth().card()) {
                 Column(modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 8.dp)) {
                     SectionLabel(stringResource(R.string.home_reserve_label))
