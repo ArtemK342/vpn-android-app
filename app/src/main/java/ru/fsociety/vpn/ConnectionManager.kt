@@ -302,6 +302,9 @@ object ConnectionManager {
                 "trojan" -> Pending(server, "trojan", ApiClient.service.getTrojanConfig(bearer(), server.id).config, rules)
                 "openvpn_cloak" -> Pending(server, "openvpn_cloak", fetchCloakBundle(server))
                 else -> {
+                    // «Белый список №2» (TURN звонков VK): нужна ссылка на звонок пользователя
+                    if (server.turn_peer != null && WhitelistLinks.vk(app) == null)
+                        return fail(str(R.string.wl_need_vk_link))
                     // Кэш зашифрован ключом Keystore — расшифровка не на главном потоке
                     val cached = withContext(Dispatchers.IO) { ConfigCache.get(app, server.id) }
                     val config = cached ?: run {
@@ -443,7 +446,8 @@ object ConnectionManager {
             val config = SplitTunnelingManager.applyAppRulesToWg(p.config, p.rules) {
                 SplitTunnelingManager.isInstalled(app, it)
             }
-            ok = VpnManager.connect(app, VpnOptions.patchWg(app, config))   // DNS и локальная сеть из настроек
+            val wg = withTurn(p, config) ?: return false
+            ok = VpnManager.connect(app, VpnOptions.patchWg(app, wg))   // DNS и локальная сеть из настроек
         } finally {
             // Отменили, пока туннель поднимался, — не оставляем его висеть
             if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }
@@ -466,7 +470,8 @@ object ConnectionManager {
         val pass = java.util.UUID.randomUUID().toString()
         var ok = false
         try {
-            if (!VpnManager.connectProxy(app, VpnOptions.patchWg(app, p.config), port, user, pass)) return false
+            val wg = withTurn(p, p.config) ?: return false
+            if (!VpnManager.connectProxy(app, VpnOptions.patchWg(app, wg), port, user, pass)) return false
             val config = VpnOptions.patchSingbox(app,
                 SplitTunnelingManager.awgProxyConfig(port, user, pass, p.rules, BypassManager.directDns(app)))
             ok = startSingbox(p, config)
@@ -474,6 +479,17 @@ object ConnectionManager {
             if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }
         }
         return ok
+    }
+
+    /**
+     * «Белый список №2»: у сервера есть turn_peer — запускаем клиент TURN звонков VK (TurnProcess) и
+     * направляем AmneziaWG на него. Обычный сервер — конфиг как есть. null — клиент не запустился.
+     */
+    private suspend fun withTurn(p: Pending, config: String): String? {
+        val peer = p.server.turn_peer ?: run { TurnProcess.stop(); return config }
+        val link = WhitelistLinks.vk(app) ?: return null
+        val port = withContext(Dispatchers.IO) { TurnProcess.start(app, peer, link) } ?: return null
+        return TurnProcess.patchWgConfig(config, port, app.packageName)
     }
 
     private suspend fun fetchCloakBundle(server: ServerResponse): String {

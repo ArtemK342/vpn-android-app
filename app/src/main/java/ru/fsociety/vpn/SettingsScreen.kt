@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -115,6 +116,7 @@ fun SettingsScreen(
         "logging" -> LoggingTab(onBack = { currentScreen = "app_settings" })
         "theme" -> ThemeTab(onBack = { currentScreen = "app_settings" })
         "dns" -> DnsTab(onBack = { currentScreen = "app_settings" })
+        "whitelist" -> WhitelistLinksTab(onBack = { currentScreen = "app_settings" })
         "lan" -> SwitchOptionTab(VpnOptions.PREF_LAN, R.string.lan_title, R.string.lan_desc, R.string.lan_on_desc, R.string.lan_off_desc,
             R.string.lan_note, onBack = { currentScreen = "app_settings" })
         "autostart" -> SwitchOptionTab(VpnOptions.PREF_AUTOSTART, R.string.autostart_title, R.string.autostart_desc,
@@ -898,6 +900,13 @@ fun AppSettingsTab(
                 "google" -> R.string.dns_google; "quad9" -> R.string.dns_quad9; "adguard" -> R.string.dns_adguard
                 else -> R.string.dns_cloudflare }),
             onClick = { onOpen("dns") }
+        )
+        SettingsMenuItem(
+            icon = { Icon(Icons.Filled.Link, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
+            title = stringResource(R.string.wl_title),
+            subtitle = stringResource(if (WhitelistLinks.vk(optCtx) != null || WhitelistLinks.mailru(optCtx) != null)
+                R.string.wl_sub_set else R.string.wl_sub_empty),
+            onClick = { onOpen("whitelist") }
         )
         SettingsMenuItem(
             icon = { Icon(Icons.Filled.Router, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
@@ -1727,4 +1736,79 @@ fun ThemeTab(onBack: () -> Unit) {
         },
         onBack = onBack
     )
+}
+
+
+/**
+ * «Белые списки»: ссылки пользователя для серверов «Белый список №2» (звонок VK) и «№3» (документ Mail.ru).
+ * Пользователь создаёт их сам в своём аккаунте; хранятся только на телефоне.
+ */
+@Composable
+fun WhitelistLinksTab(onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    var vk by remember { mutableStateOf(WhitelistLinks.vk(context) ?: "") }
+    var mailru by remember { mutableStateOf(WhitelistLinks.mailru(context) ?: "") }
+    var vkMsg by remember { mutableStateOf<String?>(null) }
+    var mrMsg by remember { mutableStateOf<String?>(null) }
+    val saved = stringResource(R.string.wl_saved)
+    val badVk = stringResource(R.string.wl_bad_vk)
+    val badMr = stringResource(R.string.wl_bad_mailru)
+    Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
+        Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(stringResource(R.string.wl_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Border)
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
+            Text(stringResource(R.string.wl_desc), color = TextMuted, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(stringResource(R.string.wl_vk_label), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.wl_vk_help), color = TextMuted, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = vk, onValueChange = { vk = it; vkMsg = null }, singleLine = true,
+                placeholder = { Text("https://vk.com/call/join/…", color = TextDim, fontSize = 13.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.wl_save), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.clickable {
+                        val v = vk.trim()
+                        if (v.isNotEmpty() && !WhitelistLinks.validVk(v)) { vkMsg = badVk; return@clickable }
+                        WhitelistLinks.save(context, WhitelistLinks.PREF_VK, v); vkMsg = saved
+                    }.padding(vertical = 6.dp))
+                vkMsg?.let { Spacer(modifier = Modifier.width(12.dp)); Text(it, color = TextMuted, fontSize = 11.sp) }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(stringResource(R.string.wl_mailru_label), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.wl_mailru_help), color = TextMuted, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = mailru, onValueChange = { mailru = it; mrMsg = null }, singleLine = true,
+                placeholder = { Text("https://cloud.mail.ru/public/…", color = TextDim, fontSize = 13.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.wl_save), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.clickable {
+                        val v = mailru.trim()
+                        if (v.isNotEmpty() && !WhitelistLinks.validMailru(v)) { mrMsg = badMr; return@clickable }
+                        WhitelistLinks.save(context, WhitelistLinks.PREF_MAILRU, v); mrMsg = saved
+                    }.padding(vertical = 6.dp))
+                mrMsg?.let { Spacer(modifier = Modifier.width(12.dp)); Text(it, color = TextMuted, fontSize = 11.sp) }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(stringResource(R.string.wl_note), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        }
+    }
 }

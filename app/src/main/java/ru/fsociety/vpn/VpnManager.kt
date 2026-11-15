@@ -143,6 +143,7 @@ object VpnManager {
     }
 
     suspend fun disconnect(): Boolean {
+        TurnProcess.stop()   // клиент TURN «Белого списка №2», если был
         connectedServerName = ""
         up = false   // до DOWN: его событие — не чужое выключение
         if (::app.isInitialized && service != null) call(AwgService.MSG_DOWN)

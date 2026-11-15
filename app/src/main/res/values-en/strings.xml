@@ -474,4 +474,18 @@
     <string name="shop_refunded">refunded</string>
     <string name="shop_menu_buy">Buy with Stars or activate a code</string>
     <string name="shop_menu_payments">Purchase history</string>
+    <string name="wl_title">Whitelists</string>
+    <string name="wl_sub_set">Links saved</string>
+    <string name="wl_sub_empty">VK call link and Mail.ru document</string>
+    <string name="wl_desc">For the «Whitelist #2» and «#3» servers. They work through your own VK call and Mail.ru Cloud document — these services stay reachable even when mobile internet is limited to a whitelist. The links are stored only on this phone.</string>
+    <string name="wl_vk_label">VK call link (#2)</string>
+    <string name="wl_vk_help">VK → Calls → «Create call» → copy the invite link. Do not end the call «for everyone» — the link would stop working.</string>
+    <string name="wl_mailru_label">Mail.ru document link (#3)</string>
+    <string name="wl_mailru_help">Mail.ru Cloud → Create → Document → «Share» → link access «Can edit» → copy the link.</string>
+    <string name="wl_save">Save →</string>
+    <string name="wl_saved">Saved</string>
+    <string name="wl_bad_vk">Expected a link like https://vk.com/call/join/…</string>
+    <string name="wl_bad_mailru">Expected a link like https://cloud.mail.ru/public/…</string>
+    <string name="wl_note">Experimental servers. Use a secondary VK / Mail.ru account: the services may restrict an account for such traffic.</string>
+    <string name="wl_need_vk_link">Add a VK call link: Settings → App → Whitelists</string>
 </resources>

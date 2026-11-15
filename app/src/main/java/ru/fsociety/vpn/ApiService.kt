@@ -56,6 +56,8 @@ data class ServerResponse(
     val endpoint: String? = null,
     val allow_auto_connect: Boolean = true,
     val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria" | "trojan" | "openvpn_cloak" | "bypass"
+    // «Белый список №2»: AmneziaWG через TURN звонков VK — адрес vk-turn-proxy на сервере (хост:порт UDP)
+    val turn_peer: String? = null,
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
     val status_message: String? = null,
     val status_message_extra: String? = null,
