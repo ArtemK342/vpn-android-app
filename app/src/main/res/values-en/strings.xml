@@ -488,4 +488,5 @@
     <string name="wl_bad_mailru">Expected a link like https://cloud.mail.ru/public/…</string>
     <string name="wl_note">Experimental servers. Use a secondary VK / Mail.ru account: the services may restrict an account for such traffic.</string>
     <string name="wl_need_vk_link">Add a VK call link: Settings → App → Whitelists</string>
+    <string name="wl_need_mailru_link">Add a Mail.ru document link: Settings → App → Whitelists</string>
 </resources>

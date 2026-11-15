@@ -489,4 +489,5 @@
     <string name="wl_bad_mailru">Нужна ссылка вида https://cloud.mail.ru/public/…</string>
     <string name="wl_note">Экспериментальные серверы. Используйте не основной аккаунт VK / Mail.ru: сервисы могут ограничить аккаунт за такой трафик.</string>
     <string name="wl_need_vk_link">Добавьте ссылку на звонок VK: Настройки → Приложение → Белые списки</string>
+    <string name="wl_need_mailru_link">Добавьте ссылку на документ Mail.ru: Настройки → Приложение → Белые списки</string>
 </resources>

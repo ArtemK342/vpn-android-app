@@ -297,7 +297,14 @@ object ConnectionManager {
                         ?: return fail(str(R.string.bypass_error_start))
                     Pending(server, "bypass", BypassManager.buildConfig(port, dns))
                 }
-                "vless" -> Pending(server, "vless", ApiClient.service.getVlessConfig(bearer(), server.id).config, rules)
+                "vless" -> {
+                    // «Белый список №3»: сначала отдать серверу ссылку на свой документ Mail.ru
+                    if (server.vless_transport == "openflux") {
+                        val doc = WhitelistLinks.mailru(app) ?: return fail(str(R.string.wl_need_mailru_link))
+                        ApiClient.service.setWhitelistDoc(bearer(), WhitelistDocRequest(doc))
+                    }
+                    Pending(server, "vless", ApiClient.service.getVlessConfig(bearer(), server.id).config, rules)
+                }
                 "hysteria" -> Pending(server, "hysteria", ApiClient.service.getHysteriaConfig(bearer(), server.id).config, rules)
                 "trojan" -> Pending(server, "trojan", ApiClient.service.getTrojanConfig(bearer(), server.id).config, rules)
                 "openvpn_cloak" -> Pending(server, "openvpn_cloak", fetchCloakBundle(server))

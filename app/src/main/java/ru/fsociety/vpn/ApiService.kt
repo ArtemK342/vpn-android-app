@@ -47,6 +47,8 @@ data class UserResponse(
     val account_type: String = "email"
 )
 
+data class WhitelistDocRequest(val url: String)
+
 data class ServerResponse(
     val id: String = "",
     val name: String = "",
@@ -58,6 +60,8 @@ data class ServerResponse(
     val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria" | "trojan" | "openvpn_cloak" | "bypass"
     // «Белый список №2»: AmneziaWG через TURN звонков VK — адрес vk-turn-proxy на сервере (хост:порт UDP)
     val turn_peer: String? = null,
+    // Вид VLESS (tcp / grpc / ws / xhttp / openflux) — «openflux»: «Белый список №3» (документ Mail.ru)
+    val vless_transport: String? = null,
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
     val status_message: String? = null,
     val status_message_extra: String? = null,
@@ -310,6 +314,10 @@ interface ApiService {
 
     @POST("shop/stars-order")
     suspend fun starsOrder(@Header("Authorization") token: String): StarsOrderResponse
+
+    // «Белый список №3»: ссылка на свой документ Mail.ru — сервер поднимает под него выход OpenFlux
+    @POST("me/whitelist-doc")
+    suspend fun setWhitelistDoc(@Header("Authorization") token: String, @Body body: WhitelistDocRequest): Map<String, Any>
 
     @POST("promo/redeem")
     suspend fun redeemCode(@Header("Authorization") token: String, @Body body: RedeemRequest): RedeemResponse

@@ -156,9 +156,11 @@ object SingboxManager {
         // Параллельные запуски убивали друг другу sing-box, а одновременные
         // вызовы в libbox роняли Go-рантайм ("fatal error: unknown caller pc").
         // Сервер XHTTP (Yandex CDN): сначала xray отдельным процессом, sing-box ходит в него по socks
-        val configJson = XrayProcess.prepare(context, configJson) ?: return@synchronized false
+        val withXray = XrayProcess.prepare(context, configJson) ?: return@synchronized false
+        // «Белый список №3»: клиент OpenFlux (документ Mail.ru) отдельным процессом
+        val configJson = OpenfluxProcess.prepare(context, withXray) ?: run { XrayProcess.stop(); return@synchronized false }
         val ok = connectVerifiedInner(context, service, configJson, serverName, cancelled)
-        if (!ok) XrayProcess.stop()
+        if (!ok) { XrayProcess.stop(); OpenfluxProcess.stop() }
         ok
     }
 
@@ -283,6 +285,7 @@ object SingboxManager {
     fun disconnect() {
         stopSingbox()
         XrayProcess.stop()
+        OpenfluxProcess.stop()
     }
 
     /** Только sing-box — между проверкой и рабочим запуском xray продолжает работать. */

@@ -6,6 +6,7 @@ SHA-256 of each file was checked against the upstream release.
 | File in APK (jniLibs/arm64-v8a) | Project | Version | License | Source |
 |---|---|---|---|---|
 | libxray.so | XTLS/Xray-core (Xray-android-arm64-v8a) | v26.3.27 | MPL-2.0 | https://github.com/XTLS/Xray-core/tree/v26.3.27 |
+| libopenflux.so (planned: Android build from source) | p1neappleXpress/OpenFlux | v0.17.1 | GPL-3.0 | https://github.com/p1neappleXpress/OpenFlux/tree/v0.17.1 |
 | libvkturn.so | cacggghp/vk-turn-proxy (client-android-arm64) | v1.8.3 | GPL-3.0 | https://github.com/cacggghp/vk-turn-proxy/tree/v1.8.3 |
 
 GPL-3.0 / MPL-2.0: the corresponding source code is available at the links above (exact tags).
