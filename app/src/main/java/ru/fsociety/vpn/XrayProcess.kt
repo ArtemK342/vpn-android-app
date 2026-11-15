@@ -24,6 +24,10 @@ import java.util.UUID
 object XrayProcess {
     private const val TAG = "XrayProcess"
     @Volatile private var proc: java.lang.Process? = null
+    // Для перезапуска при смене сети: тот же конфиг и порт (sing-box продолжает ходить в тот же socks)
+    @Volatile private var lastConfig: String? = null
+    @Volatile private var lastPort = 0
+    @Volatile private var appContext: Context? = null
 
     /**
      * Есть «x_xray» — запускает xray и возвращает конфиг sing-box без этого поля, с портом и паролем
@@ -59,8 +63,21 @@ object XrayProcess {
         return if (start(context, x.toString(), port)) root.toString() else null
     }
 
+    /**
+     * Сменилась сеть (Wi-Fi ↔ мобильная): xray сам этого не видит и продолжает слать запросы через
+     * соединения к узлу CDN, открытые в старой сети, — они молча не отвечают. Перезапускаем с тем же конфигом.
+     */
+    fun restartOnNetworkChange() {
+        val cfg = lastConfig ?: return
+        val ctx = appContext ?: return
+        if (proc == null) return
+        AppLog.i("xray: смена сети — перезапуск")
+        start(ctx, cfg, lastPort)
+    }
+
     private fun start(context: Context, xrayConfig: String, port: Int): Boolean {
         stop()
+        lastConfig = xrayConfig; lastPort = port; appContext = context.applicationContext
         val bin = File(context.applicationInfo.nativeLibraryDir, "libxray.so")
         if (!bin.exists()) { AppLog.w("xray: нет бинарника"); return false }
         val dir = File(context.filesDir, "xray").apply { mkdirs() }
@@ -110,6 +127,7 @@ object XrayProcess {
     fun stop() {
         val p = proc ?: return
         proc = null
+        lastConfig = null
         try {
             p.destroy()
             if (!p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) p.destroyForcibly()

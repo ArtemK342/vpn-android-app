@@ -57,6 +57,8 @@ object SingboxManager {
     @Volatile private var monitorProxy: ProbeProxy? = null
     private var setupDone = false
     @Volatile private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+    /** Последняя физическая сеть (интерфейс) — чтобы заметить переключение Wi-Fi ↔ мобильная. */
+    @Volatile private var lastIface: String? = null
 
     /** StringIterator для libbox из обычного списка. */
     private class StringList(items: List<String>) : StringIterator {
@@ -441,6 +443,10 @@ object SingboxManager {
                     try { l.updateDefaultInterface("", -1, false, false) } catch (_: Exception) {}
                     return
                 }
+                // Сеть сменилась (Wi-Fi ↔ мобильная) — xray (сервер XHTTP) перезапустить: сам он смену не видит
+                val prev = lastIface
+                lastIface = name
+                if (prev != null && prev != name) Thread { XrayProcess.restartOnNetworkChange() }.start()
                 val index = try { java.net.NetworkInterface.getByName(name)?.index ?: -1 } catch (_: Exception) { -1 }
                 val caps = cm.getNetworkCapabilities(network)
                 val expensive = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == false
@@ -453,6 +459,7 @@ object SingboxManager {
                 override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) = report(network)
                 override fun onLost(network: android.net.Network) = report(null)
             }
+            lastIface = null
             networkCallback?.let { runCatching { cm.unregisterNetworkCallback(it) } }
             networkCallback = cb
             try { cm.registerDefaultNetworkCallback(cb) } catch (e: Exception) { Log.w(TAG, "network callback: ${e.message}") }
