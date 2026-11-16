@@ -481,7 +481,7 @@
     <string name="wl_vk_label">VK call link (#2)</string>
     <string name="wl_vk_help">VK → Calls → «Create call» → copy the invite link. Do not end the call «for everyone» — the link would stop working.</string>
     <string name="wl_mailru_label">Mail.ru document link (#3)</string>
-    <string name="wl_mailru_help">Mail.ru Cloud → Create → Document → «Share» → link access «Can edit» → copy the link.</string>
+    <string name="wl_mailru_help">It must be a document (not a folder or photo): in Mail.ru Cloud «Create» → «Document» (in a browser) or upload an empty .docx → «Share» → link access «Can edit» → copy the link.</string>
     <string name="wl_save">Save →</string>
     <string name="wl_saved">Saved</string>
     <string name="wl_bad_vk">Expected a link like https://vk.com/call/join/…</string>
@@ -489,6 +489,13 @@
     <string name="wl_note">Experimental servers. Use a secondary VK / Mail.ru account: the services may restrict an account for such traffic.</string>
     <string name="wl_need_vk_link">Add a VK call link: Settings → App → Whitelists</string>
     <string name="wl_need_mailru_link">Add a Mail.ru document link: Settings → App → Whitelists</string>
+    <string name="wl_mailru_login">Sign in to Mail.ru</string>
+    <string name="wl_mailru_logged">Signed in to Mail.ru</string>
+    <string name="wl_mailru_logout">Sign out</string>
+    <string name="wl_mailru_login_help">Mail.ru opens the document only after signing in. Use the account that owns the document (preferably not your main one). Sign-in data stays on the phone.</string>
+    <string name="wl_mailru_login_done">Done</string>
+    <string name="wl_mailru_login_wait">Sign in — the window closes by itself once the Cloud opens</string>
+    <string name="wl_need_mailru_login">Sign in to Mail.ru: Settings → App → Whitelists → «Sign in to Mail.ru»</string>
     <string name="wl_room_label">Telemost or WB Stream room link (#4)</string>
     <string name="wl_room_help">Yandex Telemost → «Create a meeting» → copy the telemost.yandex.ru/j/… link. Or WB Stream (stream.wb.ru) → create a room → link. Do not end the meeting.</string>
     <string name="wl_bad_room">Expected https://telemost.yandex.ru/j/… or https://stream.wb.ru/…</string>

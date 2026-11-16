@@ -482,7 +482,7 @@
     <string name="wl_vk_label">Ссылка на звонок VK (№2)</string>
     <string name="wl_vk_help">VK → Звонки → «Создать звонок» → скопируйте ссылку-приглашение. Не завершайте звонок «для всех» — ссылка перестанет работать.</string>
     <string name="wl_mailru_label">Ссылка на документ Mail.ru (№3)</string>
-    <string name="wl_mailru_help">Облако Mail.ru → Создать → Документ → «Поделиться» → доступ по ссылке «Редактирование» → скопируйте ссылку.</string>
+    <string name="wl_mailru_help">Нужен документ (не папка, не фото): в Облаке Mail.ru «Создать» → «Документ» (в браузере) или загрузите пустой .docx → «Поделиться» → доступ по ссылке «Редактирование» → скопируйте ссылку.</string>
     <string name="wl_save">Сохранить →</string>
     <string name="wl_saved">Сохранено</string>
     <string name="wl_bad_vk">Нужна ссылка вида https://vk.com/call/join/…</string>
@@ -490,6 +490,13 @@
     <string name="wl_note">Экспериментальные серверы. Используйте не основной аккаунт VK / Mail.ru: сервисы могут ограничить аккаунт за такой трафик.</string>
     <string name="wl_need_vk_link">Добавьте ссылку на звонок VK: Настройки → Приложение → Белые списки</string>
     <string name="wl_need_mailru_link">Добавьте ссылку на документ Mail.ru: Настройки → Приложение → Белые списки</string>
+    <string name="wl_mailru_login">Войти в Mail.ru</string>
+    <string name="wl_mailru_logged">Вход в Mail.ru выполнен</string>
+    <string name="wl_mailru_logout">Выйти</string>
+    <string name="wl_mailru_login_help">Mail.ru открывает документ только после входа в аккаунт. Войдите в тот аккаунт, где лежит документ (лучше не основной). Данные входа остаются на телефоне.</string>
+    <string name="wl_mailru_login_done">Готово</string>
+    <string name="wl_mailru_login_wait">Войдите в аккаунт — окно закроется само, когда откроется Облако</string>
+    <string name="wl_need_mailru_login">Войдите в Mail.ru: Настройки → Приложение → Белые списки → «Войти в Mail.ru»</string>
     <string name="wl_room_label">Ссылка на комнату Телемоста или WB Stream (№4)</string>
     <string name="wl_room_help">Яндекс Телемост → «Создать видеовстречу» → скопируйте ссылку telemost.yandex.ru/j/… Или WB Stream (stream.wb.ru) → создайте комнату → ссылка. Встречу не завершайте.</string>
     <string name="wl_bad_room">Нужна ссылка https://telemost.yandex.ru/j/… или https://stream.wb.ru/…</string>

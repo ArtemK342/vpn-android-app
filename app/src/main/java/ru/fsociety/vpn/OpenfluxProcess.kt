@@ -40,10 +40,12 @@ object OpenfluxProcess {
         if (!bin.exists()) { AppLog.w("openflux: нет бинарника"); return false }
         val dir = File(context.filesDir, "openflux").apply { mkdirs() }
         val keyFile = File(dir, "key").apply { writeText(key + "\n") }
+        val cookieFile = File(dir, "cookies.json")
+        try { seedCookies(context, cookieFile, url) } catch (e: Exception) { AppLog.w("openflux: cookies ${e.javaClass.simpleName}") }
         return try {
             val p = ProcessBuilder(bin.absolutePath, "--role=client", "--inbound=socks5", "--socks5=127.0.0.1:$port",
                 "--transport=mailru", "--url=$url", "--encryption-key-file=${keyFile.absolutePath}",
-                "--cookie-store=${File(dir, "cookies.json").absolutePath}")
+                "--cookie-store=${cookieFile.absolutePath}")
                 .directory(dir).redirectErrorStream(true).start()
             proc = p
             Thread {
@@ -70,6 +72,20 @@ object OpenfluxProcess {
             AppLog.w("openflux: ошибка запуска ${e.javaClass.simpleName}")
             stop(); false
         }
+    }
+
+    /**
+     * Mail.ru открывает документ только залогиненным: кладём cookies входа (окно «Войти в Mail.ru») в cookie-store
+     * OpenFlux под ключом-ссылкой документа. Если там уже та же сессия (OpenFlux мог обновить cookies) — не трогаем.
+     */
+    private fun seedCookies(context: Context, file: File, url: String) {
+        val jar = WhitelistLinks.mailruCookies(context) ?: return
+        val root = try { JSONObject(file.readText()) } catch (_: Exception) { JSONObject() }
+        val cur = root.optJSONObject(url)
+        val same = cur != null && listOf("Mpop", "sdcs").all { cur.optString(it) == (jar[it] ?: "") }
+        if (same) return
+        root.put(url, JSONObject(jar as Map<*, *>))
+        file.writeText(root.toString())
     }
 
     fun stop() {

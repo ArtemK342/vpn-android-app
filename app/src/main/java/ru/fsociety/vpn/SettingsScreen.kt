@@ -1752,6 +1752,8 @@ fun WhitelistLinksTab(onBack: () -> Unit) {
     var mailru by remember { mutableStateOf(WhitelistLinks.mailru(context) ?: "") }
     var vkMsg by remember { mutableStateOf<String?>(null) }
     var mrMsg by remember { mutableStateOf<String?>(null) }
+    var mrLogged by remember { mutableStateOf(WhitelistLinks.mailruCookies(context) != null) }
+    var showMrLogin by remember { mutableStateOf(false) }
     var room by remember { mutableStateOf(WhitelistLinks.room(context) ?: "") }
     var roomMsg by remember { mutableStateOf<String?>(null) }
     val badRoom = stringResource(R.string.wl_bad_room)
@@ -1811,6 +1813,22 @@ fun WhitelistLinksTab(onBack: () -> Unit) {
                     }.padding(vertical = 6.dp))
                 mrMsg?.let { Spacer(modifier = Modifier.width(12.dp)); Text(it, color = TextMuted, fontSize = 11.sp) }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(stringResource(R.string.wl_mailru_login_help), color = TextMuted, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (mrLogged) {
+                    Text("✓ " + stringResource(R.string.wl_mailru_logged), color = TextPrimary, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(stringResource(R.string.wl_mailru_logout), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.clickable { mailruLogout(context); mrLogged = false }.padding(vertical = 6.dp))
+                } else {
+                    Text(stringResource(R.string.wl_mailru_login), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.clickable { showMrLogin = true }.padding(vertical = 6.dp))
+                }
+            }
+            if (showMrLogin) MailruLoginDialog(onDismiss = { showMrLogin = false },
+                onLoggedIn = { showMrLogin = false; mrLogged = true })
             Spacer(modifier = Modifier.height(24.dp))
             Text(stringResource(R.string.wl_room_label), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(4.dp))

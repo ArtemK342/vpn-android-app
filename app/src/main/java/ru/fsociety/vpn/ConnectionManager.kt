@@ -301,6 +301,7 @@ object ConnectionManager {
                     // «Белый список №3»: сначала отдать серверу ссылку на свой документ Mail.ru
                     if (server.vless_transport == "openflux") {
                         val doc = WhitelistLinks.mailru(app) ?: return fail(str(R.string.wl_need_mailru_link))
+                        if (WhitelistLinks.mailruCookies(app) == null) return fail(str(R.string.wl_need_mailru_login))
                         ApiClient.service.setWhitelistDoc(bearer(), WhitelistDocRequest(doc))
                     }
                     // «Белый список №4»: ссылка на свою комнату Телемоста / WB Stream
