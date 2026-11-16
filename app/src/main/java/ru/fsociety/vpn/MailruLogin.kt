@@ -81,17 +81,45 @@ fun MailruLoginDialog(onDismiss: () -> Unit, onLoggedIn: () -> Unit) {
             HorizontalDivider(color = Border)
             AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { ctx ->
                 CookieManager.getInstance().setAcceptCookie(true)
-                WebView(ctx).apply {
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            if (url != null && url.startsWith(CLOUD)) tryFinish(ctx)
+                // Вход Mail.ru / VK ID открывается во всплывающем окне (window.open) — без поддержки окон был белый
+                // экран (2026-11-16). Поэтому: 1) сразу полная страница входа account.mail.ru с возвратом в Облако;
+                // 2) всплывающие окна открываем дочерним WebView поверх основного.
+                val box = android.widget.FrameLayout(ctx)
+                val client = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        if (url != null && url.startsWith(CLOUD)) tryFinish(ctx)
+                    }
+                }
+                fun setup(w: WebView) {
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(w, true)
+                    w.settings.javaScriptEnabled = true
+                    w.settings.domStorageEnabled = true
+                    w.settings.setSupportMultipleWindows(true)
+                    w.settings.javaScriptCanOpenWindowsAutomatically = true
+                    // часть форм входа не показывается в «WebView» — убираем пометку wv из User-Agent
+                    w.settings.userAgentString = w.settings.userAgentString.replace("; wv", "")
+                    w.webViewClient = client
+                    w.webChromeClient = object : android.webkit.WebChromeClient() {
+                        override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean,
+                                                    resultMsg: android.os.Message?): Boolean {
+                            val child = WebView(ctx).also { setup(it) }
+                            box.addView(child, android.widget.FrameLayout.LayoutParams(-1, -1))
+                            (resultMsg?.obj as? WebView.WebViewTransport)?.webView = child
+                            resultMsg?.sendToTarget()
+                            return true
+                        }
+                        override fun onCloseWindow(window: WebView?) {
+                            window ?: return
+                            box.removeView(window); window.destroy()
+                            tryFinish(ctx)
                         }
                     }
-                    loadUrl(CLOUD + "home/")
                 }
+                val main = WebView(ctx).also { setup(it) }
+                box.addView(main, android.widget.FrameLayout.LayoutParams(-1, -1))
+                main.loadUrl("https://account.mail.ru/login?page=" +
+                    java.net.URLEncoder.encode(CLOUD + "home/", "UTF-8"))
+                box
             })
         }
     }
