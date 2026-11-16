@@ -75,7 +75,7 @@ object OpenfluxProcess {
                 } catch (_: Exception) {}
             }.apply { isDaemon = true }.start()
             var up = false
-            for (i in 0 until 50) {
+            for (i in 0 until 300) {   // до 30 с: с --negotiate SOCKS открывается после рукопожатия с выходом
                 if (!p.isAlive) break
                 up = try { Socket().use { it.connect(InetSocketAddress("127.0.0.1", port), 200) }; true } catch (_: Exception) { false }
                 if (up) break
