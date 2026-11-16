@@ -34,10 +34,14 @@ object OpenfluxProcess {
         // параметры с сервера (api/openflux_tune.json) — подбор без пересборки приложения
         val env = x.optJSONObject("env")?.let { e -> e.keys().asSequence().filter { it.startsWith("OPENFLUX_") }
             .associateWith { e.optString(it) } } ?: emptyMap()
-        return if (start(context, url, key, port, env)) root.toString() else null
+        // доп. флаги с сервера (например --session-context), кроме тех, что задаёт само приложение
+        val own = setOf("--role", "--inbound", "--socks5", "--transport", "--url", "--encryption-key-file", "--cookie-store")
+        val args = x.optJSONArray("args")?.let { a -> (0 until a.length()).map { a.optString(it) } }
+            ?.filter { it.startsWith("--") && it.substringBefore('=') !in own } ?: emptyList()
+        return if (start(context, url, key, port, env, args)) root.toString() else null
     }
 
-    private fun start(context: Context, url: String, key: String, port: Int, env: Map<String, String>): Boolean {
+    private fun start(context: Context, url: String, key: String, port: Int, env: Map<String, String>, args: List<String>): Boolean {
         stop()
         val bin = File(context.applicationInfo.nativeLibraryDir, "libopenflux.so")
         if (!bin.exists()) { AppLog.w("openflux: нет бинарника"); return false }
@@ -46,9 +50,9 @@ object OpenfluxProcess {
         val cookieFile = File(dir, "cookies.json")
         try { seedCookies(context, cookieFile, url) } catch (e: Exception) { AppLog.w("openflux: cookies ${e.javaClass.simpleName}") }
         return try {
-            val p = ProcessBuilder(bin.absolutePath, "--role=client", "--inbound=socks5", "--socks5=127.0.0.1:$port",
+            val p = ProcessBuilder(listOf(bin.absolutePath, "--role=client", "--inbound=socks5", "--socks5=127.0.0.1:$port",
                 "--transport=mailru", "--url=$url", "--encryption-key-file=${keyFile.absolutePath}",
-                "--cookie-store=${cookieFile.absolutePath}")
+                "--cookie-store=${cookieFile.absolutePath}") + args)
                 .directory(dir).redirectErrorStream(true)
                 .apply {
                     // 2026-11-16: залогиненное соединение с документом Mail.ru рвётся (4004 «access deny») уже после
