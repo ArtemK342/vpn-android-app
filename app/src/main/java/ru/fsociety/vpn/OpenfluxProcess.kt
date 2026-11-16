@@ -50,9 +50,9 @@ object OpenfluxProcess {
                 .apply {
                     // 2026-11-16: залогиненное соединение с документом Mail.ru рвётся (4004 «access deny») уже после
                     // ~31-42 сообщений (у анонимного ~80, под него умолчания OpenFlux) — меняем соединение раньше.
-                    environment()["OPENFLUX_MAILRU_ROTATE_MSGS"] = "25"
+                    environment()["OPENFLUX_MAILRU_ROTATE_MSGS"] = "15"
                     environment()["OPENFLUX_MAILRU_ROTATE_MS"] = "15000"
-                    environment()["OPENFLUX_MAILRU_MSG_INTERVAL_MS"] = "300"
+                    environment()["OPENFLUX_MAILRU_MSG_INTERVAL_MS"] = "400"
                 }.start()
             proc = p
             Thread {
