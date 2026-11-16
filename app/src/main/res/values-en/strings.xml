@@ -477,7 +477,7 @@
     <string name="wl_title">Whitelists</string>
     <string name="wl_sub_set">Links saved</string>
     <string name="wl_sub_empty">VK call link and Mail.ru document</string>
-    <string name="wl_desc">For the «Whitelist #2» and «#3» servers. They work through your own VK call and Mail.ru Cloud document — these services stay reachable even when mobile internet is limited to a whitelist. The links are stored only on this phone.</string>
+    <string name="wl_desc">For the «Whitelist #2», «#3» and «#4» servers. They work through your own VK call, Mail.ru Cloud document and Telemost / WB Stream room — these services stay reachable even when mobile internet is limited to a whitelist. The links are stored only on this phone.</string>
     <string name="wl_vk_label">VK call link (#2)</string>
     <string name="wl_vk_help">VK → Calls → «Create call» → copy the invite link. Do not end the call «for everyone» — the link would stop working.</string>
     <string name="wl_mailru_label">Mail.ru document link (#3)</string>
@@ -489,4 +489,8 @@
     <string name="wl_note">Experimental servers. Use a secondary VK / Mail.ru account: the services may restrict an account for such traffic.</string>
     <string name="wl_need_vk_link">Add a VK call link: Settings → App → Whitelists</string>
     <string name="wl_need_mailru_link">Add a Mail.ru document link: Settings → App → Whitelists</string>
+    <string name="wl_room_label">Telemost or WB Stream room link (#4)</string>
+    <string name="wl_room_help">Yandex Telemost → «Create a meeting» → copy the telemost.yandex.ru/j/… link. Or WB Stream (stream.wb.ru) → create a room → link. Do not end the meeting.</string>
+    <string name="wl_bad_room">Expected https://telemost.yandex.ru/j/… or https://stream.wb.ru/…</string>
+    <string name="wl_need_room_link">Add a Telemost or WB Stream room link: Settings → App → Whitelists</string>
 </resources>

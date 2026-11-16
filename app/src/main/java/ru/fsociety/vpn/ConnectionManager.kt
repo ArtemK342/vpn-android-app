@@ -303,6 +303,11 @@ object ConnectionManager {
                         val doc = WhitelistLinks.mailru(app) ?: return fail(str(R.string.wl_need_mailru_link))
                         ApiClient.service.setWhitelistDoc(bearer(), WhitelistDocRequest(doc))
                     }
+                    // «Белый список №4»: ссылка на свою комнату Телемоста / WB Stream
+                    if (server.vless_transport == "olcrtc") {
+                        val room = WhitelistLinks.room(app) ?: return fail(str(R.string.wl_need_room_link))
+                        ApiClient.service.setWhitelistRoom(bearer(), WhitelistDocRequest(room))
+                    }
                     Pending(server, "vless", ApiClient.service.getVlessConfig(bearer(), server.id).config, rules)
                 }
                 "hysteria" -> Pending(server, "hysteria", ApiClient.service.getHysteriaConfig(bearer(), server.id).config, rules)

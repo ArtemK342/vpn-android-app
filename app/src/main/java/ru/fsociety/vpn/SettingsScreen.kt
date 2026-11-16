@@ -904,7 +904,8 @@ fun AppSettingsTab(
         SettingsMenuItem(
             icon = { Icon(Icons.Filled.Link, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp)) },
             title = stringResource(R.string.wl_title),
-            subtitle = stringResource(if (WhitelistLinks.vk(optCtx) != null || WhitelistLinks.mailru(optCtx) != null)
+            subtitle = stringResource(if (WhitelistLinks.vk(optCtx) != null || WhitelistLinks.mailru(optCtx) != null
+                    || WhitelistLinks.room(optCtx) != null)
                 R.string.wl_sub_set else R.string.wl_sub_empty),
             onClick = { onOpen("whitelist") }
         )
@@ -1751,6 +1752,9 @@ fun WhitelistLinksTab(onBack: () -> Unit) {
     var mailru by remember { mutableStateOf(WhitelistLinks.mailru(context) ?: "") }
     var vkMsg by remember { mutableStateOf<String?>(null) }
     var mrMsg by remember { mutableStateOf<String?>(null) }
+    var room by remember { mutableStateOf(WhitelistLinks.room(context) ?: "") }
+    var roomMsg by remember { mutableStateOf<String?>(null) }
+    val badRoom = stringResource(R.string.wl_bad_room)
     val saved = stringResource(R.string.wl_saved)
     val badVk = stringResource(R.string.wl_bad_vk)
     val badMr = stringResource(R.string.wl_bad_mailru)
@@ -1806,6 +1810,28 @@ fun WhitelistLinksTab(onBack: () -> Unit) {
                         WhitelistLinks.save(context, WhitelistLinks.PREF_MAILRU, v); mrMsg = saved
                     }.padding(vertical = 6.dp))
                 mrMsg?.let { Spacer(modifier = Modifier.width(12.dp)); Text(it, color = TextMuted, fontSize = 11.sp) }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(stringResource(R.string.wl_room_label), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.wl_room_help), color = TextMuted, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = room, onValueChange = { room = it; roomMsg = null }, singleLine = true,
+                placeholder = { Text("https://telemost.yandex.ru/j/…", color = TextDim, fontSize = 13.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                    focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary, cursorColor = Accent)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.wl_save), color = Accent, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.clickable {
+                        val v = room.trim()
+                        if (v.isNotEmpty() && !WhitelistLinks.validRoom(v)) { roomMsg = badRoom; return@clickable }
+                        WhitelistLinks.save(context, WhitelistLinks.PREF_ROOM, v); roomMsg = saved
+                    }.padding(vertical = 6.dp))
+                roomMsg?.let { Spacer(modifier = Modifier.width(12.dp)); Text(it, color = TextMuted, fontSize = 11.sp) }
             }
             Spacer(modifier = Modifier.height(20.dp))
             Text(stringResource(R.string.wl_note), color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)

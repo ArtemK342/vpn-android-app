@@ -319,6 +319,10 @@ interface ApiService {
     @POST("me/whitelist-doc")
     suspend fun setWhitelistDoc(@Header("Authorization") token: String, @Body body: WhitelistDocRequest): Map<String, Any>
 
+    // «Белый список №4»: ссылка на свою комнату Телемоста / WB Stream — сервер поднимает под неё olcRTC
+    @POST("me/whitelist-room")
+    suspend fun setWhitelistRoom(@Header("Authorization") token: String, @Body body: WhitelistDocRequest): Map<String, Any>
+
     @POST("promo/redeem")
     suspend fun redeemCode(@Header("Authorization") token: String, @Body body: RedeemRequest): RedeemResponse
 

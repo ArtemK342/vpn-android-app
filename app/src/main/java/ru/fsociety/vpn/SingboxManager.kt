@@ -158,9 +158,12 @@ object SingboxManager {
         // Сервер XHTTP (Yandex CDN): сначала xray отдельным процессом, sing-box ходит в него по socks
         val withXray = XrayProcess.prepare(context, configJson) ?: return@synchronized false
         // «Белый список №3»: клиент OpenFlux (документ Mail.ru) отдельным процессом
-        val configJson = OpenfluxProcess.prepare(context, withXray) ?: run { XrayProcess.stop(); return@synchronized false }
+        val withOf = OpenfluxProcess.prepare(context, withXray) ?: run { XrayProcess.stop(); return@synchronized false }
+        // «Белый список №4»: клиент olcRTC (комната Телемоста / WB Stream)
+        val configJson = OlcrtcProcess.prepare(context, withOf)
+            ?: run { XrayProcess.stop(); OpenfluxProcess.stop(); return@synchronized false }
         val ok = connectVerifiedInner(context, service, configJson, serverName, cancelled)
-        if (!ok) { XrayProcess.stop(); OpenfluxProcess.stop() }
+        if (!ok) { XrayProcess.stop(); OpenfluxProcess.stop(); OlcrtcProcess.stop() }
         ok
     }
 
@@ -286,6 +289,7 @@ object SingboxManager {
         stopSingbox()
         XrayProcess.stop()
         OpenfluxProcess.stop()
+        OlcrtcProcess.stop()
     }
 
     /** Только sing-box — между проверкой и рабочим запуском xray продолжает работать. */
