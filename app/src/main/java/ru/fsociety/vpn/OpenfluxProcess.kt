@@ -31,10 +31,13 @@ object OpenfluxProcess {
         val outs = root.optJSONArray("outbounds") ?: return null
         val proxy = (0 until outs.length()).map { outs.getJSONObject(it) }.firstOrNull { it.optString("tag") == "proxy" } ?: return null
         proxy.put("type", "socks").put("server", "127.0.0.1").put("server_port", port).put("version", "5")
-        return if (start(context, url, key, port)) root.toString() else null
+        // параметры с сервера (api/openflux_tune.json) — подбор без пересборки приложения
+        val env = x.optJSONObject("env")?.let { e -> e.keys().asSequence().filter { it.startsWith("OPENFLUX_") }
+            .associateWith { e.optString(it) } } ?: emptyMap()
+        return if (start(context, url, key, port, env)) root.toString() else null
     }
 
-    private fun start(context: Context, url: String, key: String, port: Int): Boolean {
+    private fun start(context: Context, url: String, key: String, port: Int, env: Map<String, String>): Boolean {
         stop()
         val bin = File(context.applicationInfo.nativeLibraryDir, "libopenflux.so")
         if (!bin.exists()) { AppLog.w("openflux: нет бинарника"); return false }
@@ -53,6 +56,8 @@ object OpenfluxProcess {
                     environment()["OPENFLUX_MAILRU_ROTATE_MSGS"] = "15"
                     environment()["OPENFLUX_MAILRU_ROTATE_MS"] = "15000"
                     environment()["OPENFLUX_MAILRU_MSG_INTERVAL_MS"] = "400"
+                    environment().putAll(env)
+                    if (env.isNotEmpty()) AppLog.i("openflux: параметры с сервера ${env.entries.joinToString { "${it.key.removePrefix("OPENFLUX_")}=${it.value}" }}")
                 }.start()
             proc = p
             Thread {
