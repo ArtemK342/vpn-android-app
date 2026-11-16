@@ -9,5 +9,8 @@ fallback to $VKTURN_DNS (default 77.88.8.8:53) when /etc/resolv.conf is missing 
 git clone --depth 1 --branch v1.8.3 https://github.com/cacggghp/vk-turn-proxy.git
 cp android_dns.go vk-turn-proxy/client/
 cd vk-turn-proxy
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o libvkturn.so ./client   # Go 1.27.4
+CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -ldflags "-s -w -checklinkname=0" -o libvkturn.so ./client   # Go 1.27.4
 ```
+
+GOOS=android (not linux): Go then reads Android system CA certificates (/system/etc/security/cacerts).
+-checklinkname=0: needed by the dependency github.com/wlynxg/anet with Go 1.27.
