@@ -46,7 +46,14 @@ object OpenfluxProcess {
             val p = ProcessBuilder(bin.absolutePath, "--role=client", "--inbound=socks5", "--socks5=127.0.0.1:$port",
                 "--transport=mailru", "--url=$url", "--encryption-key-file=${keyFile.absolutePath}",
                 "--cookie-store=${cookieFile.absolutePath}")
-                .directory(dir).redirectErrorStream(true).start()
+                .directory(dir).redirectErrorStream(true)
+                .apply {
+                    // 2026-11-16: залогиненное соединение с документом Mail.ru рвётся (4004 «access deny») уже после
+                    // ~31-42 сообщений (у анонимного ~80, под него умолчания OpenFlux) — меняем соединение раньше.
+                    environment()["OPENFLUX_MAILRU_ROTATE_MSGS"] = "25"
+                    environment()["OPENFLUX_MAILRU_ROTATE_MS"] = "15000"
+                    environment()["OPENFLUX_MAILRU_MSG_INTERVAL_MS"] = "300"
+                }.start()
             proc = p
             Thread {
                 try {
