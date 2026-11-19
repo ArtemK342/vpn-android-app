@@ -82,12 +82,48 @@ private fun loadLauncherApps(context: Context): List<AppInfo> {
         .sortedBy { it.label.lowercase() }
 }
 
+/**
+ * Кэш списка приложений (юзер 2026-11-19): экран открывается сразу с прошлым списком (память, иначе файл
+ * apps-cache.json), а свежий список грузится в фоне и подменяет его, только если что-то изменилось.
+ */
+private object AppListCache {
+    @Volatile private var mem: List<AppInfo>? = null
+    private fun file(context: Context) = java.io.File(context.filesDir, "apps-cache.json")
+
+    fun cached(context: Context): List<AppInfo>? {
+        mem?.let { return it }
+        return try {
+            val arr = org.json.JSONArray(file(context).readText())
+            (0 until arr.length()).map { arr.getJSONObject(it).let { o -> AppInfo(o.getString("p"), o.getString("l")) } }
+                .also { mem = it }
+        } catch (_: Exception) { null }
+    }
+
+    /** Свежий список; сохраняет его, если он отличается от кэша. */
+    fun refresh(context: Context): List<AppInfo> {
+        val fresh = loadLauncherApps(context)
+        if (fresh != mem) {
+            mem = fresh
+            try {
+                val arr = org.json.JSONArray()
+                fresh.forEach { arr.put(org.json.JSONObject().put("p", it.packageName).put("l", it.label)) }
+                val f = file(context); val tmp = java.io.File(f.path + ".tmp")
+                tmp.writeText(arr.toString()); tmp.renameTo(f)
+            } catch (_: Exception) {}
+        }
+        return fresh
+    }
+}
+
 @Composable
 fun RulesScreen(
     settings: SplitTunnelingSettings,
     onSettingsChange: (SplitTunnelingSettings) -> Unit
 ) {
     var currentScreen by remember { mutableStateOf("main") }
+    val ctx = LocalContext.current
+    // Обновить кэш списка приложений заранее, пока открыт главный экран правил
+    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { try { AppListCache.refresh(ctx) } catch (_: Exception) {} } }
 
     BackHandler(enabled = currentScreen != "main") { currentScreen = "main" }
 
@@ -451,11 +487,12 @@ fun AppsRulesScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    var allApps by remember { mutableStateOf<List<AppInfo>?>(null) }
+    var allApps by remember { mutableStateOf(AppListCache.cached(context)) }
     var query by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        allApps = withContext(Dispatchers.IO) { loadLauncherApps(context) }
+        val fresh = withContext(Dispatchers.IO) { AppListCache.refresh(context) }
+        if (fresh != allApps) allApps = fresh   // без изменений — список не перестраиваем
     }
 
     val list = settings.apps
