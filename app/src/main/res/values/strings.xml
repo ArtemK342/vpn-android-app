@@ -145,7 +145,7 @@
     <string name="settings_in_dev">В разработке</string>
     <string name="settings_payments">История платежей</string>
     <string name="settings_version">Версия</string>
-    <string name="settings_official_site">Официальный сайт — только fsociety-vpn.org. Похожие сервисы к нам отношения не имеют.</string>
+    <string name="settings_official_site">Официальные адреса — fsociety-vpn.org и зеркало fsociety-vpn.xyz. Похожие сервисы к нам отношения не имеют.</string>
 
     <!-- Account -->
     <string name="account_title">Аккаунт.</string>

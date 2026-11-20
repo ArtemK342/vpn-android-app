@@ -30,7 +30,7 @@
 
 <div class="tag">// Legal documents</div>
   <h1>Privacy Policy.</h1>
-  <p class="meta">Last updated: November 8, 2026 · Version 1.7</p>
+  <p class="meta">Last updated: November 20, 2026 · Version 1.8</p>
 <div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General</h2>
@@ -82,7 +82,7 @@
 <div class="section" id="en-site">
   <div class="num">// 05</div>
   <h2>Website, API and email</h2>
-  <p>The website runs behind Cloudflare: when you open the website or your dashboard, Cloudflare sees your IP address and the content of the requests and processes them under its own privacy policy.</p>
+  <p>The website runs behind Cloudflare: when you open the website or your dashboard, Cloudflare sees your IP address and the content of the requests and processes them under its own privacy policy. The website is also available at the mirror address fsociety-vpn.xyz — the same website on the same server, also behind Cloudflare.</p>
   <p>The app talks to our API directly, bypassing Cloudflare:</p>
   <ul>
     <li><strong>anonymous account</strong> — all requests, including code sign-in and account creation: Cloudflare sees neither your IP, nor the code, nor the keys;</li>
@@ -110,31 +110,53 @@
     <li><a href="https://github.com/SagerNet/sing-box" target="_blank" rel="noopener">sing-box</a> — VLESS+Reality, Trojan, Hysteria2 and split tunneling</li>
     <li>OpenVPN and <a href="https://github.com/cbeuw/Cloak" target="_blank" rel="noopener">Cloak</a> — fallback protocol</li>
     <li><a href="https://github.com/hufrea/byedpi" target="_blank" rel="noopener">ByeDPI</a> — "RF mode"</li>
+    <li><a href="https://github.com/Flowseal/zapret-discord-youtube" target="_blank" rel="noopener">zapret</a> — "RF mode" in the Windows app</li>
   </ul>
-  <p>"RF mode" runs entirely on your phone without our servers: traffic goes to websites directly, and ByeDPI only modifies packets to get around blocking. This traffic does not pass through our servers and we don't see it — but your IP address is not hidden from websites in this mode.</p>
+  <p>"RF mode" runs entirely on your device without our servers: traffic goes to websites directly, and ByeDPI or zapret only modify packets to get around blocking. This traffic does not pass through our servers and we don't see it — but your IP address is not hidden from websites in this mode.</p>
+</div>
+
+<div class="section" id="en-extension">
+  <div class="num">// 08</div>
+  <h2>Browser extension</h2>
+  <p>The extension for Chrome and Yandex Browser sends only browser traffic through our HTTPS proxy — other programs on your computer connect directly.</p>
+  <ul>
+    <li>On the proxy servers, as on our other servers without the <span class="logs-on">● LOGS ON</span> label, visited websites, your IP address and connection times are not recorded.</li>
+    <li>To sign in to the proxy, the extension gets a temporary password from our API, valid for 12 hours. The proxy checks its signature itself, without a database lookup.</li>
+    <li>The browser stores only your sign-in, the server list, the temporary password and the extension settings.</li>
+    <li>The extension changes the browser's proxy settings and, with "WebRTC protection" on, the WebRTC setting; it restores them when the VPN is turned off.</li>
+    <li>The extension has no analytics, ads or counters.</li>
+  </ul>
 </div>
 
 <div class="section" id="en-payments">
-  <div class="num">// 08</div>
+  <div class="num">// 09</div>
   <h2>Payments</h2>
-  <p>Payments are made via Telegram Stars. We do not receive or store card details. Payments are processed by Telegram under its own privacy policy.</p>
+  <p>You can pay for a subscription with:</p>
+  <ul>
+    <li><strong>Telegram Stars</strong> — in our bot @fsocietynet_agent or from the app;</li>
+    <li><strong>Tribute</strong> — via Telegram, by card;</li>
+    <li><strong>cryptocurrency</strong> via the Heleket service.</li>
+  </ul>
+  <p>We do not receive or store card or crypto wallet details: payments are processed by Telegram, Tribute or Heleket under their own privacy policies.</p>
+  <p>We keep a payment record: method, amount and currency, date, plan and the payment number at the payment service. For payments via Telegram (Stars, Tribute) — also your numeric Telegram ID, so the bot can deliver the activation code. An activation code (FS-XXXX-XXXX) is stored with its issue and activation dates and the account it was activated in.</p>
+  <p>Payment records are needed for refunds and accounting, so they remain after the account is deleted.</p>
 </div>
 
 <div class="section" id="en-third">
-  <div class="num">// 09</div>
+  <div class="num">// 10</div>
   <h2>Third parties and requests</h2>
-  <p>We do not sell or share your data. Apart from us, data is processed only by the services in sections 3, 5 and 8 (Proton — storage of encrypted backups, Cloudflare, Resend, Telegram), exactly to the extent described there.</p>
-  <p>On a request from authorities we can technically provide only what is listed in sections 3 and 4. We have no history of your activity.</p>
+  <p>We do not sell or share your data. Apart from us, data is processed only by the services in sections 3, 5 and 9 (Proton — storage of encrypted backups, Cloudflare, Resend, Telegram, Tribute, Heleket), exactly to the extent described there.</p>
+  <p>On a request from authorities we can technically provide only what is listed in sections 3, 4 and 9. We have no history of your activity.</p>
 </div>
 
 <div class="section" id="en-delete">
-  <div class="num">// 10</div>
+  <div class="num">// 11</div>
   <h2>Data deletion</h2>
-  <p>You can delete your account at any time on the website — in your dashboard or on the <a href="https://fsociety-vpn.org/delete-account">Delete account</a> page. The account, keys, subscription and tickets are removed from the database immediately. Records on servers marked <span class="logs-on">● LOGS ON</span> expire on their own (within 30 days), and from database backups within 30 days at the latest.</p>
+  <p>You can delete your account at any time on the website — in your dashboard or on the <a href="https://fsociety-vpn.org/delete-account">Delete account</a> page. The account, keys, subscription and tickets are removed from the database immediately; payment records remain for refunds and accounting (section 9). Records on servers marked <span class="logs-on">● LOGS ON</span> expire on their own (within 30 days), and from database backups within 30 days at the latest.</p>
 </div>
 
 <div class="section" id="en-contacts">
-  <div class="num">// 11</div>
+  <div class="num">// 12</div>
   <h2>Changes and contact</h2>
   <p>We announce changes to this Policy on the website and in the app. The date and version are shown at the top of this document.</p>
   <p>Questions — via a ticket in the app or your dashboard, or via Telegram. We respond within 24 hours.</p>
