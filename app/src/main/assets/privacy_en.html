@@ -30,7 +30,7 @@
 
 <div class="tag">// Legal documents</div>
   <h1>Privacy Policy.</h1>
-  <p class="meta">Last updated: November 20, 2026 · Version 1.9</p>
+  <p class="meta">Last updated: November 20, 2026 · Version 1.10</p>
 <div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General</h2>
@@ -51,6 +51,7 @@
     <li>The exact time and duration of your connections</li>
   </ul>
   <div class="highlight">We have no data about what you do online through the VPN — so we cannot hand it over to anyone.</div>
+  <p>The server you connect to sees your IP address while the connection is open — a VPN cannot work otherwise; it is not written to logs. Servers marked "relay" accept the connection in a Russian data centre and forward it to a server abroad: the relay keeps no logs, but the Russian provider can see that your IP address connects to it (not what you do online — the traffic is encrypted).</p>
 </div>
 
 <div class="section" id="en-stored">
@@ -92,6 +93,7 @@
   <p>Our web server keeps no request log (access log): IP addresses and page addresses are not recorded.</p>
   <p>The website sets no cookies and uses no analytics, ads or third-party counters; fonts are served from our server. The country used to show prices in your currency comes from Cloudflare and is not stored. Your browser keeps only sign-in, language and theme — see the <a href="https://fsociety-vpn.org/cookies">Cookie Policy</a>.</p>
   <p>Emails (address confirmation and password reset) are sent via Resend — it receives only the recipient address and the email text.</p>
+  <p>The apps check for updates via GitHub (api.github.com), and new versions are downloaded from GitHub or our website — GitHub sees your IP address when this happens.</p>
 </div>
 
 <div class="section" id="en-applog">
@@ -124,6 +126,7 @@
     <li>To sign in to the proxy, the extension gets a temporary password from our API, valid for 12 hours. The proxy checks its signature itself, without a database lookup.</li>
     <li>The browser stores only your sign-in, the server list, the temporary password and the extension settings.</li>
     <li>The extension changes the browser's proxy settings and, with "WebRTC protection" on, the WebRTC setting; it restores them when the VPN is turned off.</li>
+    <li>The extension talks to our API directly, bypassing Cloudflare; via Cloudflare only if the direct address is unreachable.</li>
     <li>The extension has no analytics, ads or counters.</li>
   </ul>
 </div>
