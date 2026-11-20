@@ -900,7 +900,7 @@ fun RegisterScreen(onBack: () -> Unit) {
                 onClick = {
                     if (email.isEmpty() || password.isEmpty() || password2.isEmpty()) { errorMsg = strErrorEmpty; return@Button }
                     if (password != password2) { errorMsg = strErrorMismatch; return@Button }
-                    if (password.length < 8) { errorMsg = strErrorLength; return@Button }
+                    if (!passwordRulesOk(password)) { errorMsg = strErrorLength; return@Button }
                     scope.launch {
                         isLoading = true; errorMsg = ""
                         try {

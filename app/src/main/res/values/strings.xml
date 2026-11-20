@@ -126,7 +126,7 @@
     <string name="register_subtitle">// РЕГИСТРАЦИЯ</string>
     <string name="register_field_password_repeat">ПОВТОРИТЕ ПАРОЛЬ</string>
     <string name="register_error_passwords_mismatch">Пароли не совпадают</string>
-    <string name="register_error_password_length">Пароль минимум 8 символов</string>
+    <string name="register_error_password_length">Пароль: минимум 8 символов, заглавная и строчная буквы</string>
     <string name="register_back">← Уже есть аккаунт? Войти</string>
 
     <!-- Rules -->
@@ -159,7 +159,7 @@
     <string name="account_field_repeat_password">Повторите новый пароль</string>
     <string name="account_error_empty">Заполните все поля</string>
     <string name="account_error_mismatch">Пароли не совпадают</string>
-    <string name="account_error_length">Минимум 8 символов</string>
+    <string name="account_error_length">Минимум 8 символов, заглавная и строчная буквы</string>
     <string name="account_password_changed">Пароль изменён</string>
     <string name="account_error_wrong_password">Неверный текущий пароль</string>
     <string name="account_btn_change_password">СМЕНИТЬ ПАРОЛЬ →</string>

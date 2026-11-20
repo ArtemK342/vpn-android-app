@@ -385,7 +385,7 @@ fun AccountTab(token: String, user: UserResponse?, subscription: SubscriptionRes
                             if (newPassword != newPassword2) {
                                 pwError = strErrorMismatch; return@Button
                             }
-                            if (newPassword.length < 8) {
+                            if (!passwordRulesOk(newPassword)) {
                                 pwError = strErrorLength; return@Button
                             }
                             scope.launch {
