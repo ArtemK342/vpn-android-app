@@ -145,6 +145,7 @@
     <string name="settings_in_dev">In development</string>
     <string name="settings_payments">Payment history</string>
     <string name="settings_version">Version</string>
+    <string name="settings_official_site">The only official site is fsociety-vpn.org. Look-alike services are not related to us.</string>
 
     <!-- Account -->
     <string name="account_title">Account.</string>

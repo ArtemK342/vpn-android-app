@@ -175,6 +175,12 @@ fun SettingsScreen(
                 subtitle = "${BuildConfig.VERSION_NAME}",
                 onClick = { currentScreen = "update" }
             )
+            // Есть похожие сервисы с тем же названием (2026-11) — называем официальный сайт
+            Text(
+                stringResource(R.string.settings_official_site),
+                color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+            )
         }
     }
 }
