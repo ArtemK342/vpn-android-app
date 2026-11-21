@@ -20,8 +20,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Ночное автообновление (Настройки → Обновление → «Автоматически»).
  *
- * Раз в сутки, когда телефон заряжается и не используется (обычно ночью), по Wi-Fi или любой
- * сети — как выбрал пользователь: проверяем GitHub, скачиваем, на Android 12+ ставим без
+ * Раз в сутки, по Wi-Fi или любой
+ * сети — как выбрал пользователь: проверяем релиз, скачиваем, на Android 12+ ставим без
  * участия пользователя (PackageInstaller, USER_ACTION_NOT_REQUIRED). Если VPN включён — не
  * ставим (не рвём туннель ночью). Если система всё же требует подтверждения или Android старый —
  * APK остаётся скачанным, и при открытии приложения появляется «Установить?».
@@ -39,8 +39,6 @@ object AutoUpdateScheduler {
         val wifiOnly = prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI) != AUTO_UPDATE_ANY
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
-            .setRequiresCharging(true)
-            .setRequiresDeviceIdle(true)
             .build()
         val request = PeriodicWorkRequestBuilder<AutoUpdateWorker>(24, TimeUnit.HOURS)
             .setConstraints(constraints)
@@ -54,7 +52,7 @@ class AutoUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWo
         val ctx = applicationContext
         val prefs = ctx.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
         if (!prefs.getBoolean(PREF_AUTO_UPDATE, false)) return Result.success()
-        val info = UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME).getOrElse {
+        val info = UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME, automatic = true).getOrElse {
             AppErrors.log("night update check", it); return Result.retry()
         }
         if (!info.hasUpdate || info.downloadUrl.isEmpty()) return Result.success()

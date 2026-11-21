@@ -9,6 +9,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Url
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 // ── GitHub API модели ──
@@ -59,6 +61,25 @@ object UpdateManager {
     private const val REPO = "ArtemK342/vpn-android-app"
     private const val RELEASES_URL = "https://api.github.com/repos/$REPO/releases/latest"
 
+    private const val MIRROR = "https://fsociety-vpn.org/download/files/"
+    private val http = okhttp3.OkHttpClient()
+    private val downloadLock = Mutex()
+
+    private fun mirroredRelease(): GitHubRelease {
+        val request = okhttp3.Request.Builder().url(MIRROR + "latest.json").build()
+        http.newCall(request).execute().use { response ->
+            check(response.isSuccessful) { "HTTP ${response.code}" }
+            val entry = org.json.JSONObject(response.body!!.string()).getJSONObject("android")
+            val version = entry.getString("version")
+            require(version.matches(Regex("[0-9]+([.][0-9]+)+")))
+            val file = entry.getString("file")
+            require(file == "fsociety-net-$version.apk")
+            val size = entry.getLong("size")
+            require(size > 0)
+            return GitHubRelease(version, version, null, listOf(GitHubAsset(file, MIRROR + file, size)))
+        }
+    }
+
     data class UpdateInfo(
         val currentVersion: String,
         val latestVersion: String,
@@ -68,18 +89,28 @@ object UpdateManager {
         val sizeBytes: Long
     )
 
-    suspend fun checkForUpdate(currentVersion: String): Result<UpdateInfo> = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(currentVersion: String, automatic: Boolean = false): Result<UpdateInfo> = withContext(Dispatchers.IO) {
         runCatching {
-            val release = GitHubClient.service.getLatestRelease(RELEASES_URL)
+            val release = if (automatic) {
+                runCatching { mirroredRelease() }.getOrElse { GitHubClient.service.getLatestRelease(RELEASES_URL) }
+            } else {
+                try {
+                    GitHubClient.service.getLatestRelease(RELEASES_URL)
+                } catch (e: java.io.IOException) {
+                    mirroredRelease()
+                } catch (e: retrofit2.HttpException) {
+                    mirroredRelease()
+                }
+            }
             val latestVersion = release.tag_name.trimStart('v')
-            val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk") }
+            val apkAsset = release.assets.first { it.name.endsWith(".apk") }
             UpdateInfo(
                 currentVersion = currentVersion,
                 latestVersion = latestVersion,
                 hasUpdate = isNewerVersion(latestVersion, currentVersion),
                 releaseNotes = release.body ?: "",
-                downloadUrl = apkAsset?.browser_download_url ?: "",
-                sizeBytes = apkAsset?.size ?: 0L
+                downloadUrl = apkAsset.browser_download_url,
+                sizeBytes = apkAsset.size
             )
         }
     }
@@ -108,38 +139,43 @@ object UpdateManager {
         info: UpdateInfo,
         onProgress: (Int) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
-        runCatching {
-            val dir = apkDir(context)
-            val target = File(dir, "fsociety-${info.latestVersion}.apk")
-            val part = File(dir, target.name + ".part")
-            var downloaded = 0L
-            okhttp3.OkHttpClient().newCall(
-                okhttp3.Request.Builder().url(info.downloadUrl).build()
-            ).execute().use { response ->
-                if (!response.isSuccessful) error("HTTP ${response.code}")
-                val body = response.body ?: error("Пустой ответ")
-                val total = body.contentLength().takeIf { it > 0 } ?: info.sizeBytes
-                part.outputStream().use { out ->
-                    body.byteStream().use { input ->
-                        val buf = ByteArray(8192)
-                        var n: Int
-                        while (input.read(buf).also { n = it } != -1) {
-                            out.write(buf, 0, n)
-                            downloaded += n
-                            if (total > 0) onProgress(((downloaded * 100) / total).toInt().coerceAtMost(99))
-                        }
+        downloadLock.withLock {
+            downloadedApk(context, info.latestVersion)?.let { return@withLock Result.success(it) }
+            runCatching { downloadFile(context, info, onProgress) }
+        }
+    }
+
+    private fun downloadFile(context: Context, info: UpdateInfo, onProgress: (Int) -> Unit): File {
+        val dir = apkDir(context)
+        val target = File(dir, "fsociety-${info.latestVersion}.apk")
+        val part = File(dir, target.name + ".part")
+        var downloaded = 0L
+        okhttp3.OkHttpClient().newCall(
+            okhttp3.Request.Builder().url(info.downloadUrl).build()
+        ).execute().use { response ->
+            if (!response.isSuccessful) error("HTTP ${response.code}")
+            val body = response.body ?: error("Пустой ответ")
+            val total = body.contentLength().takeIf { it > 0 } ?: info.sizeBytes
+            part.outputStream().use { out ->
+                body.byteStream().use { input ->
+                    val buf = ByteArray(8192)
+                    var n: Int
+                    while (input.read(buf).also { n = it } != -1) {
+                        out.write(buf, 0, n)
+                        downloaded += n
+                        if (total > 0) onProgress(((downloaded * 100) / total).toInt().coerceAtMost(99))
                     }
                 }
             }
-            if (info.sizeBytes > 0 && downloaded != info.sizeBytes) {
-                part.delete(); error("Скачано $downloaded из ${info.sizeBytes} байт")
-            }
-            // старые версии больше не нужны
-            dir.listFiles()?.filter { it.name.endsWith(".apk") && it != target }?.forEach { it.delete() }
-            if (!part.renameTo(target)) error("Не удалось сохранить файл")
-            onProgress(100)
-            target
         }
+        if (info.sizeBytes > 0 && downloaded != info.sizeBytes) {
+            part.delete(); error("Скачано $downloaded из ${info.sizeBytes} байт")
+        }
+        // старые версии больше не нужны
+        dir.listFiles()?.filter { it.name.endsWith(".apk") && it != target }?.forEach { it.delete() }
+        if (!part.renameTo(target)) error("Не удалось сохранить файл")
+        onProgress(100)
+        return target
     }
 
     /** Разрешено ли приложению ставить APK («установка из неизвестных источников»). */

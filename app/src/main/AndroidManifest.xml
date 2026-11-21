@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Установка APK обновлений -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- «Запуск при включении телефона» (VpnOptions.BootReceiver) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 

@@ -788,7 +788,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
         Row(
             modifier = Modifier.fillMaxWidth()
                 .clickable {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/reich_kanzlei"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/fsocietynet_agent?start=support"))
                     context.startActivity(intent)
                 }
                 .padding(horizontal = 24.dp, vertical = 14.dp),

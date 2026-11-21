@@ -1,5 +1,6 @@
 package ru.fsociety.vpn
 
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import android.Manifest
 import android.app.NotificationChannel
@@ -222,27 +223,40 @@ fun App(context: android.content.Context) {
     // (не чаще раза в 6 ч), скачиваем молча и предлагаем установить.
     var autoUpdateApk by remember { mutableStateOf<Pair<String, java.io.File>?>(null) }
     val installApk = rememberApkInstaller()
-    LaunchedEffect(Unit) {
-        AutoUpdateScheduler.apply(context)  // ночная задача (или её отмена) по текущим настройкам
-        if (!prefs.getBoolean(PREF_AUTO_UPDATE, false)) return@LaunchedEffect
-        // «Только через Wi-Fi» (по умолчанию): на мобильном интернете не проверяем и не качаем
-        val net = prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI)
-        if (net != AUTO_UPDATE_ANY && !isOnWifi(context)) return@LaunchedEffect
-        val now = System.currentTimeMillis()
-        if (now - prefs.getLong("auto_update_checked_at", 0L) < 6 * 3600_000L) {
-            // недавно проверяли — только предложить уже скачанное
-            UpdateManager.newestDownloadedApk(context)?.let { autoUpdateApk = it }
-            return@LaunchedEffect
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    var updateSettings by remember { mutableIntStateOf(0) }
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == PREF_AUTO_UPDATE || key == PREF_AUTO_UPDATE_NET) updateSettings++
         }
-        prefs.edit().putLong("auto_update_checked_at", now).apply()
-        UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME).onSuccess { info ->
-            if (!info.hasUpdate || info.downloadUrl.isEmpty()) return@onSuccess
-            val apk = UpdateManager.downloadedApk(context, info.latestVersion)
-                ?: UpdateManager.download(context, info) { }.getOrElse { e ->
-                    AppErrors.log("auto update download", e); null
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    LaunchedEffect(lifecycle, updateSettings) {
+        AutoUpdateScheduler.apply(context)
+        if (!prefs.getBoolean(PREF_AUTO_UPDATE, false)) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            UpdateManager.newestDownloadedApk(context)?.let { autoUpdateApk = it }
+            while (true) {
+                val anyNetwork = prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI) == AUTO_UPDATE_ANY
+                val now = System.currentTimeMillis()
+                val elapsed = now - prefs.getLong("auto_update_success_at", 0L)
+                if ((anyNetwork || isOnWifi(context)) && elapsed !in 0 until 6 * 3600_000L) {
+                    UpdateManager.checkForUpdate(BuildConfig.VERSION_NAME, automatic = true).onSuccess { info ->
+                        if (info.hasUpdate) {
+                            val apk = UpdateManager.downloadedApk(context, info.latestVersion)
+                                ?: UpdateManager.download(context, info) { }.getOrElse {
+                                    AppErrors.log("auto update download", it)
+                                    return@onSuccess
+                                }
+                            autoUpdateApk = info.latestVersion to apk
+                        }
+                        prefs.edit().putLong("auto_update_success_at", now).apply()
+                    }.onFailure { AppErrors.log("auto update check", it) }
                 }
-            if (apk != null) autoUpdateApk = info.latestVersion to apk
-        }.onFailure { e -> AppErrors.log("auto update check", e) }
+                kotlinx.coroutines.delay(15 * 60_000L)
+            }
+        }
     }
     autoUpdateApk?.let { (version, apk) ->
         AlertDialog(

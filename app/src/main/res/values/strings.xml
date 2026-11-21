@@ -242,7 +242,7 @@
     <string name="update_auto_switch">Обновлять автоматически</string>
     <string name="update_net_wifi">Только через Wi-Fi</string>
     <string name="update_net_any">Wi-Fi и мобильный интернет</string>
-    <string name="update_auto_desc">Раз в сутки, когда телефон заряжается и не используется (обычно ночью), приложение проверит новую версию, скачает её и на Android 12+ установит само. Если в это время включён VPN или Android требует подтверждения — обновление предложится, когда вы откроете приложение.</string>
+    <string name="update_auto_desc">Пока приложение открыто, оно проверяет обновления через выбранную сеть и предлагает установить скачанный APK. Android также может запустить проверку в фоне. Если включён VPN или требуется подтверждение установки, откройте приложение.</string>
     <string name="update_apk_link">Скачать APK последней версии в браузере ↗</string>
     <string name="update_ready">✓ Обновление скачано</string>
     <string name="update_btn_install">УСТАНОВИТЬ →</string>

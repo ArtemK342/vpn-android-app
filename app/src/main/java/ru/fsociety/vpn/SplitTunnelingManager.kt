@@ -160,6 +160,7 @@ object Presets {
         "com.discord", "com.google.android.youtube", "com.google.android.apps.youtube.music",
         "com.roblox.client", "com.openai.chatgpt", "com.anthropic.claude", "com.google.android.apps.bard",
         "com.spotify.music", "com.netflix.mediaclient", "org.torproject.torbrowser",
+        "org.zwanoo.android.speedtest", "ch.protonmail.android", "me.proton.android.drive", "com.android.vending",
     )
 
     val all = listOf(
