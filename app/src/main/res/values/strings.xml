@@ -479,10 +479,10 @@
     <string name="wl_title">Белые списки</string>
     <string name="wl_sub_set">Ссылки сохранены</string>
     <string name="wl_sub_empty">Ссылка на звонок VK и документ Mail.ru</string>
-    <string name="wl_desc">Для серверов «Белый список №2», «№3» и «№4». Они работают через ваши собственные звонок VK, документ в Облаке Mail.ru и комнату Телемоста / WB Stream — эти сервисы доступны, даже когда мобильный интернет ограничен белыми списками. Ссылки хранятся только на телефоне.</string>
-    <string name="wl_vk_label">Ссылка на звонок VK (№2)</string>
+    <string name="wl_desc">Для серверов «Белый список №3», «№4» и «№5». Они работают через ваши собственные звонок VK, документ в Облаке Mail.ru и комнату Телемоста / WB Stream — эти сервисы доступны, даже когда мобильный интернет ограничен белыми списками. Ссылки хранятся только на телефоне.</string>
+    <string name="wl_vk_label">Ссылка на звонок VK (№3)</string>
     <string name="wl_vk_help">VK → Звонки → «Создать звонок» → скопируйте ссылку-приглашение. Не завершайте звонок «для всех» — ссылка перестанет работать.</string>
-    <string name="wl_mailru_label">Ссылка на документ Mail.ru (№3)</string>
+    <string name="wl_mailru_label">Ссылка на документ Mail.ru (№4)</string>
     <string name="wl_mailru_help">Нужен документ (не папка, не фото): в Облаке Mail.ru «Создать» → «Документ» (в браузере) или загрузите пустой .docx → «Поделиться» → доступ по ссылке «Редактирование» → скопируйте ссылку.</string>
     <string name="wl_save">Сохранить →</string>
     <string name="wl_saved">Сохранено</string>
@@ -498,7 +498,7 @@
     <string name="wl_mailru_login_done">Готово</string>
     <string name="wl_mailru_login_wait">Войдите в аккаунт — окно закроется само, когда откроется Облако</string>
     <string name="wl_need_mailru_login">Войдите в Mail.ru: Настройки → Приложение → Белые списки → «Войти в Mail.ru»</string>
-    <string name="wl_room_label">Ссылка на комнату Телемоста или WB Stream (№4)</string>
+    <string name="wl_room_label">Ссылка на комнату Телемоста или WB Stream (№5)</string>
     <string name="wl_room_help">Яндекс Телемост → «Создать видеовстречу» → скопируйте ссылку telemost.yandex.ru/j/… Или WB Stream (stream.wb.ru) → создайте комнату → ссылка. Встречу не завершайте.</string>
     <string name="wl_bad_room">Нужна ссылка https://telemost.yandex.ru/j/… или https://stream.wb.ru/…</string>
     <string name="wl_need_room_link">Добавьте ссылку на комнату Телемоста или WB Stream: Настройки → Приложение → Белые списки</string>
