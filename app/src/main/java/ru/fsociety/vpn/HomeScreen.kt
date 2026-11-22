@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -458,9 +459,15 @@ fun HomeScreen(
                         .background(Surface)
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
+                    val remainingLabel = if (connectedServer?.is_whitelist == true && remaining >= 1_073_741_824L) {
+                        "%.2f %s".format(LocalConfiguration.current.locales[0],
+                            remaining / 1_073_741_824.0, stringResource(R.string.unit_gb))
+                    } else {
+                        formatBytes(remaining, context)
+                    }
                     Text(
                         stringResource(R.string.home_traffic_remaining,
-                            formatBytes(remaining, context), formatBytes(limit, context)),
+                            remainingLabel, formatBytes(limit, context)),
                         color = if (fraction >= 0.8f) barColor else TextPrimary, fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
