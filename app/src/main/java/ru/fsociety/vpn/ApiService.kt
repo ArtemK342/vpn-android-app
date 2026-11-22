@@ -60,6 +60,7 @@ data class ServerResponse(
     val server_type: String = "wireguard",  // "wireguard" | "vless" | "hysteria" | "trojan" | "openvpn_cloak" | "bypass"
     // «Белый список №2»: AmneziaWG через TURN звонков VK — адрес vk-turn-proxy на сервере (хост:порт UDP)
     val turn_peer: String? = null,
+    val is_whitelist: Boolean = false,
     // Вид VLESS (tcp / grpc / ws / xhttp / openflux) — «openflux»: «Белый список №3» (документ Mail.ru)
     val vless_transport: String? = null,
     val status: String = "active",          // active | testing | degraded | attacked | maintenance | down | coming_soon | beta | hidden
@@ -406,6 +407,12 @@ interface ApiService {
         @Query("limit") limit: Int,
         @Query("offset") offset: Int
     ): NewsPage
+
+    @GET("vpn/whitelist-usage")
+    suspend fun getWhitelistUsage(
+        @Header("Authorization") token: String,
+        @Query("server_id") serverId: String
+    ): UsageResponse
 
     @GET("vpn/usage")
     suspend fun getUsage(

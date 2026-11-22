@@ -334,6 +334,21 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
     // Подключение — общее на процесс (ConnectionManager): переживает смену языка/поворот экрана
     val connectedServer by ConnectionManager.connectedServer
     val isConnected = connectedServer != null
+    val whitelistId = connectedServer?.takeIf { it.is_whitelist }?.id
+    var whitelistUsage by remember(token, whitelistId) { mutableStateOf<UsageResponse?>(null) }
+    LaunchedEffect(token, whitelistId) {
+        val id = whitelistId ?: return@LaunchedEffect
+        while (true) {
+            try {
+                whitelistUsage = ApiClient.service.getWhitelistUsage("Bearer $token", id)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppErrors.log("whitelist usage", e)
+            }
+            kotlinx.coroutines.delay(30_000L)
+        }
+    }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = context.getSharedPreferences("fsociety", android.content.Context.MODE_PRIVATE)
@@ -504,7 +519,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                     isConnected = isConnected,
                     connectedServer = connectedServer,
                     isRefreshingPings = isRefreshingPings,
-                    usage = usage,
+                    usage = if (whitelistId != null) whitelistUsage else usage,
                     rulesActive = splitSettings.anyActive,
                     onRefreshPings = refreshPings
                 )
