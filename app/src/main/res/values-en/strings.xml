@@ -11,7 +11,7 @@
 
     <!-- Navigation -->
     <string name="nav_home">HOME</string>
-    <string name="nav_rules">RULES</string>
+    <string name="nav_rules">SPLIT</string>
     <string name="nav_settings">SETTINGS</string>
     <string name="nav_news">NEWS</string>
     <string name="news_section">// NEWS</string>
@@ -343,7 +343,7 @@
     <string name="logout_confirm_anon">You can sign in again only with this code — save it. The code cannot be recovered.</string>
     <!-- Split tunneling (RulesScreen.kt) -->
     <string name="rules_section">// RULES</string>
-    <string name="rules_title">Split tunneling.</string>
+    <string name="rules_title">Split reconnection</string>
     <string name="rules_support">// Work with AmneziaWG, VLESS, Trojan and Hysteria2. Not applied to OpenVPN+Cloak and RF mode.</string>
     <string name="rules_apply_text">Rules changed — reconnect to apply them</string>
     <string name="rules_apply_btn">APPLY</string>

@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -478,7 +478,7 @@ fun AppNavigation(token: String, onLogout: () -> Unit) {
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Filled.List, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    icon = { Icon(Icons.Filled.AltRoute, contentDescription = null, modifier = Modifier.size(22.dp)) },
                     label = { Text(stringResource(R.string.nav_rules), fontSize = 11.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Accent, unselectedTextColor = TextMuted,

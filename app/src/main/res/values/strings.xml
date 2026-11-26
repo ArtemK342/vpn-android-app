@@ -11,7 +11,7 @@
 
     <!-- Navigation -->
     <string name="nav_home">ГЛАВНАЯ</string>
-    <string name="nav_rules">ПРАВИЛА</string>
+    <string name="nav_rules">РАЗДЕЛЬНО</string>
     <string name="nav_settings">НАСТРОЙКИ</string>
     <string name="nav_news">НОВОСТИ</string>
     <string name="news_section">// НОВОСТИ</string>
@@ -344,7 +344,7 @@
     <string name="logout_confirm_anon">Войти снова можно только по этому коду — сохраните его. Восстановить код нельзя.</string>
     <!-- Раздельное туннелирование (RulesScreen.kt) -->
     <string name="rules_section">// ПРАВИЛА</string>
-    <string name="rules_title">Раздельное туннелирование.</string>
+    <string name="rules_title">Раздельное переподключение</string>
     <string name="rules_support">// Работают для AmneziaWG, VLESS, Trojan и Hysteria2. Для OpenVPN+Cloak и «Режима РФ» не применяются.</string>
     <string name="rules_apply_text">Правила изменились — переподключитесь, чтобы они заработали</string>
     <string name="rules_apply_btn">ПРИМЕНИТЬ</string>
