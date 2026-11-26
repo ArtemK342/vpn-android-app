@@ -104,6 +104,7 @@ class OpenVpnService : VpnService() {
                     stopSelf(startId)
                 }
             }
+            SERVICE_INTERFACE -> sendBroadcast(Intent(this, AlwaysOnReceiver::class.java))
             else -> stopSelf(startId)
         }
         return START_NOT_STICKY

@@ -502,4 +502,7 @@
     <string name="wl_room_help">Яндекс Телемост → «Создать видеовстречу» → скопируйте ссылку telemost.yandex.ru/j/… Или WB Stream (stream.wb.ru) → создайте комнату → ссылка. Встречу не завершайте.</string>
     <string name="wl_bad_room">Нужна ссылка https://telemost.yandex.ru/j/… или https://stream.wb.ru/…</string>
     <string name="wl_need_room_link">Добавьте ссылку на комнату Телемоста или WB Stream: Настройки → Приложение → Белые списки</string>
+    <string name="ks_system_active">Системная блокировка без VPN активна</string>
+    <string name="ks_system_inactive">Системная блокировка без VPN выключена</string>
+    <string name="ks_system_unknown">Статус системной блокировки без VPN недоступен</string>
 </resources>

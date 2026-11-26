@@ -1,6 +1,10 @@
 package ru.fsociety.vpn
 
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
+import android.os.IBinder
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
@@ -977,6 +981,35 @@ fun LanguageTab(language: String, onLanguageChange: (String) -> Unit, onBack: ()
 @Composable
 fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
+    val ctx = LocalContext.current
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    var systemLockdown by remember { mutableStateOf<Boolean?>(null) }
+    DisposableEffect(ctx, lifecycle) {
+        var binder: KillSwitchService.StatusBinder? = null
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                binder = service as? KillSwitchService.StatusBinder
+                systemLockdown = binder?.lockdownActive()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) {
+                binder = null
+                systemLockdown = null
+            }
+        }
+        val intent = Intent(ctx, KillSwitchService::class.java).setAction(KillSwitchService.ACTION_STATUS)
+        val bound = ctx.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                systemLockdown = binder?.lockdownActive()
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            if (bound) ctx.unbindService(connection)
+        }
+    }
     Column(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Row(modifier = Modifier.statusBarsPadding().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("←", color = Accent, fontSize = 18.sp, fontFamily = FontFamily.Monospace,
@@ -985,7 +1018,8 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
             Text(stringResource(R.string.killswitch_title), color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Border)
-        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .navigationBarsPadding().padding(24.dp)) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(stringResource(R.string.killswitch_description), color = TextMuted, fontSize = 13.sp)
             Spacer(modifier = Modifier.height(24.dp))
@@ -1012,8 +1046,15 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
             Spacer(modifier = Modifier.height(16.dp))
             Text(stringResource(R.string.killswitch_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(8.dp))
-            // Системная защита: «Постоянная VPN» + «Блокировать соединения без VPN»
-            val ctx = LocalContext.current
+            Text(
+                stringResource(when (systemLockdown) {
+                    true -> R.string.ks_system_active
+                    false -> R.string.ks_system_inactive
+                    null -> R.string.ks_system_unknown
+                }),
+                color = if (systemLockdown == true) Accent else TextMuted,
+                fontSize = 13.sp
+            )
             TextButton(onClick = {
                 try { ctx.startActivity(Intent(AndroidSettings.ACTION_VPN_SETTINGS)) }
                 catch (e: Exception) { AppErrors.log("open vpn settings", e) }

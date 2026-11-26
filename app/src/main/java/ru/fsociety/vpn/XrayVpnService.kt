@@ -116,6 +116,7 @@ class XrayVpnService : VpnService() {
                     stopSelf(startId)
                 }
             }
+            SERVICE_INTERFACE -> ConnectionManager.onAlwaysOnTriggered()
             else -> stopSelf(startId)
         }
         return START_NOT_STICKY

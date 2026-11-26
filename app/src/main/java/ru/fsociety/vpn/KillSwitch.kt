@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.os.Binder
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
@@ -105,7 +106,19 @@ class KillSwitchService : VpnService() {
 
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(localized(newBase))
 
+    internal inner class StatusBinder : Binder() {
+        fun lockdownActive(): Boolean? =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) isAlwaysOn && isLockdownEnabled else null
+    }
+
+    override fun onBind(intent: Intent?): android.os.IBinder? =
+        if (intent?.action == ACTION_STATUS) StatusBinder() else super.onBind(intent)
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == SERVICE_INTERFACE) {
+            ConnectionManager.onAlwaysOnTriggered()
+            return START_NOT_STICKY
+        }
         // Сразу и всегда: служба запущена через startForegroundService
         startForeground(NOTIFICATION_ID, buildNotification())
         foreground = true
@@ -179,6 +192,7 @@ class KillSwitchService : VpnService() {
     }
 
     companion object {
+        const val ACTION_STATUS = "ru.fsociety.vpn.KILL_SWITCH_STATUS"
         const val ACTION_ENGAGE = "ru.fsociety.vpn.KILL_SWITCH_ENGAGE"
         private const val NOTIFICATION_ID = 1004
         private const val TAG = "KillSwitch"

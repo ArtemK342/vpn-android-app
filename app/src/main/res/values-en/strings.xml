@@ -501,4 +501,7 @@
     <string name="wl_room_help">Yandex Telemost → «Create a meeting» → copy the telemost.yandex.ru/j/… link. Or WB Stream (stream.wb.ru) → create a room → link. Do not end the meeting.</string>
     <string name="wl_bad_room">Expected https://telemost.yandex.ru/j/… or https://stream.wb.ru/…</string>
     <string name="wl_need_room_link">Add a Telemost or WB Stream room link: Settings → App → Whitelists</string>
+    <string name="ks_system_active">Android blocks connections without VPN</string>
+    <string name="ks_system_inactive">Android blocking without VPN is off</string>
+    <string name="ks_system_unknown">Android VPN blocking status unavailable</string>
 </resources>

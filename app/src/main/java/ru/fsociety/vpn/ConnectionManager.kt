@@ -135,8 +135,7 @@ object ConnectionManager {
 
     /**
      * Android запустил VPN сам: «Постоянная VPN» после перезагрузки или перезапуск службы после
-     * выгрузки процесса (сигнал приходит из процесса «:awg» — AlwaysOnReceiver). Раньше ничего не
-     * происходило — с «Блокировать без VPN» интернета не было, пока не откроешь приложение.
+     * выгрузки процесса. Службы в отдельных процессах передают сигнал через AlwaysOnReceiver.
      */
     fun onAlwaysOnTriggered() {
         scope.launch { onAlwaysOn() }
@@ -169,8 +168,23 @@ object ConnectionManager {
         val server = try {
             com.google.gson.Gson().fromJson(p.getString(PREF_LAST_SERVER, null), ServerResponse::class.java)
         } catch (e: Exception) { null } ?: return
-        AppErrors.log("always-on", IllegalStateException("connecting to ${server.id}"))
-        requestConnect(server)
+        launchOp {
+            sessionVerified = false
+            withTimeoutOrNull(90_000L) { while (!hasInternet()) delay(2_000L) }
+            for (attempt in 1..3) {
+                if (!p.getBoolean(PREF_WANT_CONNECTED, false) || otherVpnActive()) break
+                AppLog.i("Постоянная VPN: восстановление ${server.id}, попытка $attempt/3")
+                when (connect(server, auto = true)) {
+                    Outcome.CONNECTED -> return@launchOp
+                    Outcome.NEEDS_PERMISSION -> {
+                        pending.value = null
+                        break
+                    }
+                    Outcome.FAILED -> if (attempt < 3) delay(attempt * 2_000L)
+                }
+            }
+            idle(str(R.string.reconnect_failed))
+        }
     }
 
     /** Пользователь сам отключился / вышел / VPN выключили снаружи — «Постоянная VPN» не переподключает. */
