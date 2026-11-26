@@ -212,7 +212,7 @@
 
     <!-- Kill Switch tab -->
     <string name="killswitch_title">Kill Switch.</string>
-    <string name="killswitch_description">If the VPN connection unexpectedly drops — all internet is blocked until reconnection. Protects against real IP leaks.</string>
+    <string name="killswitch_description">If a working tunnel drops, the app attempts to block traffic until reconnection. For protection during VPN interface changes and when the app stops, enable Always-on VPN and Block connections without VPN in Android settings.</string>
     <string name="killswitch_switch_enabled">Enabled</string>
     <string name="killswitch_switch_disabled">Disabled</string>
     <string name="killswitch_note">// If the connection drops, internet is blocked until the app reconnects or you tap “Unblock”.

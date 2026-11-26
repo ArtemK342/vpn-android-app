@@ -11,6 +11,9 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Kill Switch: при неожиданном обрыве рабочего туннеля интернет блокируется, пока приложение не
@@ -33,6 +36,9 @@ object KillSwitch {
     /** Блокировка включена — главный экран показывает «Разблокировать интернет». */
     val engagedState = mutableStateOf(false)
     val engaged: Boolean get() = engagedState.value
+    private val established = MutableStateFlow<Boolean?>(null)
+    internal var requested = false
+        private set
 
     fun enabled(context: Context): Boolean =
         context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getBoolean(PREF, false)
@@ -42,31 +48,38 @@ object KillSwitch {
      * при сохранённом согласии он молча выключил бы VPN другого приложения. Если VPN сейчас у
      * другого приложения, система просто не даст поднять интерфейс — служба остановится сама.
      */
-    fun engage(context: Context) {
-        if (!enabled(context) || engaged) return
+    suspend fun engage(context: Context, rearm: Boolean = false) {
+        if (!enabled(context) || (engaged && !rearm)) return
+        requested = true
+        established.value = null
         val intent = Intent(context, KillSwitchService::class.java).setAction(KillSwitchService.ACTION_ENGAGE)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
             else context.startService(intent)
-            engagedState.value = true
+            if (withTimeoutOrNull(5_000L) { established.first { it != null } } != true) release(context)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             // Android 12+ может запретить запуск службы из фона — без падения приложения
             AppErrors.log("kill switch start", e)
+            release(context)
         }
     }
 
     /** Туннель снова поднят или пользователь сам отключился/разблокировал — снять блокировку. */
     fun release(context: Context) {
-        if (!engaged) return
-        engagedState.value = false
+        if (!requested && !engaged) return
+        requested = false
+        onServiceState(false)
         // Служба ещё не успела вызвать startForeground — stopService сейчас уронил бы приложение
         // («did not call startForeground»); она сама увидит, что блокировка снята, и остановится.
         if (KillSwitchService.foreground) context.stopService(Intent(context, KillSwitchService::class.java))
     }
 
     /** Служба не смогла поднять интерфейс (VPN у другого приложения) — блокировки нет. */
-    internal fun onServiceFailed() {
-        engagedState.value = false
+    internal fun onServiceState(active: Boolean) {
+        engagedState.value = active && requested
+        established.value = engagedState.value
     }
 }
 
@@ -79,26 +92,30 @@ class KillSwitchService : VpnService() {
         // Сразу и всегда: служба запущена через startForegroundService
         startForeground(NOTIFICATION_ID, buildNotification())
         foreground = true
-        if (intent?.action != ACTION_ENGAGE || !KillSwitch.engaged) {
+        if (intent?.action != ACTION_ENGAGE || !KillSwitch.requested) {
             stopSelf()
             return START_NOT_STICKY
         }
         try {
-            if (pfd == null) {
-                pfd = Builder()
-                    .setSession("FsocietyKillSwitch")
-                    .addAddress("10.255.255.1", 32)
-                    .addAddress("fd00:ffff::1", 128)
-                    .addRoute("0.0.0.0", 0)
-                    .addRoute("::", 0)
-                    .addDisallowedApplication(packageName)   // само приложение — переподключение и API
-                    .establish()
-            }
+            val replacement = Builder()
+                .setSession("FsocietyKillSwitch")
+                .addAddress("10.255.255.1", 32)
+                .addAddress("fd00:ffff::1", 128)
+                .addRoute("0.0.0.0", 0)
+                .addRoute("::", 0)
+                .addDisallowedApplication(packageName)
+                .establish()
+            val previous = pfd
+            pfd = replacement
+            previous?.close()
         } catch (e: Exception) {
             Log.w(TAG, "kill switch establish failed: ${e.message}")
+            val previous = pfd
+            pfd = null
+            runCatching { previous?.close() }
         }
+        KillSwitch.onServiceState(pfd != null)
         if (pfd == null) {
-            KillSwitch.onServiceFailed()
             stopSelf()
         }
         return START_NOT_STICKY
@@ -133,6 +150,7 @@ class KillSwitchService : VpnService() {
 
     override fun onDestroy() {
         foreground = false
+        KillSwitch.onServiceState(false)
         try { pfd?.close() } catch (_: Exception) {}
         pfd = null
         super.onDestroy()

@@ -385,7 +385,7 @@ object ConnectionManager {
                     else p.config))
                 "wireguard_proxy" -> startWireGuardProxy(p)
                 "openvpn_cloak" -> startOpenVpn(p)
-                else -> startWireGuard(p)
+                else -> startWireGuard(p, startedAt)
             }
         } catch (e: CancellationException) {
             if (p.type == "bypass") stopBypass()
@@ -395,26 +395,25 @@ object ConnectionManager {
             AppErrors.log("start ${p.type}", e); false
         }
         if (!ok) {
+            if (KillSwitch.requested) KillSwitch.engage(app, rearm = true)
             if (p.type == "bypass") stopBypass()
             // AmneziaWG через прокси проверяется сразу при запуске: не прошёл с сохранённым ключом — его
             // могли снять (лимит подключений, «Разорвать подключения») — один раз берём новый
-            if (p.type == "wireguard_proxy" && p.fromCache && !freshKey) {
+            if (p.type in listOf("wireguard", "wireguard_proxy") && p.fromCache && !freshKey) {
                 ConfigCache.clear(app, server.id)
                 return connect(server, freshKey = true, auto = auto)
             }
             return fail(str(when (p.type) {
-                "wireguard" -> R.string.home_error_connect
                 "bypass" -> R.string.bypass_error_start
                 else -> R.string.home_error_server_unreachable
             }))
         }
-        // sing-box и OpenVPN проверены при запуске (запрос через сервер / CONNECTED); WireGuard проверит
-        // сторож по рукопожатию. «Режим РФ» — без сервера: IP и так свой, Kill Switch ему не нужен.
-        if (p.type != "wireguard" && p.type != "bypass") sessionVerified = true
+        // All remote engines must verify the connection before publishing it.
+        sessionVerified = p.type != "bypass"
         onConnected(server, p.type)
         AppLog.i("подключено: ${server.server_type} ${server.id} (${p.type}), правила: сайты=${if (p.rules.sitesActive) "${p.rules.sitesMode}/${p.rules.sites.size}" else "нет"} приложения=${if (p.rules.appsActive) "${p.rules.appsMode}/${p.rules.apps.size}" else "нет"}")
         appliedRules.value = if (SplitTunnelingManager.supports(server.server_type)) p.rules.fingerprint() else null
-        startMonitor(server, p.type, freshKey, startedAt)
+        startMonitor(p.type)
         if (auto) AppErrors.log("auto-reconnect", IllegalStateException("reconnected to ${server.id}"))
         return Outcome.CONNECTED
     }
@@ -452,7 +451,7 @@ object ConnectionManager {
         return result == true
     }
 
-    private suspend fun startWireGuard(p: Pending): Boolean {
+    private suspend fun startWireGuard(p: Pending, startedAt: Long): Boolean {
         var ok = false
         try {
             // Правила приложений (без правил сайтов) применяет сама библиотека
@@ -460,7 +459,17 @@ object ConnectionManager {
                 SplitTunnelingManager.isInstalled(app, it)
             }
             val wg = withTurn(p, config) ?: return false
-            ok = VpnManager.connect(app, VpnOptions.patchWg(app, wg))   // DNS и локальная сеть из настроек
+            if (!VpnManager.connect(app, VpnOptions.patchWg(app, wg))) return false
+            ok = withTimeoutOrNull(20_000L) {
+                while (VpnManager.isConnected()) {
+                    val (received, _, handshake) = VpnManager.stats()
+                    if (handshake >= startedAt - 5_000 || received > 0L) return@withTimeoutOrNull true
+                    delay(750L)
+                }
+                false
+            } == true
+            if (!ok) AppLog.w("AmneziaWG: сервер не ответил на начальное рукопожатие")
+
         } finally {
             // Отменили, пока туннель поднимался, — не оставляем его висеть
             if (!ok) withContext(NonCancellable) { VpnManager.disconnect() }
@@ -591,10 +600,10 @@ object ConnectionManager {
 
     // ── Сторож ───────────────────────────────────────────────────────────────
 
-    private fun startMonitor(server: ServerResponse, type: String, freshKey: Boolean, startedAt: Long) {
+    private fun startMonitor(type: String) {
         stopMonitor()
         monitor = when (type) {
-            "wireguard", "wireguard_proxy" -> scope.launch { watchWireGuard(server, freshKey, startedAt) }
+            "wireguard", "wireguard_proxy" -> scope.launch { watchWireGuard() }
             "vless", "hysteria", "trojan" -> scope.launch { watchSingbox() }
             // OpenVPN за сервером следит сам (OpenVpnService); здесь — только падение его процесса
             "openvpn_cloak" -> scope.launch { watchOpenVpnProcess() }
@@ -607,62 +616,19 @@ object ConnectionManager {
         monitor = null
     }
 
-    /**
-     * Сторож WireGuard.
-     * 1) Через 20 с: пакеты уходят, а рукопожатия с сервером так и не было — ключ сняли (лимит
-     *    подключений, «Разорвать подключения») или провайдер режет UDP. Один раз берём новый ключ,
-     *    потом — ошибка. Раньше повторял бесконечно: новый ключ каждые ~20 с.
-     * 2) Дальше раз в 30 с: при keepalive 25 с рукопожатие идёт каждые 2 мин; если оно старше ~3 мин
-     *    три проверки подряд (минута без сна телефона: после глубокого сна WireGuard переподключается
-     *    сам за секунды) при рабочей сети — сервер перестал отвечать. Раньше такой обрыв не замечался
-     *    вовсе: «Подключено», а интернета нет. Теперь — Kill Switch и переподключение.
-     */
-    private suspend fun watchWireGuard(server: ServerResponse, freshKey: Boolean, startedAt: Long) {
-        // Первое рукопожатие ждём до 20 с, проверяя каждые 2 с: сессия считается рабочей (и Kill Switch
-        // защищает её обрыв) почти сразу, а не через 20 с, как раньше
-        var verified = false
-        var tx = 0L
-        for (i in 1..10) {
-            delay(2_000)
-            if (!VpnManager.isConnected()) return
-            val (rx, sent, handshake) = VpnManager.stats()
-            tx = sent
-            if (handshake >= startedAt - 5_000 || rx > 0L) { verified = true; break }
-        }
-        if (verified) {
-            sessionVerified = true
-        } else if (tx > 0L) {
-            rekeyOrGiveUp(server, freshKey)
-            return
-        }
+    /** Only already verified AmneziaWG sessions reach this watchdog. */
+    private suspend fun watchWireGuard() {
         var strikes = 0
         while (true) {
-            delay(30_000)
+            delay(30_000L)
             if (!VpnManager.isConnected()) return
             val handshake = VpnManager.stats().third
-            if (handshake >= startedAt - 5_000) sessionVerified = true
-            val stale = System.currentTimeMillis() - handshake > 200_000
+            val stale = System.currentTimeMillis() - handshake > 200_000L
             strikes = if (stale && hasInternet()) strikes + 1 else 0
             if (strikes >= 3) {
                 AppErrors.log("wireguard watchdog", IllegalStateException("no handshake since $handshake"))
                 VpnEvents.vpnDropped.tryEmit(Unit)
                 return
-            }
-        }
-    }
-
-    private fun rekeyOrGiveUp(server: ServerResponse, freshKey: Boolean) {
-        AppErrors.log("wireguard watchdog", IllegalStateException("no handshake in 20 s, freshKey=$freshKey"))
-        launchOp {
-            // Переподключение после обрыва рабочей сессии — интернет не течёт, пока берём новый ключ
-            if (sessionVerified) KillSwitch.engage(app)
-            ConfigCache.clear(app, server.id)
-            if (!freshKey) {
-                connect(server, freshKey = true, auto = true)
-            } else {
-                stopTunnels()
-                setDisconnected()
-                idle(str(if (KillSwitch.engaged) R.string.reconnect_failed_killswitch else R.string.home_error_server_unreachable))
             }
         }
     }
@@ -879,6 +845,7 @@ object ConnectionManager {
                 return
             }
             if (connect(server, auto = true) == Outcome.CONNECTED) return
+            if (sessionVerified) KillSwitch.engage(app)
             AppErrors.log("auto-reconnect attempt $attempt", IllegalStateException(statusMsg.value))
         }
         idle(str(if (KillSwitch.engaged) R.string.reconnect_failed_killswitch else R.string.reconnect_failed))
