@@ -39,6 +39,22 @@ object KillSwitch {
     private val established = MutableStateFlow<Boolean?>(null)
     internal var requested = false
         private set
+    @Volatile private var replacementExpected = false
+
+    /** Следующий onRevoke вызван собственным туннелем, который заменяет блокирующий интерфейс. */
+    fun expectReplacement() {
+        replacementExpected = requested
+    }
+
+    internal fun consumeExpectedReplacement(): Boolean {
+        if (!replacementExpected) return false
+        replacementExpected = false
+        return true
+    }
+
+    fun clearExpectedReplacement() {
+        replacementExpected = false
+    }
 
     fun enabled(context: Context): Boolean =
         context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getBoolean(PREF, false)
@@ -70,6 +86,7 @@ object KillSwitch {
     fun release(context: Context) {
         if (!requested && !engaged) return
         requested = false
+        replacementExpected = false
         onServiceState(false)
         // Служба ещё не успела вызвать startForeground — stopService сейчас уронил бы приложение
         // («did not call startForeground»); она сама увидит, что блокировка снята, и остановится.
@@ -141,8 +158,13 @@ class KillSwitchService : VpnService() {
             .build()
     }
 
-    // Другое VPN-приложение забрало VPN — не сопротивляемся (и не переподключаемся)
     override fun onRevoke() {
+        if (KillSwitch.consumeExpectedReplacement()) {
+            // requested остаётся true: при неудаче нового туннеля recover() снова поднимет блокировку.
+            stopSelf()
+            return
+        }
+        // Другое VPN-приложение забрало VPN — не сопротивляемся (и не переподключаемся).
         KillSwitch.release(this)
         VpnEvents.vpnStopped.tryEmit(Unit)
         stopSelf()

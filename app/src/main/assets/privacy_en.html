@@ -30,7 +30,7 @@
 
 <div class="tag">// Legal documents</div>
   <h1>Privacy Policy.</h1>
-  <p class="meta">Last updated: November 22, 2026 · Version 1.15</p>
+  <p class="meta">Last updated: November 27, 2026 · Version 1.16</p>
 <div class="section" id="en-general">
   <div class="num">// 01</div>
   <h2>General</h2>
@@ -64,7 +64,8 @@
     <li><strong>Last activity date</strong> (sign-in or connection, day precision) — to delete inactive anonymous accounts and count active users.</li>
     <li><strong>Pricing region</strong> (Russia, Europe or the rest of the world) — set from your country at sign-up so prices are shown in the right currency. The country and IP themselves are not stored. You can switch to Russian prices in your dashboard; other changes go through support.</li>
     <li><strong>IP on anonymous sign-up</strong> is not written to the database — neither the address nor its hash. To limit account creation (5 per day per IP) it is kept only in server memory for at most a day and is gone after a restart.</li>
-    <li><strong>Connection keys:</strong> for AmneziaWG — public key, server, internal tunnel address and issue date; for VLESS, Trojan, Hysteria2 and OpenVPN — a personal connection ID. In the app (from version 0.0.3.9) the AmneziaWG private key is generated on your phone and never leaves it — the server only receives the public key. If you download a config on the website, the key is generated on our server, sent only to you and never stored. After you disconnect, the key record (with the traffic volume of that session) is deleted within <strong>7 days</strong>.</li>
+    <li><strong>Connection keys:</strong> for AmneziaWG — public key, server, internal tunnel address and issue date; for VLESS, Trojan, Hysteria2 and OpenVPN — a personal connection ID. In the app (from version 0.0.3.9) the AmneziaWG private key is generated on your device and never leaves it — the server only receives the public key. If you download a config on the website, the key is generated on our server, sent only to you and never stored. After you disconnect, the key record (with the traffic volume of that session) is deleted within <strong>7 days</strong>.</li>
+    <li><strong>Random app installation ID:</strong> generated on the device and stored with the AmneziaWG key so reconnecting replaces only that installation's key, not another of your devices. It is not a hardware identifier and is deleted with the key record.</li>
     <li><strong>Traffic volume:</strong> free email accounts only — a single number for the current month to apply the 3 GB limit. No addresses or content. Deleted when the month ends. Paid subscriptions are not metered.</li>
     <li><strong>Support tickets:</strong> messages are kept for <strong>10 days</strong> after the ticket is created and then deleted automatically.</li>
   </ul>

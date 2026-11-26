@@ -352,7 +352,8 @@ interface ApiService {
     suspend fun getVpnConfig(
         @Header("Authorization") token: String,
         @Query("server_id") serverId: String,
-        @Query("public_key") publicKey: String?
+        @Query("public_key") publicKey: String?,
+        @Query("device_id") deviceId: String
     ): VpnConfigResponse
 
     @GET("tickets")

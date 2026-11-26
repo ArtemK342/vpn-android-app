@@ -87,6 +87,7 @@ object ConnectionManager {
     /** Последний подключённый сервер и «пользователь хочет быть подключён» — для «Постоянной VPN». */
     private const val PREF_LAST_SERVER = "last_server"
     private const val PREF_WANT_CONNECTED = "want_connected"
+    private const val PREF_DEVICE_ID = "device_id"
 
     // Непойманная ошибка не должна ронять приложение — а вместе с ним и туннель
     private val errors = CoroutineExceptionHandler { _, e ->
@@ -111,6 +112,18 @@ object ConnectionManager {
     private fun prefs() = app.getSharedPreferences("fsociety", Context.MODE_PRIVATE)
     private fun lang() = prefs().getString("language", "ru") ?: "ru"
     private fun bearer() = "Bearer ${TokenStore.access.value}"
+
+    private fun deviceId(): String {
+        prefs().getString(PREF_DEVICE_ID, null)?.let { saved ->
+            try {
+                java.util.UUID.fromString(saved)
+                return saved
+            } catch (_: IllegalArgumentException) {}
+        }
+        return java.util.UUID.randomUUID().toString().also { id ->
+            prefs().edit().putString(PREF_DEVICE_ID, id).apply()
+        }
+    }
 
     fun init(context: Context) {
         if (::app.isInitialized) return
@@ -325,7 +338,9 @@ object ConnectionManager {
                         // устройство (в кэше — зашифрованный ключом Keystore). Старый сервер ключ не примет —
                         // тогда в конфиге его собственный, без заглушки, и он используется как раньше.
                         val keys = org.amnezia.awg.crypto.KeyPair()
-                        val response = ApiClient.service.getVpnConfig(bearer(), server.id, keys.publicKey.toBase64())
+                        val response = ApiClient.service.getVpnConfig(
+                            bearer(), server.id, keys.publicKey.toBase64(), deviceId()
+                        )
                         val raw = response.config ?: return fail(response.message ?: str(R.string.home_error_connect))
                         val cfg = raw.replace(AWG_CLIENT_KEY_PLACEHOLDER, keys.privateKey.toBase64())
                         withContext(Dispatchers.IO) { ConfigCache.save(app, server.id, cfg) }
@@ -378,6 +393,7 @@ object ConnectionManager {
         statusMsg.value = str(R.string.home_connecting)
         val startedAt = System.currentTimeMillis()
         val ok = try {
+            if (KillSwitch.engaged) KillSwitch.expectReplacement()
             when (p.type) {
                 "bypass" -> startSingbox(p, p.config)
                 "vless", "hysteria", "trojan" -> startSingbox(p, VpnOptions.patchSingbox(app,
@@ -388,6 +404,7 @@ object ConnectionManager {
                 else -> startWireGuard(p, startedAt)
             }
         } catch (e: CancellationException) {
+            KillSwitch.clearExpectedReplacement()
             if (p.type == "bypass") stopBypass()
             throw e
         } catch (e: Exception) {
@@ -395,6 +412,7 @@ object ConnectionManager {
             AppErrors.log("start ${p.type}", e); false
         }
         if (!ok) {
+            KillSwitch.clearExpectedReplacement()
             if (KillSwitch.requested) KillSwitch.engage(app, rearm = true)
             if (p.type == "bypass") stopBypass()
             // AmneziaWG через прокси проверяется сразу при запуске: не прошёл с сохранённым ключом — его
@@ -584,6 +602,7 @@ object ConnectionManager {
 
     private fun fail(message: String): Outcome {
         AppLog.w("не подключились: $message")
+        KillSwitch.clearExpectedReplacement()
         idle(message)
         // Переключались между серверами: старый туннель уже погашен — уведомление «Отключено»
         if (connectedServer.value == null) syncNotification()
@@ -703,21 +722,22 @@ object ConnectionManager {
         } ?: true
     } catch (_: Exception) { true }
 
-    /**
-     * Включён VPN другого приложения. Наши туннели исключают само приложение (а WireGuard к этому
-     * моменту погашен), так что VPN в его сети — чужой; на Android 10+ видно и владельца сети.
-     */
+    /** Включён VPN другого приложения; собственный туннель и Kill Switch по UID не считаются чужими. */
     private fun otherVpnActive(): Boolean = try {
-        val cm = app.getSystemService(ConnectivityManager::class.java)
-        if (cm == null) false
-        else {
+        val cm = app.getSystemService(ConnectivityManager::class.java)!!
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            @Suppress("DEPRECATION")
+            cm.allNetworks.any { n ->
+                val c = cm.getNetworkCapabilities(n)
+                c != null && c.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                    c.ownerUid != android.os.Process.myUid()
+            }
+        } else {
+            @Suppress("DEPRECATION")
             val activeIsVpn = cm.getNetworkCapabilities(cm.activeNetwork)
                 ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-            @Suppress("DEPRECATION")
-            activeIsVpn || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cm.allNetworks.any { n ->
-                val c = cm.getNetworkCapabilities(n)
-                c != null && c.hasTransport(NetworkCapabilities.TRANSPORT_VPN) && c.ownerUid != android.os.Process.myUid()
-            })
+            // ownerUid появился только в Android 11. На 8–10 полагаемся на состояние своих служб.
+            activeIsVpn && !anyTunnelUp() && !KillSwitch.engaged
         }
     } catch (_: Exception) { false }
 
