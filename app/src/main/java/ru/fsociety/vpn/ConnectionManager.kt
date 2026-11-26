@@ -220,6 +220,15 @@ object ConnectionManager {
     /** «Отключить» и «Отмена» — в приложении и в уведомлении. */
     fun requestDisconnect(): Job = launchOp { disconnect() }
 
+    fun clearMailruSession() {
+        val server = connectedServer.value ?: connectingTo.value
+        val disconnect = if (server?.vless_transport == "openflux") requestDisconnect() else null
+        scope.launch {
+            disconnect?.join()
+            withContext(Dispatchers.IO) { OpenfluxProcess.clearCredentials(app) }
+        }
+    }
+
     /** «Подключить» в уведомлении: лучший по пингу WireGuard-сервер, без открытия приложения. */
     fun requestNotificationConnect(): Job = launchOp {
         sessionVerified = false

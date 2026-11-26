@@ -592,10 +592,10 @@ object ApiClient {
     private val currentToken = okhttp3.Interceptor { chain ->
         val req = chain.request()
         val auth = req.header("Authorization")
-        val current = TokenStore.access.value
-        if (auth != null && auth.startsWith("Bearer ") && current.isNotEmpty() && auth != "Bearer $current") {
-            chain.proceed(req.newBuilder().header("Authorization", "Bearer $current").build())
-        } else chain.proceed(req)
+        if (auth == null || !auth.startsWith("Bearer ")) return@Interceptor chain.proceed(req)
+        val current = TokenStore.tokenForRequest(auth.removePrefix("Bearer "))
+            ?: throw java.io.InterruptedIOException("Account session changed")
+        chain.proceed(req.newBuilder().header("Authorization", "Bearer $current").build())
     }
 
     /** 401 на запросе с токеном → один раз обновляем токен по refresh и повторяем запрос. */

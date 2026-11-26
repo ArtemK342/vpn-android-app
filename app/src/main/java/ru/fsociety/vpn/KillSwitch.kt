@@ -91,7 +91,7 @@ object KillSwitch {
         onServiceState(false)
         // Служба ещё не успела вызвать startForeground — stopService сейчас уронил бы приложение
         // («did not call startForeground»); она сама увидит, что блокировка снята, и остановится.
-        if (KillSwitchService.foreground) context.stopService(Intent(context, KillSwitchService::class.java))
+        KillSwitchService.closeActiveBlocker()
     }
 
     /** Служба не смогла поднять интерфейс (VPN у другого приложения) — блокировки нет. */
@@ -122,6 +122,7 @@ class KillSwitchService : VpnService() {
         // Сразу и всегда: служба запущена через startForegroundService
         startForeground(NOTIFICATION_ID, buildNotification())
         foreground = true
+        activeService = this
         if (intent?.action != ACTION_ENGAGE || !KillSwitch.requested) {
             stopSelf()
             return START_NOT_STICKY
@@ -174,6 +175,7 @@ class KillSwitchService : VpnService() {
     override fun onRevoke() {
         if (KillSwitch.consumeExpectedReplacement()) {
             // requested остаётся true: при неудаче нового туннеля recover() снова поднимет блокировку.
+            closeBlocker()
             stopSelf()
             return
         }
@@ -183,15 +185,33 @@ class KillSwitchService : VpnService() {
         stopSelf()
     }
 
-    override fun onDestroy() {
-        foreground = false
-        KillSwitch.onServiceState(false)
-        try { pfd?.close() } catch (_: Exception) {}
+    private fun closeBlocker() {
+        val descriptor = pfd
         pfd = null
+        runCatching { descriptor?.close() }
+        if (activeService === this) {
+            activeService = null
+            foreground = false
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
+        KillSwitch.onServiceState(false)
+    }
+
+    override fun onDestroy() {
+        closeBlocker()
         super.onDestroy()
     }
 
     companion object {
+        private var activeService: KillSwitchService? = null
+
+        fun closeActiveBlocker() {
+            activeService?.let {
+                it.closeBlocker()
+                it.stopSelf()
+            }
+        }
+
         const val ACTION_STATUS = "ru.fsociety.vpn.KILL_SWITCH_STATUS"
         const val ACTION_ENGAGE = "ru.fsociety.vpn.KILL_SWITCH_ENGAGE"
         private const val NOTIFICATION_ID = 1004

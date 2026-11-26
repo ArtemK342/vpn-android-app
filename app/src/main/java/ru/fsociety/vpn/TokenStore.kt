@@ -34,11 +34,24 @@ object TokenStore {
 
     val refresh: String get() = prefs.getString("refresh_token", "") ?: ""
 
+    private val previousTokens = ArrayDeque<String>()
+
+    @Synchronized
+    fun tokenForRequest(token: String): String? =
+        access.value.takeIf { it.isNotEmpty() && (it == token || token in previousTokens) }
+
     @Synchronized
     fun save(accessToken: String, refreshToken: String?) {
+        epoch++
+        previousTokens.clear()
+        store(accessToken, refreshToken)
+    }
+
+    private fun store(accessToken: String, refreshToken: String?) {
         prefs.edit().apply {
             putString("token", accessToken)
-            if (!refreshToken.isNullOrEmpty()) putString("refresh_token", refreshToken)
+            if (refreshToken.isNullOrEmpty()) remove("refresh_token")
+            else putString("refresh_token", refreshToken)
         }.apply()
         access.value = accessToken
     }
@@ -46,6 +59,7 @@ object TokenStore {
     @Synchronized
     fun clear() {
         epoch++
+        previousTokens.clear()
         prefs.edit().remove("token").remove("refresh_token").remove("anon_code").apply()
         access.value = ""
     }
@@ -78,18 +92,22 @@ object TokenStore {
      * null — обновить не удалось (сеть: оставляем как есть; отказ сервера: сессия кончилась).
      */
     fun refreshBlocking(failedToken: String): String? = synchronized(refreshLock) {
-        val current = access.value
-        if (current.isNotEmpty() && current != failedToken) return current
-        val rt = refresh
-        if (rt.isEmpty()) return null
-        val startEpoch = epoch
+        val (rt, startEpoch) = synchronized(this) {
+            val current = tokenForRequest(failedToken) ?: return null
+            if (current != failedToken) return current
+            val token = refresh
+            if (token.isEmpty()) return null
+            token to epoch
+        }
         try {
             val resp = ApiClient.authCalls.refresh(RefreshRequest(rt)).execute()
             val body = resp.body()
             when {
                 resp.isSuccessful && body != null && body.access_token.isNotEmpty() -> synchronized(this) {
                     if (epoch != startEpoch) return null   // пока обновляли, вышли из аккаунта
-                    save(body.access_token, body.refresh_token)
+                    previousTokens.addLast(failedToken)
+                    if (previousTokens.size > 8) previousTokens.removeFirst()
+                    store(body.access_token, body.refresh_token ?: rt)
                     body.access_token
                 }
                 resp.code() == 401 || resp.code() == 403 -> {

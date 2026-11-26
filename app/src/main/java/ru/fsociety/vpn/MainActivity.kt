@@ -236,7 +236,8 @@ fun App(context: android.content.Context) {
         AutoUpdateScheduler.apply(context)
         if (!prefs.getBoolean(PREF_AUTO_UPDATE, false)) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            UpdateManager.newestDownloadedApk(context)?.let { autoUpdateApk = it }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { UpdateManager.newestDownloadedApk(context) }
+                ?.let { autoUpdateApk = it }
             while (true) {
                 val anyNetwork = prefs.getString(PREF_AUTO_UPDATE_NET, AUTO_UPDATE_WIFI) == AUTO_UPDATE_ANY
                 val now = System.currentTimeMillis()

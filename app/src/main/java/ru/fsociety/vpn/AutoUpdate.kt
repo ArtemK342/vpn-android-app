@@ -65,8 +65,7 @@ class AutoUpdateWorker(context: Context, params: WorkerParameters) : CoroutineWo
             Log.i("AutoUpdate", "downloaded ${info.latestVersion}, install on next app launch (vpn=$vpnOn)")
             return Result.success()
         }
-        SilentInstaller.install(ctx, apk)
-        return Result.success()
+        return if (SilentInstaller.install(ctx, apk)) Result.success() else Result.retry()
     }
 }
 
@@ -74,6 +73,7 @@ object SilentInstaller {
     /** Тихая установка своего обновления (Android 12+). false — не поддерживается. */
     fun install(context: Context, apk: File): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+        var sessionId: Int? = null
         return try {
             val installer = context.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
@@ -81,19 +81,22 @@ object SilentInstaller {
                 setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }
             val id = installer.createSession(params)
+            sessionId = id
             installer.openSession(id).use { session ->
                 session.openWrite("base.apk", 0, apk.length()).use { out ->
                     apk.inputStream().use { it.copyTo(out) }
                     session.fsync(out)
                 }
                 val pending = PendingIntent.getBroadcast(
-                    context, id, Intent(context, InstallResultReceiver::class.java),
+                    context, id, Intent(context, InstallResultReceiver::class.java)
+                        .putExtra("update_apk", apk.name),
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                 )
                 session.commit(pending.intentSender)
             }
             true
         } catch (e: Exception) {
+            sessionId?.let { runCatching { context.packageManager.packageInstaller.abandonSession(it) } }
             AppErrors.log("silent install", e)
             false
         }
@@ -105,6 +108,11 @@ object SilentInstaller {
 class InstallResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+        if (status == PackageInstaller.STATUS_FAILURE_INVALID ||
+            status == PackageInstaller.STATUS_FAILURE_CONFLICT ||
+            status == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE) {
+            UpdateManager.discardDownloadedApk(context, intent.getStringExtra("update_apk"))
+        }
         val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
         Log.i("AutoUpdate", "silent install status=$status $msg")
     }

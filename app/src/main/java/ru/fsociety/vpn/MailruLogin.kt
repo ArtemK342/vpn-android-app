@@ -34,6 +34,12 @@ import ru.fsociety.vpn.ui.theme.*
  */
 private const val CLOUD = "https://cloud.mail.ru/"
 
+private fun mailruLoginUrlAllowed(uri: android.net.Uri): Boolean {
+    val host = uri.host?.lowercase(java.util.Locale.ROOT) ?: return false
+    return uri.scheme == "https" && (uri.port == -1 || uri.port == 443) &&
+        listOf("mail.ru", "vk.com", "vk.ru").any { host == it || host.endsWith(".$it") }
+}
+
 private fun grabSession(): String? {
     val raw = CookieManager.getInstance().getCookie(CLOUD) ?: return null
     return raw.takeIf { WhitelistLinks.isMailruSession(WhitelistLinks.parseCookies(it)) }
@@ -42,6 +48,7 @@ private fun grabSession(): String? {
 /** Выход: забыть сохранённые cookies и стереть cookies mail.ru из WebView. */
 fun mailruLogout(context: android.content.Context) {
     WhitelistLinks.saveMailruCookies(context, null)
+    ConnectionManager.clearMailruSession()
     val cm = CookieManager.getInstance()
     for (u in listOf(CLOUD, "https://mail.ru/", "https://auth.mail.ru/", "https://account.mail.ru/")) {
         val raw = cm.getCookie(u) ?: continue
@@ -86,22 +93,29 @@ fun MailruLoginDialog(onDismiss: () -> Unit, onLoggedIn: () -> Unit) {
                 // 2) всплывающие окна открываем дочерним WebView поверх основного.
                 val box = android.widget.FrameLayout(ctx)
                 val client = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView, request: android.webkit.WebResourceRequest
+                    ): Boolean = request.isForMainFrame && !mailruLoginUrlAllowed(request.url)
+
                     override fun onPageFinished(view: WebView?, url: String?) {
                         if (url != null && url.startsWith(CLOUD)) tryFinish(ctx)
                     }
                 }
                 fun setup(w: WebView) {
                     CookieManager.getInstance().setAcceptThirdPartyCookies(w, true)
+                    w.settings.allowFileAccess = false
+                    w.settings.allowContentAccess = false
                     w.settings.javaScriptEnabled = true
                     w.settings.domStorageEnabled = true
                     w.settings.setSupportMultipleWindows(true)
-                    w.settings.javaScriptCanOpenWindowsAutomatically = true
+                    w.settings.javaScriptCanOpenWindowsAutomatically = false
                     // часть форм входа не показывается в «WebView» — убираем пометку wv из User-Agent
                     w.settings.userAgentString = w.settings.userAgentString.replace("; wv", "")
                     w.webViewClient = client
                     w.webChromeClient = object : android.webkit.WebChromeClient() {
                         override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean,
                                                     resultMsg: android.os.Message?): Boolean {
+                            if (!isUserGesture || resultMsg?.obj !is WebView.WebViewTransport) return false
                             val child = WebView(ctx).also { setup(it) }
                             box.addView(child, android.widget.FrameLayout.LayoutParams(-1, -1))
                             (resultMsg?.obj as? WebView.WebViewTransport)?.webView = child
@@ -120,6 +134,13 @@ fun MailruLoginDialog(onDismiss: () -> Unit, onLoggedIn: () -> Unit) {
                 main.loadUrl("https://account.mail.ru/login?page=" +
                     java.net.URLEncoder.encode(CLOUD + "home/", "UTF-8"))
                 box
+            }, onRelease = { box ->
+                while (box.childCount > 0) {
+                    val web = box.getChildAt(0) as WebView
+                    box.removeViewAt(0)
+                    web.stopLoading()
+                    web.destroy()
+                }
             })
         }
     }

@@ -499,6 +499,7 @@ fun formatMsgTime(raw: String): String = try {
 fun TicketsTab(token: String, onBack: () -> Unit) {
     val errCtx = LocalContext.current
     // Сразу — сохранённый список (или «Тикетов нет»), свежий приходит следом
+    val isEnglish = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language == "en"
     var tickets by remember { mutableStateOf(ProfileCache.tickets(errCtx) ?: emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     // Список с сервера получен — дальше его изменения (создание, удаление, закрытие) сохраняются
@@ -579,8 +580,7 @@ fun TicketsTab(token: String, onBack: () -> Unit) {
                                 val detail = AppErrors.readBody(e)?.let {
                                     try { org.json.JSONObject(it).optString("detail") } catch (_: Exception) { null }
                                 }
-                                val isEn = errCtx.resources.configuration.locales[0].language == "en"
-                                limitText = detail?.takeIf { !isEn && it.isNotBlank() }
+                                limitText = detail?.takeIf { !isEnglish && it.isNotBlank() }
                                 showCreateDialog = false
                                 showLimitDialog = true
                             } else AppErrors.toast(errCtx, "create ticket", e)

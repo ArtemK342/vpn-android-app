@@ -64,6 +64,7 @@ object UpdateManager {
     private const val MIRROR = "https://fsociety-vpn.org/download/files/"
     private val http = okhttp3.OkHttpClient()
     private val downloadLock = Mutex()
+    private val releaseVersion = Regex("[0-9]+([.][0-9]+)+")
 
     private fun mirroredRelease(): GitHubRelease {
         val request = okhttp3.Request.Builder().url(MIRROR + "latest.json").build()
@@ -103,7 +104,8 @@ object UpdateManager {
                 }
             }
             val latestVersion = release.tag_name.trimStart('v')
-            val apkAsset = release.assets.first { it.name.endsWith(".apk") }
+            require(releaseVersion.matches(latestVersion))
+            val apkAsset = release.assets.first { it.name == "fsociety-net.apk" || it.name == "fsociety-net-$latestVersion.apk" }
             UpdateInfo(
                 currentVersion = currentVersion,
                 latestVersion = latestVersion,
@@ -122,8 +124,35 @@ object UpdateManager {
     private fun apkDir(context: Context) = File(context.cacheDir, "apk").apply { mkdirs() }
 
     /** Уже скачанный APK этой версии (полный — .part переименовывается только после загрузки). */
-    fun downloadedApk(context: Context, version: String): File? =
-        File(apkDir(context), "fsociety-$version.apk").takeIf { it.exists() && it.length() > 0 }
+    fun downloadedApk(context: Context, version: String): File? {
+        if (!releaseVersion.matches(version)) return null
+        val file = File(apkDir(context), "fsociety-$version.apk")
+        if (!file.isFile) return null
+        if (validApk(context, file, version)) return file
+        file.delete()
+        return null
+    }
+
+    @Suppress("DEPRECATION")
+    private fun validApk(context: Context, file: File, version: String): Boolean = runCatching {
+        val pm = context.packageManager
+        val flags = android.content.pm.PackageManager.GET_SIGNATURES
+        val archive = pm.getPackageArchiveInfo(file.path, flags) ?: return false
+        val installed = pm.getPackageInfo(context.packageName, flags)
+        val archiveSigners = archive.signatures.orEmpty().toSet()
+        archive.packageName == context.packageName && archive.versionName == version &&
+            androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(archive) >
+            androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(installed) &&
+            archiveSigners.isNotEmpty() && archiveSigners == installed.signatures.orEmpty().toSet()
+    }.getOrDefault(false)
+
+    fun discardDownloadedApk(context: Context, name: String?) {
+        val fileName = name ?: return
+        val version = fileName.removePrefix("fsociety-").removeSuffix(".apk")
+        if (releaseVersion.matches(version) && fileName == "fsociety-$version.apk") {
+            File(apkDir(context), fileName).delete()
+        }
+    }
 
     /** Скачанный ранее APK версии новее установленной (версия, файл) — предложить установить. */
     fun newestDownloadedApk(context: Context): Pair<String, File>? =
@@ -131,7 +160,7 @@ object UpdateManager {
             ?.mapNotNull { f ->
                 Regex("fsociety-(.+)\\.apk").matchEntire(f.name)?.groupValues?.get(1)?.let { it to f }
             }
-            ?.filter { (v, f) -> f.length() > 0 && isNewerVersion(v, BuildConfig.VERSION_NAME) }
+            ?.filter { (v, _) -> isNewerVersion(v, BuildConfig.VERSION_NAME) && downloadedApk(context, v) != null }
             ?.maxWithOrNull { a, b -> if (isNewerVersion(a.first, b.first)) 1 else if (isNewerVersion(b.first, a.first)) -1 else 0 }
 
     suspend fun download(
@@ -148,7 +177,7 @@ object UpdateManager {
     private fun downloadFile(context: Context, info: UpdateInfo, onProgress: (Int) -> Unit): File {
         val dir = apkDir(context)
         val target = File(dir, "fsociety-${info.latestVersion}.apk")
-        val part = File(dir, target.name + ".part")
+        val part = File(dir, target.name.removeSuffix(".apk") + ".part.apk")
         var downloaded = 0L
         okhttp3.OkHttpClient().newCall(
             okhttp3.Request.Builder().url(info.downloadUrl).build()
@@ -171,8 +200,12 @@ object UpdateManager {
         if (info.sizeBytes > 0 && downloaded != info.sizeBytes) {
             part.delete(); error("Скачано $downloaded из ${info.sizeBytes} байт")
         }
+        if (!validApk(context, part, info.latestVersion)) {
+            part.delete()
+            error("Неверный пакет, версия или подпись APK")
+        }
         // старые версии больше не нужны
-        dir.listFiles()?.filter { it.name.endsWith(".apk") && it != target }?.forEach { it.delete() }
+        dir.listFiles()?.filter { it.name.endsWith(".apk") && it != target && it != part }?.forEach { it.delete() }
         if (!part.renameTo(target)) error("Не удалось сохранить файл")
         onProgress(100)
         return target

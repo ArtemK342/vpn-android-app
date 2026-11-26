@@ -196,14 +196,16 @@ private fun formatted(text: String): AnnotatedString = buildAnnotatedString {
 fun NewsScreen() {
     val context = LocalContext.current
     val lang = remember { context.getSharedPreferences("fsociety", Context.MODE_PRIVATE).getString("language", "ru") ?: "ru" }
-    remember { NewsFeed.restore(context) }   // сохранённое — уже в первом кадре
     val items = NewsFeed.items
     val loading by NewsFeed.loading
     val error by NewsFeed.error
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) { NewsFeed.refresh(context) }
+    LaunchedEffect(context) {
+        NewsFeed.restore(context)
+        NewsFeed.refresh(context)
+    }
 
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().background(BgDark)) {
         item {

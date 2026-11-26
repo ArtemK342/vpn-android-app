@@ -104,6 +104,13 @@ object OpenfluxProcess {
         file.writeText(root.toString())
     }
 
+    fun clearCredentials(context: Context) {
+        stop()
+        val dir = File(context.filesDir, "openflux")
+        File(dir, "cookies.json").delete()
+        File(dir, "key").delete()
+    }
+
     fun stop() {
         val p = proc ?: return
         proc = null
