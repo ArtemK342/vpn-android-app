@@ -343,8 +343,8 @@
     <string name="logout_confirm_anon">You can sign in again only with this code — save it. The code cannot be recovered.</string>
     <!-- Split tunneling (RulesScreen.kt) -->
     <string name="rules_section">// RULES</string>
-    <string name="rules_title">Split reconnection</string>
-    <string name="rules_support">// Work with AmneziaWG, VLESS, Trojan and Hysteria2. Not applied to OpenVPN+Cloak and RF mode.</string>
+    <string name="rules_title">Split tunneling</string>
+    <string name="rules_support">// Works with AmneziaWG, VLESS and Trojan.</string>
     <string name="rules_apply_text">Rules changed — reconnect to apply them</string>
     <string name="rules_apply_btn">APPLY</string>
     <string name="rules_apps">Apps</string>
@@ -355,7 +355,6 @@
     <string name="rules_apps_exclude_n">VPN for all except apps: %d</string>
     <string name="rules_apps_include_n">VPN only for apps: %d</string>
     <string name="rules_list_empty">The list is empty — the rule is not active yet, everything goes through the VPN</string>
-    <string name="rules_footer">// “Everything except…” — the VPN is on everywhere, websites and apps from the list go directly.\n// “Only…” — only websites and apps from the list go through the VPN.\n// Websites and apps are set up separately; each mode keeps its own list.</string>
     <string name="rules_sites_title">Websites.</string>
     <string name="rules_sites_toggle">Website rules</string>
     <string name="rules_apps_title">Apps.</string>

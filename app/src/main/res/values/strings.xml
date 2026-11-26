@@ -344,8 +344,8 @@
     <string name="logout_confirm_anon">Войти снова можно только по этому коду — сохраните его. Восстановить код нельзя.</string>
     <!-- Раздельное туннелирование (RulesScreen.kt) -->
     <string name="rules_section">// ПРАВИЛА</string>
-    <string name="rules_title">Раздельное переподключение</string>
-    <string name="rules_support">// Работают для AmneziaWG, VLESS, Trojan и Hysteria2. Для OpenVPN+Cloak и «Режима РФ» не применяются.</string>
+    <string name="rules_title">Раздельное туннелирование</string>
+    <string name="rules_support">// Работает для AmneziaWG, VLESS и Trojan.</string>
     <string name="rules_apply_text">Правила изменились — переподключитесь, чтобы они заработали</string>
     <string name="rules_apply_btn">ПРИМЕНИТЬ</string>
     <string name="rules_apps">Приложения</string>
@@ -356,7 +356,6 @@
     <string name="rules_apps_exclude_n">Через VPN все, кроме приложений: %d</string>
     <string name="rules_apps_include_n">Через VPN только приложения: %d</string>
     <string name="rules_list_empty">Список пуст — правило пока не действует, через VPN идёт всё</string>
-    <string name="rules_footer">// «Всё, кроме…» — VPN включён везде, а сайты и приложения из списка идут напрямую.\n// «Только…» — через VPN идут только сайты и приложения из списка.\n// Сайты и приложения настраиваются независимо, у каждого режима свой список.</string>
     <string name="rules_sites_title">Сайты.</string>
     <string name="rules_sites_toggle">Правила для сайтов</string>
     <string name="rules_apps_title">Приложения.</string>

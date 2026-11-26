@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
@@ -983,6 +985,7 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
     BackHandler { onBack() }
     val ctx = LocalContext.current
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    var additionalExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var systemLockdown by remember { mutableStateOf<Boolean?>(null) }
     DisposableEffect(ctx, lifecycle) {
         var binder: KillSwitchService.StatusBinder? = null
@@ -1044,28 +1047,46 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                stringResource(R.string.ks_additional),
-                color = Accent,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(stringResource(R.string.killswitch_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                stringResource(when (systemLockdown) {
-                    true -> R.string.ks_system_active
-                    false -> R.string.ks_system_inactive
-                    null -> R.string.ks_system_unknown
-                }),
-                color = if (systemLockdown == true) Accent else TextMuted,
-                fontSize = 13.sp
-            )
-            TextButton(onClick = {
-                try { ctx.startActivity(Intent(AndroidSettings.ACTION_VPN_SETTINGS)) }
-                catch (e: Exception) { AppErrors.log("open vpn settings", e) }
-            }) { Text(stringResource(R.string.ks_android_settings), color = Accent, fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                        additionalExpanded = !additionalExpanded
+                    }
+                    .heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.ks_additional),
+                    color = Accent,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    if (additionalExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = Accent,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            if (additionalExpanded) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(stringResource(R.string.killswitch_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    stringResource(when (systemLockdown) {
+                        true -> R.string.ks_system_active
+                        false -> R.string.ks_system_inactive
+                        null -> R.string.ks_system_unknown
+                    }),
+                    color = if (systemLockdown == true) Accent else TextMuted,
+                    fontSize = 13.sp
+                )
+                TextButton(onClick = {
+                    try { ctx.startActivity(Intent(AndroidSettings.ACTION_VPN_SETTINGS)) }
+                    catch (e: Exception) { AppErrors.log("open vpn settings", e) }
+                }) { Text(stringResource(R.string.ks_android_settings), color = Accent, fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
+            }
             // Только DEV-сборка: настоящий обрыв (движок туннеля останавливается сам) — проверить Kill Switch
             if (BuildConfig.DEBUG) {
                 Spacer(modifier = Modifier.height(16.dp))

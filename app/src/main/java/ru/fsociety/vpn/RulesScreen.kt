@@ -197,12 +197,6 @@ fun RulesMainScreen(settings: SplitTunnelingSettings, onNavigate: (String) -> Un
             color = Warn, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            stringResource(R.string.rules_footer),
-            color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-            modifier = Modifier.padding(horizontal = 24.dp)
-        )
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
