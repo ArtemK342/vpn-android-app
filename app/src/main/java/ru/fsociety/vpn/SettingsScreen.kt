@@ -1044,6 +1044,13 @@ fun KillSwitchTab(killSwitch: Boolean, onKillSwitchChange: (Boolean) -> Unit, on
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                stringResource(R.string.ks_additional),
+                color = Accent,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+            Spacer(modifier = Modifier.height(12.dp))
             Text(stringResource(R.string.killswitch_note), color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(8.dp))
             Text(

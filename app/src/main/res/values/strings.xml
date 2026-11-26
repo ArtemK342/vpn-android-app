@@ -317,6 +317,7 @@
     <string name="ks_notif_title">Kill Switch: интернет заблокирован</string>
     <string name="ks_notif_text">VPN оборвался — трафик заблокирован до переподключения</string>
     <string name="ks_unblock">РАЗБЛОКИРОВАТЬ</string>
+    <string name="ks_additional">// Дополнительно</string>
     <string name="ks_android_settings">Настройки VPN Android →</string>
     <string name="reconnect_failed_killswitch">Не удалось переподключиться. Интернет заблокирован Kill Switch — подключитесь снова или нажмите «Разблокировать».</string>
     <string name="ks_unblock_internet">РАЗБЛОКИРОВАТЬ ИНТЕРНЕТ</string>

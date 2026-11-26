@@ -316,6 +316,7 @@
     <string name="ks_notif_title">Kill Switch: internet blocked</string>
     <string name="ks_notif_text">VPN dropped — traffic is blocked until reconnection</string>
     <string name="ks_unblock">UNBLOCK</string>
+    <string name="ks_additional">// Additional settings</string>
     <string name="ks_android_settings">Android VPN settings →</string>
     <string name="reconnect_failed_killswitch">Failed to reconnect. Internet is blocked by Kill Switch — connect again or tap “Unblock”.</string>
     <string name="ks_unblock_internet">UNBLOCK INTERNET</string>
