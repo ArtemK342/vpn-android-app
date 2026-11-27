@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FsocietyNet</string>
 
@@ -212,7 +212,7 @@
 
     <!-- Kill Switch tab -->
     <string name="killswitch_title">Kill Switch.</string>
-    <string name="killswitch_description">При обрыве рабочего туннеля приложение пытается заблокировать трафик до переподключения. Для защиты во время смены VPN-интерфейса и при остановке приложения включите в Android «Постоянная VPN» и «Блокировать соединения без VPN».</string>
+    <string name="killswitch_description">При обрыве рабочего туннеля приложение пытается заблокировать трафик до переподключения.</string>
     <string name="killswitch_switch_enabled">Включён</string>
     <string name="killswitch_switch_disabled">Выключен</string>
     <string name="killswitch_note">// Если подключение оборвётся, интернет будет заблокирован, пока приложение не переподключится или вы не нажмёте «Разблокировать».
@@ -345,7 +345,7 @@
     <!-- Раздельное туннелирование (RulesScreen.kt) -->
     <string name="rules_section">// ПРАВИЛА</string>
     <string name="rules_title">Раздельное туннелирование</string>
-    <string name="rules_support">// Работает для AmneziaWG, VLESS и Trojan.</string>
+    <string name="rules_support">// Работают для AmneziaWG, VLESS, Trojan и Hysteria2. Для OpenVPN+Cloak и «Режима РФ» не применяются.</string>
     <string name="rules_apply_text">Правила изменились — переподключитесь, чтобы они заработали</string>
     <string name="rules_apply_btn">ПРИМЕНИТЬ</string>
     <string name="rules_apps">Приложения</string>

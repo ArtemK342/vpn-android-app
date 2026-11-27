@@ -212,7 +212,7 @@
 
     <!-- Kill Switch tab -->
     <string name="killswitch_title">Kill Switch.</string>
-    <string name="killswitch_description">If a working tunnel drops, the app attempts to block traffic until reconnection. For protection during VPN interface changes and when the app stops, enable Always-on VPN and Block connections without VPN in Android settings.</string>
+    <string name="killswitch_description">If a working tunnel drops, the app attempts to block traffic until reconnection.</string>
     <string name="killswitch_switch_enabled">Enabled</string>
     <string name="killswitch_switch_disabled">Disabled</string>
     <string name="killswitch_note">// If the connection drops, internet is blocked until the app reconnects or you tap “Unblock”.
@@ -344,7 +344,7 @@
     <!-- Split tunneling (RulesScreen.kt) -->
     <string name="rules_section">// RULES</string>
     <string name="rules_title">Split tunneling</string>
-    <string name="rules_support">// Works with AmneziaWG, VLESS and Trojan.</string>
+    <string name="rules_support">// Work with AmneziaWG, VLESS, Trojan and Hysteria2. Not applied to OpenVPN+Cloak and RF mode.</string>
     <string name="rules_apply_text">Rules changed — reconnect to apply them</string>
     <string name="rules_apply_btn">APPLY</string>
     <string name="rules_apps">Apps</string>
